@@ -1,5 +1,3 @@
-using System;
-
 namespace PhotoMap.Api.Database.Entities
 {
     public class User

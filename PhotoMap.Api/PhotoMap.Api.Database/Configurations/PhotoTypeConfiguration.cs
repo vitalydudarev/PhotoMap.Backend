@@ -24,10 +24,7 @@ namespace PhotoMap.Api.Database.Configurations
             builder.Property(a => a.AddedOn);
             builder.ToTable("Photos");
             
-            builder
-                .HasOne(a => a.User)
-                .WithMany()
-                .HasForeignKey(a => a.UserId);
+            builder.HasOne(a => a.User).WithMany().HasForeignKey(a => a.UserId);
         }
     }
 }

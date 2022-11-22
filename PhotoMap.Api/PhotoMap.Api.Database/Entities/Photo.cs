@@ -1,6 +1,3 @@
-using System;
-using System.ComponentModel.DataAnnotations.Schema;
-
 namespace PhotoMap.Api.Database.Entities
 {
     public class Photo
