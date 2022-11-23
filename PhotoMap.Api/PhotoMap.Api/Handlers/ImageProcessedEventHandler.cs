@@ -41,7 +41,7 @@ namespace PhotoMap.Api.Handlers
                     await storageService.DeleteFileAsync(thumbSmall);
                     await storageService.DeleteFileAsync(thumbLarge);
 
-                    _logger.LogInformation($"File {imageProcessedEvent.FileName} already exists.");
+                    _logger.LogInformation("File {FileName} already exists", imageProcessedEvent.FileName);
 
                     return;
                 }

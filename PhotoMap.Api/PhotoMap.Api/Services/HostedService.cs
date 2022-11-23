@@ -17,16 +17,16 @@ namespace PhotoMap.Api.Services
             _logger = logger;
         }
 
-        public override Task StartAsync(CancellationToken stoppingToken)
+        public override Task StartAsync(CancellationToken cancellationToken)
         {
-            _logger.LogInformation("Hosted Service running.");
+            _logger.LogInformation("Hosted Service running");
 
-            return base.StartAsync(stoppingToken);
+            return base.StartAsync(cancellationToken);
         }
 
-        public override async Task StopAsync(CancellationToken stoppingToken)
+        public override async Task StopAsync(CancellationToken cancellationToken)
         {
-            await base.StopAsync(stoppingToken);
+            await base.StopAsync(cancellationToken);
         }
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
