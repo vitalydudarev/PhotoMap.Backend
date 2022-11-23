@@ -1,3 +1,4 @@
+using System;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
@@ -6,6 +7,8 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using Microsoft.OpenApi.Models;
 using PhotoMap.Api.Database;
+using PhotoMap.Api.Database.Repositories;
+using PhotoMap.Api.Domain.Repositories;
 using PhotoMap.Api.Handlers;
 using PhotoMap.Api.Hubs;
 using PhotoMap.Api.Middlewares;
@@ -77,6 +80,10 @@ namespace PhotoMap.Api
             services.AddScoped<HostInfo>();
             services.AddScoped<IFileProvider, LocalFileProvider>();
             services.AddSingleton<IConvertedImageHolder, ConvertedImageHolder>();
+
+            services.AddScoped<IPhotoRepository, PhotoRepository>();
+            
+            services.AddAutoMapper(AppDomain.CurrentDomain.GetAssemblies());
 
             services.AddDbContext<PhotoMapContext>();
 
