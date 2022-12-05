@@ -1,6 +1,8 @@
+using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using PhotoMap.Api.Domain.Services;
 using PhotoMap.Api.DTOs;
 using PhotoMap.Api.Services.Interfaces;
 
@@ -12,11 +14,13 @@ namespace PhotoMap.Api.Controllers
     {
         private readonly IPhotoService _photoService;
         private readonly IUserService _dbUserService;
+        private readonly HostInfo _hostInfo;
 
-        public UsersController(IPhotoService photoService, IUserService dbUserService)
+        public UsersController(IPhotoService photoService, IUserService dbUserService, HostInfo hostInfo)
         {
             _photoService = photoService;
             _dbUserService = dbUserService;
+            _hostInfo = hostInfo;
         }
 
         [HttpPost]
@@ -54,7 +58,32 @@ namespace PhotoMap.Api.Controllers
         public async Task<IActionResult> GetUserPhotos([FromRoute] int id, [FromQuery] int top, [FromQuery] int skip)
         {
             var userPhotos = await _photoService.GetByUserIdAsync(id, top, skip);
-            return Ok(userPhotos);
+            
+            static string Source(string s) =>
+                s switch
+                {
+                    "Yandex.Disk" => "yandex-disk",
+                    "Dropbox" => "dropbox",
+                    _ => s
+                };
+            
+            var url = _hostInfo.GetUrl() + "api";
+
+            var values = userPhotos.Values.Select(a => new PhotoDto
+            {
+                DateTimeTaken = a.DateTimeTaken.UtcDateTime,
+                FileName = a.FileName,
+                Id = a.Id,
+                Latitude = a.Latitude,
+                Longitude = a.Longitude,
+                PhotoUrl = $"{url}/{Source(a.Source)}/photos/" + a.Id,
+                ThumbnailLargeUrl = $"{url}/photos/" + a.ThumbnailLargeFileId,
+                ThumbnailSmallUrl = $"{url}/photos/" + a.ThumbnailSmallFileId
+            }).ToArray();
+
+            var response = new PagedResponse<PhotoDto> { Values = values, Limit = top, Offset = skip, Total = userPhotos.TotalCount };
+            
+            return Ok(response);
         }
     }
 }

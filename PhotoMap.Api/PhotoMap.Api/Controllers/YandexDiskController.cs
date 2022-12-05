@@ -4,6 +4,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using PhotoMap.Api.Domain.Services;
 using PhotoMap.Api.Services.Interfaces;
 using PhotoMap.Messaging.MessageSender;
 using Yandex.Disk.Api.Client;

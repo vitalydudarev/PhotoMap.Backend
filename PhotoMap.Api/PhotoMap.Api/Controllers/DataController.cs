@@ -1,5 +1,6 @@
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
+using PhotoMap.Api.Domain.Services;
 using PhotoMap.Api.Services.Interfaces;
 
 namespace PhotoMap.Api.Controllers

@@ -19,6 +19,7 @@
 
     <ItemGroup>
       <ProjectReference Include="..\PhotoMap.Api.Database\PhotoMap.Api.Database.csproj" />
+      <ProjectReference Include="..\PhotoMap.Api.Services\PhotoMap.Api.Services.csproj" />
     </ItemGroup>
 
 </Project>
