@@ -2,13 +2,12 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
-using PhotoMap.Api.DTOs;
+using PhotoMap.Api.Domain.Services;
 using PhotoMap.Api.Hubs;
-using PhotoMap.Api.Services.Interfaces;
 using PhotoMap.Messaging.Events;
 using DropboxUserIdentifier = PhotoMap.Api.Models.DropboxUserIdentifier;
 using Notification = PhotoMap.Api.Commands.Notification;
-using ProcessingStatus = PhotoMap.Api.Database.Entities.ProcessingStatus;
+using ProcessingStatus = PhotoMap.Api.Domain.Models.ProcessingStatus;
 using YandexDiskUserIdentifier = PhotoMap.Api.Models.YandexDiskUserIdentifier;
 
 namespace PhotoMap.Api.Handlers
@@ -42,21 +41,21 @@ namespace PhotoMap.Api.Handlers
 
                 if (notification.UserIdentifier is YandexDiskUserIdentifier)
                 {
-                    var updateUserDto = new UpdateUserDto { YandexDiskStatus = status };
-
-                    await userService.UpdateAsync(userId, updateUserDto);
+                    await userService.UpdateAsync(userId, null, null, status, null, null, null);
 
                     if (notification.HasError)
+                    {
                         await _yandexDiskHub.SendErrorAsync(userId, notification.Message);
+                    }
                 }
                 else if (notification.UserIdentifier is DropboxUserIdentifier)
                 {
-                    var updateUserDto = new UpdateUserDto { DropboxStatus = status };
-
-                    await userService.UpdateAsync(userId, updateUserDto);
+                    await userService.UpdateAsync(userId, null, null, null, null, null, status);
 
                     if (notification.HasError)
+                    {
                         await _dropboxHub.SendErrorAsync(userId, notification.Message);
+                    }
                 }
             }
         }

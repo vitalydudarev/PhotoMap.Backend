@@ -43,7 +43,7 @@ namespace PhotoMap.Api.Controllers
             var startProcessingCommand = new StartProcessingEvent
             {
                 UserIdentifier = new DropboxUserIdentifier { UserId = user.Id },
-                Token = user.DropboxAccessToken
+                Token = user.DropboxToken
             };
 
             _messageSender.Send(startProcessingCommand);
@@ -76,7 +76,7 @@ namespace PhotoMap.Api.Controllers
             var httpClient = new HttpClient();
 
             var config = new DropboxClientConfig("PhotoMap") { HttpClient = httpClient };
-            var dropboxClient = new DropboxClient(user.DropboxAccessToken, config);
+            var dropboxClient = new DropboxClient(user.DropboxToken, config);
 
             var fileMetadata = await dropboxClient.Files.DownloadAsync(photo.Path);
             var fileContents = await fileMetadata.GetContentAsByteArrayAsync();

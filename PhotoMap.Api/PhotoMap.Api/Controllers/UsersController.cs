@@ -4,7 +4,6 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using PhotoMap.Api.Domain.Services;
 using PhotoMap.Api.DTOs;
-using PhotoMap.Api.Services.Interfaces;
 
 namespace PhotoMap.Api.Controllers
 {
@@ -27,7 +26,7 @@ namespace PhotoMap.Api.Controllers
         [ProducesResponseType(StatusCodes.Status200OK)]
         public async Task<IActionResult> AddUserAsync([FromBody] AddUserDto addUserDto)
         {
-            await _dbUserService.AddAsync(addUserDto);
+            await _dbUserService.AddAsync(addUserDto.Name);
 
             return Ok();
         }
@@ -36,7 +35,9 @@ namespace PhotoMap.Api.Controllers
         [ProducesResponseType(StatusCodes.Status200OK)]
         public async Task<IActionResult> UpdateUserAsync(int id, [FromBody] UpdateUserDto updateUserDto)
         {
-            await _dbUserService.UpdateAsync(id, updateUserDto);
+            await _dbUserService.UpdateAsync(id, updateUserDto.YandexDiskToken, updateUserDto.YandexDiskTokenExpiresIn,
+                updateUserDto.YandexDiskStatus, updateUserDto.DropboxToken, updateUserDto.DropboxTokenExpiresIn,
+                updateUserDto.DropboxStatus);
 
             return Ok();
         }

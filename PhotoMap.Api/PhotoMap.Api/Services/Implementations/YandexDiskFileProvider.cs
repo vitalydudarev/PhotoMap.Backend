@@ -2,6 +2,7 @@ using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Options;
+using PhotoMap.Api.Domain.Services;
 using PhotoMap.Api.Services.Interfaces;
 using PhotoMap.Api.Settings;
 using Yandex.Disk.Api.Client;
@@ -35,7 +36,7 @@ namespace PhotoMap.Api.Services.Implementations
 
             var user = await _userService.GetAsync(_userInfo.UserId);
 
-            var yandexDiskApiClient = new ApiClient(user.YandexDiskAccessToken, HttpClient);
+            var yandexDiskApiClient = new ApiClient(user.YandexDiskToken, HttpClient);
             var downloadUrl = await yandexDiskApiClient.GetDownloadUrlAsync(_settings.Folder + fileInfo.FileName, new CancellationToken());
 
             return await HttpClient.GetByteArrayAsync(downloadUrl.Href);

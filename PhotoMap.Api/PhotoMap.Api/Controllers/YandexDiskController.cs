@@ -44,7 +44,7 @@ namespace PhotoMap.Api.Controllers
             var startProcessingCommand = new StartProcessingEvent
             {
                 UserIdentifier = new YandexDiskUserIdentifier { UserId = user.Id },
-                Token = user.YandexDiskAccessToken
+                Token = user.YandexDiskToken
             };
 
             _messageSender.Send(startProcessingCommand);
@@ -75,7 +75,7 @@ namespace PhotoMap.Api.Controllers
             var user = await _userService.GetAsync(photo.UserId);
 
             var httpClient = new HttpClient();
-            var yandexDiskApiClient = new ApiClient(user.YandexDiskAccessToken, httpClient);
+            var yandexDiskApiClient = new ApiClient(user.YandexDiskToken, httpClient);
             var downloadUrl = await yandexDiskApiClient.GetDownloadUrlAsync(photo.Path, new CancellationToken());
 
             var bytes = await httpClient.GetByteArrayAsync(downloadUrl.Href);
