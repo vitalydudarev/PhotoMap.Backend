@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using PhotoMap.Api.Database.Configurations;
 using PhotoMap.Api.Database.Entities;
+using File = PhotoMap.Api.Database.Entities.File;
 
 namespace PhotoMap.Api.Database
 {
@@ -11,6 +12,7 @@ namespace PhotoMap.Api.Database
 
         public DbSet<User> Users { get; set; }
         public DbSet<Photo> Photos { get; set; }
+        public DbSet<File> Files { get; set; }
 
         public PhotoMapContext(IConfiguration configuration, DbContextOptions<PhotoMapContext> options)
             : base(options)
@@ -22,6 +24,7 @@ namespace PhotoMap.Api.Database
         {
             modelBuilder.ApplyConfiguration(new UserTypeConfiguration());
             modelBuilder.ApplyConfiguration(new PhotoTypeConfiguration());
+            modelBuilder.ApplyConfiguration(new FileTypeConfiguration());
         }
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)

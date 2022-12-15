@@ -8,5 +8,6 @@ public class ModelEntityMappingProfile : Profile
     {
         CreateMap<Domain.Models.Photo, Database.Entities.Photo>().ReverseMap();
         CreateMap<Domain.Models.User, Database.Entities.User>().ReverseMap();
+        CreateMap<Domain.Models.File, Database.Entities.File>().ReverseMap();
     }
 }

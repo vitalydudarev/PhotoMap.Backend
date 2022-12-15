@@ -8,6 +8,7 @@ using Microsoft.Extensions.Options;
 using Microsoft.OpenApi.Models;
 using PhotoMap.Api.Database;
 using PhotoMap.Api.Database.Repositories;
+using PhotoMap.Api.Domain.Models;
 using PhotoMap.Api.Domain.Repositories;
 using PhotoMap.Api.Domain.Services;
 using PhotoMap.Api.Handlers;
@@ -40,6 +41,7 @@ namespace PhotoMap.Api
         public void ConfigureServices(IServiceCollection services)
         {
             services.AddControllers();
+            services.Configure<FileStorageSettings>(Configuration.GetSection("FileStorage"));
             services.Configure<RabbitMqSettings>(Configuration.GetSection("RabbitMQ"));
             services.Configure<StorageServiceSettings>(Configuration.GetSection("Storage"));
             services.Configure<YandexDiskFileProviderSettings>(Configuration.GetSection("YandexDiskFileProvider"));
@@ -65,6 +67,13 @@ namespace PhotoMap.Api
 
             services.AddScoped<IPhotoService, PhotoService>();
             services.AddScoped<IUserService, UserService>();
+            services.AddScoped<IFileService, FileService>();
+            services.AddScoped<IFileStorage, FileStorage>(provider =>
+            {
+                var settings = provider.GetRequiredService<IOptions<FileStorageSettings>>().Value;
+                
+                return new FileStorage(settings);
+            });
 
             services.AddHostedService<HostedService>();
 
@@ -84,6 +93,8 @@ namespace PhotoMap.Api
             services.AddSingleton<IConvertedImageHolder, ConvertedImageHolder>();
 
             services.AddScoped<IPhotoRepository, PhotoRepository>();
+            services.AddScoped<IUserRepository, UserRepository>();
+            services.AddScoped<IFileRepository, FileRepository>();
             
             services.AddAutoMapper(AppDomain.CurrentDomain.GetAssemblies());
 
