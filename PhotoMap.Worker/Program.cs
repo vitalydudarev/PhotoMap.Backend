@@ -1,9 +1,9 @@
 using Microsoft.Extensions.Options;
-using PhotoMap.Messaging;
-using PhotoMap.Messaging.EventHandler;
-using PhotoMap.Messaging.EventHandlerManager;
-using PhotoMap.Messaging.MessageListener;
-using PhotoMap.Messaging.MessageSender;
+using PhotoMap.Shared;
+using PhotoMap.Shared.Messaging.EventHandler;
+using PhotoMap.Shared.Messaging.EventHandlerManager;
+using PhotoMap.Shared.Messaging.MessageListener;
+using PhotoMap.Shared.Messaging.MessageSender;
 using PhotoMap.Worker;
 using PhotoMap.Worker.Handlers;
 using PhotoMap.Worker.Services;

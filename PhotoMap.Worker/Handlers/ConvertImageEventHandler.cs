@@ -1,12 +1,12 @@
-using PhotoMap.Messaging.Events;
-using PhotoMap.Messaging.MessageSender;
+using PhotoMap.Shared.Messaging.Events;
+using PhotoMap.Shared.Messaging.MessageSender;
 using PhotoMap.Worker.Services.Implementations;
 using ConvertImageEvent = PhotoMap.Worker.Commands.ConvertImageEvent;
 using ImageConverted = PhotoMap.Worker.Commands.ImageConverted;
 
 namespace PhotoMap.Worker.Handlers
 {
-    public class ConvertImageEventHandler : Messaging.EventHandler.EventHandler<ConvertImageEvent>
+    public class ConvertImageEventHandler : PhotoMap.Shared.Messaging.EventHandler.EventHandler<ConvertImageEvent>
     {
         private readonly ILogger<ConvertImageEventHandler> _logger;
         private readonly IMessageSender2 _messageSender;

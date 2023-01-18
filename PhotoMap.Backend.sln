@@ -14,6 +14,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "PhotoMap.Worker", "PhotoMap
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PhotoMap.Worker", "PhotoMap.Worker\PhotoMap.Worker.csproj", "{D58EBC9E-2439-48DD-BAA7-F8FA4E2B450B}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PhotoMap.Shared", "PhotoMap.Shared\PhotoMap.Shared.csproj", "{3D07B5E7-91F0-4EDF-8A0D-1A763989ACBA}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -40,6 +42,10 @@ Global
 		{D58EBC9E-2439-48DD-BAA7-F8FA4E2B450B}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{D58EBC9E-2439-48DD-BAA7-F8FA4E2B450B}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{D58EBC9E-2439-48DD-BAA7-F8FA4E2B450B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3D07B5E7-91F0-4EDF-8A0D-1A763989ACBA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3D07B5E7-91F0-4EDF-8A0D-1A763989ACBA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3D07B5E7-91F0-4EDF-8A0D-1A763989ACBA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3D07B5E7-91F0-4EDF-8A0D-1A763989ACBA}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{AED9EF3E-7042-40EB-90F0-870F0802AD08} = {BE5EAC8E-2CA2-4F95-99E6-5E69E52FA9D3}

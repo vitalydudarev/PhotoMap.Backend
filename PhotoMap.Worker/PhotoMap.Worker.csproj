@@ -10,9 +10,12 @@
       <PackageReference Include="Dropbox.Api" Version="6.36.0" />
       <PackageReference Include="Magick.NET-Q16-x64" Version="12.2.2" />
       <PackageReference Include="MetadataExtractor" Version="2.7.2" />
-      <PackageReference Include="PhotoMap.Messaging" Version="1.1.0" />
       <PackageReference Include="SkiaSharp" Version="2.88.3" />
       <PackageReference Include="Yandex.Disk.Api.Client" Version="1.0.0" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\PhotoMap.Shared\PhotoMap.Shared.csproj" />
     </ItemGroup>
 
 </Project>

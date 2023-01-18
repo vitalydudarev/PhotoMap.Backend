@@ -1,5 +1,5 @@
-using PhotoMap.Messaging.Events;
-using PhotoMap.Messaging.MessageSender;
+using PhotoMap.Shared.Messaging.Events;
+using PhotoMap.Shared.Messaging.MessageSender;
 using PhotoMap.Worker.Models;
 using PhotoMap.Worker.Services.Definitions;
 using DropboxUserIdentifier = PhotoMap.Worker.Models.DropboxUserIdentifier;
@@ -12,7 +12,7 @@ using YandexDiskUserIdentifier = PhotoMap.Worker.Models.YandexDiskUserIdentifier
 
 namespace PhotoMap.Worker.Handlers
 {
-    public class StartProcessingEventHandler : Messaging.EventHandler.EventHandler<StartProcessingEvent>
+    public class StartProcessingEventHandler : PhotoMap.Shared.Messaging.EventHandler.EventHandler<StartProcessingEvent>
     {
         private readonly IServiceScopeFactory _serviceScopeFactory;
         private readonly ILogger<StartProcessingEventHandler> _logger;
