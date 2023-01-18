@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 using PhotoMap.Api.Domain.Services;
 using PhotoMap.Api.Hubs;
-using PhotoMap.Messaging.Events;
+using PhotoMap.Shared.Messaging.Events;
 using DropboxUserIdentifier = PhotoMap.Api.Models.DropboxUserIdentifier;
 using Notification = PhotoMap.Api.Commands.Notification;
 using ProcessingStatus = PhotoMap.Api.Domain.Models.ProcessingStatus;
@@ -12,7 +12,7 @@ using YandexDiskUserIdentifier = PhotoMap.Api.Models.YandexDiskUserIdentifier;
 
 namespace PhotoMap.Api.Handlers
 {
-    public class NotificationHandler : Messaging.EventHandler.EventHandler<Notification>
+    public class NotificationHandler : PhotoMap.Shared.Messaging.EventHandler.EventHandler<Notification>
     {
         private readonly YandexDiskHub _yandexDiskHub;
         private readonly DropboxHub _dropboxHub;

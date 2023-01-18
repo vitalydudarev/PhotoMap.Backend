@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using PhotoMap.Api.Domain.Services;
 using PhotoMap.Api.Services.Interfaces;
-using PhotoMap.Messaging.MessageSender;
+using PhotoMap.Shared.Messaging.MessageSender;
 using ConvertImageEvent = PhotoMap.Api.Commands.ConvertImageEvent;
 using DropboxUserIdentifier = PhotoMap.Api.Models.DropboxUserIdentifier;
 using PauseProcessingEvent = PhotoMap.Api.Commands.PauseProcessingEvent;

@@ -19,11 +19,11 @@ using PhotoMap.Api.Services.Implementations;
 using PhotoMap.Api.Services.Interfaces;
 using PhotoMap.Api.Services.Services;
 using PhotoMap.Api.Settings;
-using PhotoMap.Messaging;
-using PhotoMap.Messaging.EventHandler;
-using PhotoMap.Messaging.EventHandlerManager;
-using PhotoMap.Messaging.MessageListener;
-using PhotoMap.Messaging.MessageSender;
+using PhotoMap.Shared;
+using PhotoMap.Shared.Messaging.EventHandler;
+using PhotoMap.Shared.Messaging.EventHandlerManager;
+using PhotoMap.Shared.Messaging.MessageListener;
+using PhotoMap.Shared.Messaging.MessageSender;
 using Serilog;
 
 namespace PhotoMap.Api

@@ -1,8 +1,8 @@
 using System.Threading;
 using System.Threading.Tasks;
 using PhotoMap.Api.Hubs;
-using PhotoMap.Messaging.EventHandler;
-using PhotoMap.Messaging.Events;
+using PhotoMap.Shared.Messaging.EventHandler;
+using PhotoMap.Shared.Messaging.Events;
 using DropboxUserIdentifier = PhotoMap.Api.Models.DropboxUserIdentifier;
 using ProgressMessage = PhotoMap.Api.Commands.ProgressMessage;
 using YandexDiskUserIdentifier = PhotoMap.Api.Models.YandexDiskUserIdentifier;

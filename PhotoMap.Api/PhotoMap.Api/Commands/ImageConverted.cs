@@ -1,5 +1,5 @@
 using System;
-using PhotoMap.Messaging.Events;
+using PhotoMap.Shared.Messaging.Events;
 
 namespace PhotoMap.Api.Commands
 {

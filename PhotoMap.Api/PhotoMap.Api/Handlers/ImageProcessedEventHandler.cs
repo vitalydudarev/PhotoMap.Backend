@@ -8,12 +8,12 @@ using Newtonsoft.Json;
 using PhotoMap.Api.Domain.Models;
 using PhotoMap.Api.Domain.Services;
 using PhotoMap.Api.Services.Interfaces;
-using PhotoMap.Messaging.Events;
+using PhotoMap.Shared.Messaging.Events;
 using ImageProcessedEvent = PhotoMap.Api.Commands.ImageProcessedEvent;
 
 namespace PhotoMap.Api.Handlers
 {
-    public class ImageProcessedEventHandler : Messaging.EventHandler.EventHandler<ImageProcessedEvent>
+    public class ImageProcessedEventHandler : PhotoMap.Shared.Messaging.EventHandler.EventHandler<ImageProcessedEvent>
     {
         private readonly IServiceScopeFactory _serviceScopeFactory;
         private readonly ILogger<ImageProcessedEventHandler> _logger;

@@ -2,7 +2,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using PhotoMap.Messaging.MessageListener;
+using PhotoMap.Shared.Messaging.MessageListener;
 
 namespace PhotoMap.Api.Services
 {
