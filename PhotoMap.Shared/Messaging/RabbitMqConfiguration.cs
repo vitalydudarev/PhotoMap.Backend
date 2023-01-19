@@ -1,4 +1,4 @@
-namespace PhotoMap.Shared;
+namespace PhotoMap.Shared.Messaging;
 
 public class RabbitMqConfiguration
 {

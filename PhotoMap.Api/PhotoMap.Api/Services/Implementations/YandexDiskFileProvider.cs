@@ -5,7 +5,7 @@ using Microsoft.Extensions.Options;
 using PhotoMap.Api.Domain.Services;
 using PhotoMap.Api.Services.Interfaces;
 using PhotoMap.Api.Settings;
-using Yandex.Disk.Api.Client;
+using PhotoMap.Shared.Yandex.Disk;
 
 namespace PhotoMap.Api.Services.Implementations
 {

@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Options;
 using PhotoMap.Shared;
+using PhotoMap.Shared.Messaging;
 using PhotoMap.Shared.Messaging.EventHandler;
 using PhotoMap.Shared.Messaging.EventHandlerManager;
 using PhotoMap.Shared.Messaging.MessageListener;

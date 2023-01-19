@@ -1,8 +1,8 @@
 using System.Runtime.CompilerServices;
+using PhotoMap.Shared.Yandex.Disk;
+using PhotoMap.Shared.Yandex.Disk.Models;
 using PhotoMap.Worker.Models;
 using PhotoMap.Worker.Services.Definitions;
-using Yandex.Disk.Api.Client;
-using Yandex.Disk.Api.Client.Models;
 using IUserIdentifier = PhotoMap.Worker.Models.IUserIdentifier;
 
 namespace PhotoMap.Worker.Services.Implementations

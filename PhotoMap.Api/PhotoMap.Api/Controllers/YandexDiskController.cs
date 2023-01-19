@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 using PhotoMap.Api.Domain.Services;
 using PhotoMap.Api.Services.Interfaces;
 using PhotoMap.Shared.Messaging.MessageSender;
-using Yandex.Disk.Api.Client;
+using PhotoMap.Shared.Yandex.Disk;
 using ConvertImageEvent = PhotoMap.Api.Commands.ConvertImageEvent;
 using PauseProcessingEvent = PhotoMap.Api.Commands.PauseProcessingEvent;
 using StartProcessingEvent = PhotoMap.Api.Commands.StartProcessingEvent;
