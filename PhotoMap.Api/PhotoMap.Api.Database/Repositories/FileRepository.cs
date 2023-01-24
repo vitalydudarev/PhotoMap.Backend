@@ -1,4 +1,3 @@
-using AutoMapper;
 using Microsoft.EntityFrameworkCore;
 using PhotoMap.Api.Domain.Repositories;
 
@@ -7,43 +6,40 @@ namespace PhotoMap.Api.Database.Repositories;
 public class FileRepository : IFileRepository
 {
     private readonly PhotoMapContext _context;
-    private readonly IMapper _mapper;
 
-    public FileRepository(PhotoMapContext context, IMapper mapper)
+    public FileRepository(PhotoMapContext context)
     {
         _context = context;
-        _mapper = mapper;
     }
 
     public async Task<Domain.Models.File> AddAsync(Domain.Models.File incomingFile)
     {
-        var dbEntry = _mapper.Map<Entities.File>(incomingFile);
-        var entityEntry = await _context.Files.AddAsync(dbEntry);
+        var entityEntry = await _context.Files.AddAsync(incomingFile);
 
         await _context.SaveChangesAsync();
 
-        return _mapper.Map<Domain.Models.File>(entityEntry.Entity);
+        return entityEntry.Entity;
     }
 
     public async Task<Domain.Models.File> GetAsync(long fileId)
     {
         var dbEntry = await _context.Files.FindAsync(fileId);
         
-        return _mapper.Map<Domain.Models.File>(dbEntry);
+        return dbEntry;
     }
 
     public async Task<Domain.Models.File> GetByFileNameAsync(string fileName)
     {
         var dbEntry = await _context.Files.FirstOrDefaultAsync(a => a.FileName == fileName);
         
-        return _mapper.Map<Domain.Models.File>(dbEntry);
+        return dbEntry;
     }
 
     public async Task<IEnumerable<Domain.Models.File>> GetAllAsync()
     {
         var dbEntries = await _context.Files.ToListAsync();
         
-        return _mapper.Map<List<Domain.Models.File>>(dbEntries);
+        return dbEntries;
     }
 
     public async Task DeleteAsync(long fileId)

@@ -20,9 +20,9 @@ namespace PhotoMap.Api.Middlewares
             {
                 await _next(context);
             }
-            catch (Exception exceptionObj)
+            catch (Exception ex)
             {
-                await HandleExceptionAsync(context, exceptionObj);
+                await HandleExceptionAsync(context, ex);
             }
         }
 

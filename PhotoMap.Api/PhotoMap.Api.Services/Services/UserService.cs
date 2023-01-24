@@ -37,12 +37,12 @@ namespace PhotoMap.Api.Services.Services
             {
                 if (!string.IsNullOrEmpty(yandexDiskToken))
                 {
-                    user.YandexDiskToken = yandexDiskToken;
+                    user.YandexDiskAccessToken = yandexDiskToken;
                 }
 
                 if (yandexDiskTokenExpiresIn.HasValue)
                 {
-                    user.YandexDiskTokenExpiresOn =
+                    user.YandexDiskAccessTokenExpiresOn =
                         DateTimeOffset.UtcNow.AddSeconds(yandexDiskTokenExpiresIn.Value);
                 }
 
@@ -53,9 +53,9 @@ namespace PhotoMap.Api.Services.Services
 
                 if (!string.IsNullOrEmpty(dropboxToken))
                 {
-                    user.DropboxToken = dropboxToken;
+                    user.DropboxAccessToken = dropboxToken;
 
-                    user.DropboxTokenExpiresOn = dropboxTokenExpiresIn.HasValue
+                    user.DropboxAccessTokenExpiresOn = dropboxTokenExpiresIn.HasValue
                         ? DateTimeOffset.UtcNow.AddSeconds(dropboxTokenExpiresIn.Value)
                         : DateTimeOffset.MaxValue;
                 }

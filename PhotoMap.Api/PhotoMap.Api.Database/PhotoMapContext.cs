@@ -1,8 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using PhotoMap.Api.Database.Configurations;
-using PhotoMap.Api.Database.Entities;
-using File = PhotoMap.Api.Database.Entities.File;
+using PhotoMap.Api.Domain.Models;
+using File = PhotoMap.Api.Domain.Models.File;
 
 namespace PhotoMap.Api.Database
 {
