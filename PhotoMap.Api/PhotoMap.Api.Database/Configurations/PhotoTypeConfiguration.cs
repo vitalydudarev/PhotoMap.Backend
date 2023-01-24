@@ -1,6 +1,5 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using PhotoMap.Api.Database.Entities;
 using PhotoMap.Api.Domain.Models;
 
 namespace PhotoMap.Api.Database.Configurations

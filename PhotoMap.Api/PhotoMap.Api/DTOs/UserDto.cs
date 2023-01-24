@@ -1,5 +1,5 @@
 using System;
-using PhotoMap.Api.Database.Entities;
+using PhotoMap.Api.Commands;
 
 namespace PhotoMap.Api.DTOs
 {
