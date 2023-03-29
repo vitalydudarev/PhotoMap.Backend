@@ -11,8 +11,8 @@ namespace PhotoMap.Api.Database.Configurations
             builder.HasKey(a => a.Id);
             builder.Property(a => a.UserId);
             builder.Property(a => a.PhotoFileId);
-            builder.Property(a => a.ThumbnailSmallFileId);
-            builder.Property(a => a.ThumbnailLargeFileId);
+            builder.Property(a => a.ThumbnailLargeFilePath);
+            builder.Property(a => a.ThumbnailSmallFilePath);
             builder.Property(a => a.FileName);
             builder.Property(a => a.DateTimeTaken);
             builder.Property(a => a.Latitude);
