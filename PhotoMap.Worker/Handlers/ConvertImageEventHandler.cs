@@ -1,8 +1,7 @@
+using PhotoMap.Shared.Events;
 using PhotoMap.Shared.Messaging.Events;
 using PhotoMap.Shared.Messaging.MessageSender;
 using PhotoMap.Worker.Services.Implementations;
-using ConvertImageEvent = PhotoMap.Worker.Commands.ConvertImageEvent;
-using ImageConverted = PhotoMap.Worker.Commands.ImageConverted;
 
 namespace PhotoMap.Worker.Handlers
 {
@@ -26,7 +25,7 @@ namespace PhotoMap.Worker.Handlers
                 var imageProcessor = new ImageProcessor(convertImageCommand.FileContents);
                 var convertImageBytes = imageProcessor.GetImageBytes();
 
-                var imageConverted = new ImageConverted
+                var imageConverted = new ImageConvertedEvent
                 {
                     Id = convertImageCommand.Id,
                     FileContents = convertImageBytes

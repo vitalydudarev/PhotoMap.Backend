@@ -12,7 +12,8 @@ namespace PhotoMap.Api.Database
 
         public DbSet<User> Users { get; set; }
         public DbSet<Photo> Photos { get; set; }
-        public DbSet<File> Files { get; set; }
+        // TODO: delete?
+        // public DbSet<File> Files { get; set; }
 
         public PhotoMapContext(IConfiguration configuration, DbContextOptions<PhotoMapContext> options)
             : base(options)

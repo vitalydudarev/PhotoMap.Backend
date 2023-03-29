@@ -1,6 +1,6 @@
+using PhotoMap.Shared;
 using PhotoMap.Shared.Messaging.MessageSender;
 using PhotoMap.Worker.Services.Definitions;
-using IUserIdentifier = PhotoMap.Worker.Models.IUserIdentifier;
 using ProgressMessage = PhotoMap.Worker.Commands.ProgressMessage;
 
 namespace PhotoMap.Worker.Services.Implementations

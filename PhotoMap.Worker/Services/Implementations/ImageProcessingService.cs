@@ -1,7 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Threading.Tasks;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
 using PhotoMap.Worker.Helpers;
@@ -16,16 +12,13 @@ namespace PhotoMap.Worker.Services.Implementations
     {
         private readonly ILogger<ImageProcessingService> _logger;
         private readonly ImageProcessingSettings _imageProcessingSettings;
-        private readonly IImageUploadService _imageUploadService;
 
         public ImageProcessingService(
             ILogger<ImageProcessingService> logger,
-            IOptions<ImageProcessingSettings> imageProcessingOptions,
-            IImageUploadService imageUploadService)
+            IOptions<ImageProcessingSettings> imageProcessingOptions)
         {
             _logger = logger;
             _imageProcessingSettings = imageProcessingOptions.Value;
-            _imageUploadService = imageUploadService;
         }
 
         public async Task<ProcessedDownloadedFile> ProcessImageAsync(DownloadedFileInfo downloadedFile)
@@ -33,21 +26,26 @@ namespace PhotoMap.Worker.Services.Implementations
             using var imageProcessor = new ImageProcessor(downloadedFile.FileContents);
             imageProcessor.Rotate();
 
-            var sizeFileIdMap = new Dictionary<int, long>();
+            // var sizeFileIdMap = new Dictionary<int, long>();
+
+            var sizeBytesMap = new Dictionary<int, byte[]>();
 
             foreach (var size in _imageProcessingSettings.Sizes)
             {
                 imageProcessor.Crop(size);
                 var bytes = imageProcessor.GetImageBytes();
+                
+                sizeBytesMap.Add(size, bytes);
 
-                var savedFile = await _imageUploadService.SaveThumbnailAsync(bytes, downloadedFile.ResourceName,
-                    downloadedFile.UserName, downloadedFile.Source, size);
+                // var savedFile = await _imageUploadService.SaveThumbnailAsync(bytes, downloadedFile.ResourceName,
+                    // downloadedFile.UserName, downloadedFile.Source, size);
 
-                sizeFileIdMap.Add(size, savedFile.Id);
+                // sizeFileIdMap.Add(size, savedFile.Id);
             }
 
+            // TODO: move this to a helper class
             DateTime? dateTimeTaken = null;
-            string exifString = null;
+            string? exifString = null;
             double? longitude = null;
             double? latitude = null;
 
@@ -76,7 +74,7 @@ namespace PhotoMap.Worker.Services.Implementations
             {
                 FileName = downloadedFile.ResourceName,
                 FileSource = downloadedFile.Source,
-                Thumbs = sizeFileIdMap,
+                Thumbs = sizeBytesMap,
                 Path = downloadedFile.Path,
                 FileCreatedOn = downloadedFile.CreatedOn,
                 PhotoTakenOn = dateTimeTaken,

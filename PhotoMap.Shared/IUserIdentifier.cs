@@ -1,4 +1,4 @@
-namespace PhotoMap.Api.Models
+namespace PhotoMap.Shared
 {
     public interface IUserIdentifier
     {

@@ -6,8 +6,8 @@ public class Photo
     public int UserId { get; set; }
     public User User { get; set; }
     public long? PhotoFileId { get; set; }
-    public long ThumbnailSmallFileId { get; set; }
-    public long ThumbnailLargeFileId { get; set; }
+    public string ThumbnailSmallFilePath { get; set; }
+    public string ThumbnailLargeFilePath { get; set; }
     public string FileName { get; set; }
     public DateTimeOffset DateTimeTaken { get; set; }
     public double? Latitude { get; set; }

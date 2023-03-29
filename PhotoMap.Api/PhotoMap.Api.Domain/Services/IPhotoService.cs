@@ -10,7 +10,9 @@ namespace PhotoMap.Api.Domain.Services
 
         Task<Photo?> GetByFileNameAsync(string fileName);
 
-        Task<ComplexResponse<Photo>> GetByUserIdAsync(int userId, int top, int skip);
+        Task<IEnumerable<Photo>> GetByUserIdAsync(int userId, int top, int skip);
+        
+        Task<int> GetTotalCountByUserIdAsync(int userId);
 
         Task DeleteByUserId(int userId);
 

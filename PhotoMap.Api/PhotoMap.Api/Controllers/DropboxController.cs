@@ -6,8 +6,8 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using PhotoMap.Api.Domain.Services;
 using PhotoMap.Api.Services.Interfaces;
+using PhotoMap.Shared.Events;
 using PhotoMap.Shared.Messaging.MessageSender;
-using ConvertImageEvent = PhotoMap.Api.Commands.ConvertImageEvent;
 using DropboxUserIdentifier = PhotoMap.Api.Models.DropboxUserIdentifier;
 using PauseProcessingEvent = PhotoMap.Api.Commands.PauseProcessingEvent;
 using StartProcessingEvent = PhotoMap.Api.Commands.StartProcessingEvent;
@@ -75,6 +75,7 @@ namespace PhotoMap.Api.Controllers
 
             var httpClient = new HttpClient();
 
+            // Move this code to Worker (add new Controller to handle this request)
             var config = new DropboxClientConfig("PhotoMap") { HttpClient = httpClient };
             var dropboxClient = new DropboxClient(user.DropboxAccessToken, config);
 

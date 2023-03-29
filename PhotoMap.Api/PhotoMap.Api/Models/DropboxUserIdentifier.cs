@@ -1,3 +1,5 @@
+using PhotoMap.Shared;
+
 namespace PhotoMap.Api.Models
 {
     public class DropboxUserIdentifier : IUserIdentifier

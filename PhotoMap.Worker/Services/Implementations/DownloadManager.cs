@@ -1,6 +1,5 @@
-using System.Collections.Generic;
+using PhotoMap.Shared;
 using PhotoMap.Worker.Services.Definitions;
-using IUserIdentifier = PhotoMap.Worker.Models.IUserIdentifier;
 
 namespace PhotoMap.Worker.Services.Implementations
 {

@@ -2,13 +2,13 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using PhotoMap.Api.Services.Interfaces;
+using PhotoMap.Shared.Events;
 using PhotoMap.Shared.Messaging.EventHandler;
 using PhotoMap.Shared.Messaging.Events;
-using ImageConverted = PhotoMap.Api.Commands.ImageConverted;
 
 namespace PhotoMap.Api.Handlers
 {
-    public class ImageConvertedHandler : EventHandler<ImageConverted>
+    public class ImageConvertedHandler : EventHandler<ImageConvertedEvent>
     {
         private readonly ILogger<ImageConvertedHandler> _logger;
         private readonly IConvertedImageHolder _convertedImageHolder;
@@ -23,7 +23,7 @@ namespace PhotoMap.Api.Handlers
 
         public override Task HandleAsync(EventBase @event, CancellationToken cancellationToken)
         {
-            if (@event is ImageConverted imageConverted)
+            if (@event is ImageConvertedEvent imageConverted)
             {
                 _convertedImageHolder.Add(imageConverted.Id, imageConverted.FileContents);
                 _logger.LogInformation("Converted image for {Id} received", imageConverted.Id);

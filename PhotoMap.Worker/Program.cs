@@ -74,7 +74,6 @@ void ConfigureServices(IServiceCollection services, ConfigurationManager configu
     services.AddSingleton<IDownloadManager, DownloadManager>();
     services.AddSingleton<IProgressReporter, ProgressReporter>();
     services.AddScoped<IImageProcessingService, ImageProcessingService>();
-    services.AddScoped<IImageUploadService, ImageUploadService>();
 
     // Yandex.Disk services
     services.AddSingleton<IYandexDiskDownloadStateService, YandexDiskDownloadStateService>();
@@ -84,6 +83,5 @@ void ConfigureServices(IServiceCollection services, ConfigurationManager configu
     services.AddSingleton<IDropboxDownloadStateService, DropboxDownloadStateService>();
     services.AddScoped<IDropboxDownloadService, DropboxDownloadService>();
 
-    services.AddScoped<IStorageService, StorageServiceClient>();
     services.AddHostedService<HostedService>();
 }

@@ -8,8 +8,9 @@ using Newtonsoft.Json;
 using PhotoMap.Api.Domain.Models;
 using PhotoMap.Api.Domain.Services;
 using PhotoMap.Api.Services.Interfaces;
+using PhotoMap.Api.Services.Services;
+using PhotoMap.Shared.Events;
 using PhotoMap.Shared.Messaging.Events;
-using ImageProcessedEvent = PhotoMap.Api.Commands.ImageProcessedEvent;
 
 namespace PhotoMap.Api.Handlers
 {
@@ -30,22 +31,30 @@ namespace PhotoMap.Api.Handlers
             {
                 var scope = _serviceScopeFactory.CreateScope();
                 var photoService = scope.ServiceProvider.GetService<IPhotoService>();
-                var storageService = scope.ServiceProvider.GetService<IStorageService>();
+                var imageStore = scope.ServiceProvider.GetService<IImageStore>();
 
                 var thumbs = imageProcessedEvent.Thumbs.OrderBy(a => a.Key).ToDictionary(a => a.Key, b => b.Value);
-                var thumbSmall = thumbs.FirstOrDefault().Value;
-                var thumbLarge = thumbs.LastOrDefault().Value;
+                var thumbSmall = thumbs.FirstOrDefault();
+                var thumbLarge = thumbs.LastOrDefault();
 
-                var entity = await photoService.GetByFileNameAsync(imageProcessedEvent.FileName);
-                if (entity != null)
-                {
-                    await storageService.DeleteFileAsync(thumbSmall);
-                    await storageService.DeleteFileAsync(thumbLarge);
+                var thumbSmallPath = await imageStore.SaveThumbnailAsync(thumbSmall.Value, imageProcessedEvent.FileName,
+                    imageProcessedEvent.UserIdentifier.GetKey(), imageProcessedEvent.FileSource, thumbSmall.Key);
+                
+                var thumbLargePath = await imageStore.SaveThumbnailAsync(thumbLarge.Value, imageProcessedEvent.FileName,
+                    imageProcessedEvent.UserIdentifier.GetKey(), imageProcessedEvent.FileSource, thumbLarge.Key);
 
-                    _logger.LogInformation("File {FileName} already exists", imageProcessedEvent.FileName);
+                // var entity = await photoService.GetByFileNameAsync(imageProcessedEvent.FileName);
+                // if (entity != null)
+                // {
+                    // await storageService.DeleteFileAsync(thumbSmall);
+                    // await storageService.DeleteFileAsync(thumbLarge);
 
-                    return;
-                }
+                    // _logger.LogInformation("File {FileName} already exists", imageProcessedEvent.FileName);
+
+                    // return;
+                // }
+                
+                // TODO: save thumbs on disk and then add the paths of the files to photoEntity
 
                 var photoEntity = new Photo
                 {
@@ -53,12 +62,14 @@ namespace PhotoMap.Api.Handlers
                     PhotoFileId = null,
                     FileName = imageProcessedEvent.FileName,
                     Source = imageProcessedEvent.FileSource,
-                    ThumbnailSmallFileId = thumbSmall,
-                    ThumbnailLargeFileId = thumbLarge,
+                    ThumbnailSmallFilePath = thumbSmallPath,
+                    ThumbnailLargeFilePath = thumbLargePath,
+                    // ThumbnailSmallFileId = thumbSmall,
+                    // ThumbnailLargeFileId = thumbLarge,
                     Path = imageProcessedEvent.Path,
                     AddedOn = DateTimeOffset.UtcNow,
                     DateTimeTaken =
-                        imageProcessedEvent.PhotoTakenOn ?? (imageProcessedEvent.FileCreatedOn ?? DateTime.UtcNow),
+                        imageProcessedEvent.PhotoTakenOn ?? (imageProcessedEvent.FileCreatedOn ?? DateTimeOffset.UtcNow),
                     ExifString = JsonConvert.SerializeObject(imageProcessedEvent.ExifString),
                     Latitude = imageProcessedEvent.Latitude,
                     Longitude = imageProcessedEvent.Longitude,

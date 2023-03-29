@@ -66,9 +66,11 @@ namespace PhotoMap.Api
 
             services.AddHttpClient();
 
+            services.AddScoped<IImageStore, ImageStore>();
+
             services.AddScoped<IPhotoService, PhotoService>();
             services.AddScoped<IUserService, UserService>();
-            services.AddScoped<IFileService, FileService>();
+            // services.AddScoped<IFileService, FileService>();
             services.AddScoped<IFileStorage, FileStorage>(provider =>
             {
                 var settings = provider.GetRequiredService<IOptions<FileStorageSettings>>().Value;
@@ -95,7 +97,7 @@ namespace PhotoMap.Api
 
             services.AddScoped<IPhotoRepository, PhotoRepository>();
             services.AddScoped<IUserRepository, UserRepository>();
-            services.AddScoped<IFileRepository, FileRepository>();
+            // services.AddScoped<IFileRepository, FileRepository>();
 
             services.AddDbContext<PhotoMapContext>();
 

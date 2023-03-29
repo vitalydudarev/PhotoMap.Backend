@@ -4,6 +4,6 @@ namespace PhotoMap.Worker.Services.Definitions
 {
     public interface IExifExtractor
     {
-        ExifData GetDataAsync(byte[] bytes);
+        ExifData? GetDataAsync(byte[] bytes);
     }
 }

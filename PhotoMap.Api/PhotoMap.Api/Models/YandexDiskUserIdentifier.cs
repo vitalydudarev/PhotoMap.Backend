@@ -1,6 +1,8 @@
+using PhotoMap.Shared;
+
 namespace PhotoMap.Api.Models
 {
-    public class YandexDiskUserIdentifier : Api.Models.IUserIdentifier
+    public class YandexDiskUserIdentifier : IUserIdentifier
     {
         public int UserId { get; set; }
 

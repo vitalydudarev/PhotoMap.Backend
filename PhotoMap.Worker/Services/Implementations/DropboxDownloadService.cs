@@ -3,9 +3,9 @@ using Dropbox.Api;
 using Dropbox.Api.Auth;
 using Dropbox.Api.Files;
 using Dropbox.Api.Users;
+using PhotoMap.Shared;
 using PhotoMap.Worker.Models;
 using PhotoMap.Worker.Services.Definitions;
-using IUserIdentifier = PhotoMap.Worker.Models.IUserIdentifier;
 
 namespace PhotoMap.Worker.Services.Implementations
 {

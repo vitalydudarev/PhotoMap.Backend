@@ -6,9 +6,9 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using PhotoMap.Api.Domain.Services;
 using PhotoMap.Api.Services.Interfaces;
+using PhotoMap.Shared.Events;
 using PhotoMap.Shared.Messaging.MessageSender;
 using PhotoMap.Shared.Yandex.Disk;
-using ConvertImageEvent = PhotoMap.Api.Commands.ConvertImageEvent;
 using PauseProcessingEvent = PhotoMap.Api.Commands.PauseProcessingEvent;
 using StartProcessingEvent = PhotoMap.Api.Commands.StartProcessingEvent;
 using YandexDiskUserIdentifier = PhotoMap.Api.Models.YandexDiskUserIdentifier;
@@ -71,6 +71,7 @@ namespace PhotoMap.Api.Controllers
         [ProducesResponseType(StatusCodes.Status200OK)]
         public async Task<IActionResult> GetPhotoAsync(int id)
         {
+            // TODO: do this as en endpoint of worker
             var photo = await _photoService.GetAsync(id);
             var user = await _userService.GetAsync(photo.UserId);
 

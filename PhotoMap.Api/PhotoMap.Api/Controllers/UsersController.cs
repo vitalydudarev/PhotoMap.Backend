@@ -59,6 +59,7 @@ namespace PhotoMap.Api.Controllers
         public async Task<IActionResult> GetUserPhotos([FromRoute] int id, [FromQuery] int top, [FromQuery] int skip)
         {
             var userPhotos = await _photoService.GetByUserIdAsync(id, top, skip);
+            var totalPhotosCount = await _photoService.GetTotalCountByUserIdAsync(id);
             
             static string Source(string s) =>
                 s switch
@@ -70,7 +71,7 @@ namespace PhotoMap.Api.Controllers
             
             var url = _hostInfo.GetUrl() + "api";
 
-            var values = userPhotos.Values.Select(a => new PhotoDto
+            var values = userPhotos.Select(a => new PhotoDto
             {
                 DateTimeTaken = a.DateTimeTaken.UtcDateTime,
                 FileName = a.FileName,
@@ -78,11 +79,11 @@ namespace PhotoMap.Api.Controllers
                 Latitude = a.Latitude,
                 Longitude = a.Longitude,
                 PhotoUrl = $"{url}/{Source(a.Source)}/photos/" + a.Id,
-                ThumbnailLargeUrl = $"{url}/photos/" + a.ThumbnailLargeFileId,
-                ThumbnailSmallUrl = $"{url}/photos/" + a.ThumbnailSmallFileId
+                ThumbnailLargeUrl = $"{url}/photos/{a.Id}/thumb/large",
+                ThumbnailSmallUrl = $"{url}/photos/{a.Id}/thumb/small"
             }).ToArray();
 
-            var response = new PagedResponse<PhotoDto> { Values = values, Limit = top, Offset = skip, Total = userPhotos.TotalCount };
+            var response = new PagedResponse<PhotoDto> { Values = values, Limit = top, Offset = skip, Total = totalPhotosCount };
             
             return Ok(response);
         }

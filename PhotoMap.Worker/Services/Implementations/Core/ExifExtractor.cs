@@ -9,7 +9,7 @@ namespace PhotoMap.Worker.Services.Implementations
 {
     public class ExifExtractor : IExifExtractor
     {
-        public ExifData GetDataAsync(byte[] bytes)
+        public ExifData? GetDataAsync(byte[] bytes)
         {
             using var stream = new MemoryStream(bytes);
 
@@ -23,7 +23,7 @@ namespace PhotoMap.Worker.Services.Implementations
             };
         }
 
-        private static Gps ParseGps(IEnumerable<Directory> data)
+        private static Gps? ParseGps(IEnumerable<Directory> data)
         {
             var gpsDirectory = data.OfType<GpsDirectory>().FirstOrDefault();
             if (gpsDirectory != null)
@@ -51,7 +51,7 @@ namespace PhotoMap.Worker.Services.Implementations
             return null;
         }
 
-        private static ExifSubIfd ParseExifSubIfd(IList<Directory> data)
+        private static ExifSubIfd? ParseExifSubIfd(IList<Directory> data)
         {
             var subIfd = data.OfType<ExifSubIfdDirectory>().FirstOrDefault();
             if (subIfd != null)
@@ -71,7 +71,7 @@ namespace PhotoMap.Worker.Services.Implementations
             return null;
         }
 
-        private static ExifIfd0 ParseExifIfd0(IList<Directory> data)
+        private static ExifIfd0? ParseExifIfd0(IList<Directory> data)
         {
             var ifd = data.OfType<ExifIfd0Directory>().FirstOrDefault();
             if (ifd != null)
@@ -87,7 +87,7 @@ namespace PhotoMap.Worker.Services.Implementations
             return null;
         }
 
-        private static string ParseString(Directory subIfd, int tag)
+        private static string? ParseString(Directory subIfd, int tag)
         {
             var stringValue = subIfd.GetStringValue(tag);
             if (stringValue.Bytes != null)
@@ -137,7 +137,7 @@ namespace PhotoMap.Worker.Services.Implementations
             return null;
         }
 
-        private static LatLng ParseLatLng(Rational[]? array)
+        private static LatLng? ParseLatLng(Rational[]? array)
         {
             if (array == null) return null;
 

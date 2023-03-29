@@ -1,5 +1,5 @@
 using PhotoMap.Shared.Messaging.Events;
-using IUserIdentifier = PhotoMap.Api.Models.IUserIdentifier;
+using IUserIdentifier = PhotoMap.Shared.IUserIdentifier;
 
 namespace PhotoMap.Api.Commands
 {

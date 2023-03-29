@@ -3,7 +3,7 @@ using PhotoMap.Api.Domain.Repositories;
 
 namespace PhotoMap.Api.Database.Repositories;
 
-public class FileRepository : IFileRepository
+/*public class FileRepository : IFileRepository
 {
     private readonly PhotoMapContext _context;
 
@@ -58,4 +58,4 @@ public class FileRepository : IFileRepository
 
         await _context.SaveChangesAsync();
     }
-}
+}*/

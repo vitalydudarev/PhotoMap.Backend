@@ -34,7 +34,7 @@ public class PhotoRepository : IPhotoRepository
         return photo;
     }
 
-    public async Task<ComplexResponse<Photo>> GetByUserIdAsync(int userId, int top, int skip)
+    public async Task<IEnumerable<Photo>> GetByUserIdAsync(int userId, int top, int skip)
     {
         var photos = await _context.Photos
             .Where(a => a.UserId == userId)
@@ -43,9 +43,12 @@ public class PhotoRepository : IPhotoRepository
             .Take(top)
             .ToListAsync();
 
-        var totalRecords = await _context.Photos.CountAsync(a => a.UserId == userId);
+        return photos;
+    }
 
-        return new ComplexResponse<Photo> { Values = photos, TotalCount = totalRecords };
+    public async Task<int> GetTotalCountByUserIdAsync(int userId)
+    {
+        return await _context.Photos.CountAsync(a => a.UserId == userId);
     }
 
     public async Task DeleteByUserIdAsync(int userId)

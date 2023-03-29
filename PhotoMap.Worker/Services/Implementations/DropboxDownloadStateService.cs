@@ -29,7 +29,7 @@ namespace PhotoMap.Worker.Services.Implementations
             }
         }
 
-        public DropboxDownloadState GetState(string accountId)
+        public DropboxDownloadState? GetState(string accountId)
         {
             return _map.TryGetValue(accountId, out var data) ? data : null;
         }

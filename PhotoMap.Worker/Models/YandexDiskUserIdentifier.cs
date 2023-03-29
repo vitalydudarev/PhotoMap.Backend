@@ -1,3 +1,5 @@
+using PhotoMap.Shared;
+
 namespace PhotoMap.Worker.Models
 {
     public class YandexDiskUserIdentifier : IUserIdentifier
