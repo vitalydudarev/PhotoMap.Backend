@@ -10,7 +10,6 @@ namespace PhotoMap.Api.Database.Configurations
         {
             builder.HasKey(a => a.Id);
             builder.Property(a => a.UserId);
-            builder.Property(a => a.PhotoFileId);
             builder.Property(a => a.ThumbnailLargeFilePath);
             builder.Property(a => a.ThumbnailSmallFilePath);
             builder.Property(a => a.FileName);

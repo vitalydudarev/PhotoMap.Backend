@@ -9,8 +9,8 @@ public class RabbitMqMessageSender : IMessageSender, IDisposable
 {
     private readonly RabbitMqConfiguration _rabbitMqConfiguration;
     private readonly ILogger<RabbitMqMessageSender> _logger;
-    private IConnection _connection;
-    private IModel _channel;
+    private IConnection? _connection;
+    private IModel? _channel;
 
     public RabbitMqMessageSender(RabbitMqConfiguration configuration, ILogger<RabbitMqMessageSender> logger)
     {
@@ -28,11 +28,8 @@ public class RabbitMqMessageSender : IMessageSender, IDisposable
             Port = _rabbitMqConfiguration.Port
         };
 
-        if (_connection == null)
-            _connection = connectionFactory.CreateConnection();
-
-        if (_channel == null)
-            _channel = _connection.CreateModel();
+        _connection ??= connectionFactory.CreateConnection();
+        _channel ??= _connection.CreateModel();
 
         _channel.QueueDeclare(queue: _rabbitMqConfiguration.ResponseQueueName,
             durable: false,

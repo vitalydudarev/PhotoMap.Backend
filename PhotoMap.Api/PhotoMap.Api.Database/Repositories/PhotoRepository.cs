@@ -20,21 +20,21 @@ public class PhotoRepository : IPhotoRepository
         await _context.SaveChangesAsync();
     }
     
-    public async Task<Photo> GetAsync(int id)
+    public async Task<Photo?> GetAsync(long id)
     {
         var photo = await _context.Photos.FindAsync(id);
         
         return photo;
     }
 
-    public async Task<Photo> GetByFileNameAsync(string fileName)
+    public async Task<Photo?> GetByFileNameAsync(string fileName)
     {
         var photo = await _context.Photos.FirstOrDefaultAsync(a => a.FileName == fileName);
         
         return photo;
     }
 
-    public async Task<IEnumerable<Photo>> GetByUserIdAsync(int userId, int top, int skip)
+    public async Task<IEnumerable<Photo>> GetByUserIdAsync(long userId, int top, int skip)
     {
         var photos = await _context.Photos
             .Where(a => a.UserId == userId)
@@ -46,12 +46,12 @@ public class PhotoRepository : IPhotoRepository
         return photos;
     }
 
-    public async Task<int> GetTotalCountByUserIdAsync(int userId)
+    public async Task<int> GetTotalCountByUserIdAsync(long userId)
     {
         return await _context.Photos.CountAsync(a => a.UserId == userId);
     }
 
-    public async Task DeleteByUserIdAsync(int userId)
+    public async Task DeleteByUserIdAsync(long userId)
     {
         var entities = await _context.Photos.Where(a => a.UserId == userId).ToListAsync();
         _context.Photos.RemoveRange(entities);

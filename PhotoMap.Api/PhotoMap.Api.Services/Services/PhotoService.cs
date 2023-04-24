@@ -18,7 +18,7 @@ namespace PhotoMap.Api.Services.Services
             await _photoRepository.AddAsync(photo);
         }
 
-        public Task<Photo> GetAsync(int id)
+        public Task<Photo?> GetAsync(long id)
         {
             return _photoRepository.GetAsync(id);
         }
@@ -28,17 +28,17 @@ namespace PhotoMap.Api.Services.Services
             return _photoRepository.GetByFileNameAsync(fileName);
         }
 
-        public Task<IEnumerable<Photo>> GetByUserIdAsync(int userId, int top, int skip)
+        public Task<IEnumerable<Photo>> GetByUserIdAsync(long userId, int top, int skip)
         {
             return _photoRepository.GetByUserIdAsync(userId, top, skip);
         }
 
-        public Task<int> GetTotalCountByUserIdAsync(int userId)
+        public Task<int> GetTotalCountByUserIdAsync(long userId)
         {
             return _photoRepository.GetTotalCountByUserIdAsync(userId);
         }
 
-        public async Task DeleteByUserId(int userId)
+        public async Task DeleteByUserId(long userId)
         {
             await _photoRepository.DeleteByUserIdAsync(userId);
         }

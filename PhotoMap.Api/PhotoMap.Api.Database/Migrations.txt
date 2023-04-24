@@ -4,4 +4,4 @@ cd PhotoMap.Api
 dotnet ef migrations add InitialMigration -s PhotoMap.Api -p PhotoMap.Api.Database --verbose
 dotnet ef migrations remove InitialMigration -s PhotoMap.Api -p PhotoMap.Api.Database --verbose
 
-dotnet ef database update
+dotnet ef database update -s PhotoMap.Api -p PhotoMap.Api.Database

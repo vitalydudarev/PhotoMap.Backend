@@ -4,8 +4,7 @@ public class Photo
 {
     public int Id { get; set; }
     public int UserId { get; set; }
-    public User User { get; set; }
-    public long? PhotoFileId { get; set; }
+    public User? User { get; set; }
     public string ThumbnailSmallFilePath { get; set; }
     public string ThumbnailLargeFilePath { get; set; }
     public string FileName { get; set; }

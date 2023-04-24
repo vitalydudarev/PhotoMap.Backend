@@ -14,7 +14,7 @@ public class EventBase
         return JsonConvert.SerializeObject(this, JsonSerializerSettings);
     }
 
-    public static EventBase Deserialize(string message)
+    public static EventBase? Deserialize(string message)
     {
         return JsonConvert.DeserializeObject<EventBase>(message, JsonSerializerSettings);
     }

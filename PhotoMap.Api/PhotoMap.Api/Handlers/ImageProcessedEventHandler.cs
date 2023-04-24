@@ -30,18 +30,20 @@ namespace PhotoMap.Api.Handlers
             if (@event is ImageProcessedEvent imageProcessedEvent)
             {
                 var scope = _serviceScopeFactory.CreateScope();
-                var photoService = scope.ServiceProvider.GetService<IPhotoService>();
-                var imageStore = scope.ServiceProvider.GetService<IImageStore>();
+                var photoService = scope.ServiceProvider.GetRequiredService<IPhotoService>();
+                var imageStore = scope.ServiceProvider.GetRequiredService<IImageStore>();
 
                 var thumbs = imageProcessedEvent.Thumbs.OrderBy(a => a.Key).ToDictionary(a => a.Key, b => b.Value);
                 var thumbSmall = thumbs.FirstOrDefault();
                 var thumbLarge = thumbs.LastOrDefault();
 
+                var userName = imageProcessedEvent.UserIdentifier.GetKey();
+                
                 var thumbSmallPath = await imageStore.SaveThumbnailAsync(thumbSmall.Value, imageProcessedEvent.FileName,
-                    imageProcessedEvent.UserIdentifier.GetKey(), imageProcessedEvent.FileSource, thumbSmall.Key);
+                    userName, imageProcessedEvent.FileSource, thumbSmall.Key);
                 
                 var thumbLargePath = await imageStore.SaveThumbnailAsync(thumbLarge.Value, imageProcessedEvent.FileName,
-                    imageProcessedEvent.UserIdentifier.GetKey(), imageProcessedEvent.FileSource, thumbLarge.Key);
+                    userName, imageProcessedEvent.FileSource, thumbLarge.Key);
 
                 // var entity = await photoService.GetByFileNameAsync(imageProcessedEvent.FileName);
                 // if (entity != null)
@@ -59,7 +61,6 @@ namespace PhotoMap.Api.Handlers
                 var photoEntity = new Photo
                 {
                     UserId = imageProcessedEvent.UserIdentifier.UserId,
-                    PhotoFileId = null,
                     FileName = imageProcessedEvent.FileName,
                     Source = imageProcessedEvent.FileSource,
                     ThumbnailSmallFilePath = thumbSmallPath,

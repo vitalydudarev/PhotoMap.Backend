@@ -38,12 +38,15 @@ namespace PhotoMap.Worker.Services.Implementations
             var apiClient = new ApiClient(accessToken, Client);
 
             _data = _yandexDiskDownloadStateService.GetData(userIdentifier.UserId);
+            
             if (_data == null)
             {
                 _data = new YandexDiskData { UserId = userIdentifier.UserId, YandexDiskAccessToken = accessToken };
             }
             else
+            {
                 _currentOffset = _data.CurrentIndex;
+            }
 
             var disk = await WrapApiCallAsync(() => apiClient.GetDiskAsync(cancellationToken));
 

@@ -33,11 +33,10 @@ namespace PhotoMap.Api.Handlers
             if (@event is Notification notification)
             {
                 using var scope = _serviceScopeFactory.CreateScope();
-                var userService = scope.ServiceProvider.GetService<IUserService>();
+                var userService = scope.ServiceProvider.GetRequiredService<IUserService>();
 
                 var userId = notification.UserIdentifier.UserId;
-                var status = (ProcessingStatus) Enum.Parse(typeof(ProcessingStatus),
-                    notification.Status.ToString());
+                var status = (ProcessingStatus) Enum.Parse(typeof(ProcessingStatus), notification.Status.ToString());
 
                 if (notification.UserIdentifier is YandexDiskUserIdentifier)
                 {

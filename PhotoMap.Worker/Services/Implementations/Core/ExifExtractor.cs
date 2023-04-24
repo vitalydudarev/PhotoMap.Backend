@@ -5,7 +5,7 @@ using PhotoMap.Worker.Models.Image;
 using PhotoMap.Worker.Services.Definitions;
 using Directory = MetadataExtractor.Directory;
 
-namespace PhotoMap.Worker.Services.Implementations
+namespace PhotoMap.Worker.Services.Implementations.Core
 {
     public class ExifExtractor : IExifExtractor
     {

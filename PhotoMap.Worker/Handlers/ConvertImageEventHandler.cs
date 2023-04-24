@@ -2,6 +2,7 @@ using PhotoMap.Shared.Events;
 using PhotoMap.Shared.Messaging.Events;
 using PhotoMap.Shared.Messaging.MessageSender;
 using PhotoMap.Worker.Services.Implementations;
+using PhotoMap.Worker.Services.Implementations.Core;
 
 namespace PhotoMap.Worker.Handlers
 {

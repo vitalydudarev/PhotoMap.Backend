@@ -6,15 +6,15 @@ namespace PhotoMap.Api.Domain.Services
     {
         Task AddAsync(Photo photo);
 
-        Task<Photo> GetAsync(int id);
+        Task<Photo?> GetAsync(long id);
 
         Task<Photo?> GetByFileNameAsync(string fileName);
 
-        Task<IEnumerable<Photo>> GetByUserIdAsync(int userId, int top, int skip);
+        Task<IEnumerable<Photo>> GetByUserIdAsync(long userId, int top, int skip);
         
-        Task<int> GetTotalCountByUserIdAsync(int userId);
+        Task<int> GetTotalCountByUserIdAsync(long userId);
 
-        Task DeleteByUserId(int userId);
+        Task DeleteByUserId(long userId);
 
         Task DeleteAllAsync();
     }

@@ -1,6 +1,5 @@
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
-using PhotoMap.Api.Domain.Services;
 using PhotoMap.Api.Services.Interfaces;
 
 namespace PhotoMap.Api.Controllers
@@ -9,35 +8,37 @@ namespace PhotoMap.Api.Controllers
     [Route("api/photos")]
     public class PhotosController : ControllerBase
     {
-        private readonly IFileProvider _fileProvider;
-        private readonly IPhotoService _photoService;
-        private readonly IFileStorage _fileStorage;
+        private readonly IPhotoProvider _photoProvider;
 
-        public PhotosController(IFileProvider fileProvider, IPhotoService photoService, IFileStorage fileStorage)
+        public PhotosController(IPhotoProvider photoProvider)
         {
-            _fileProvider = fileProvider;
-            _photoService = photoService;
-            _fileStorage = fileStorage;
+            _photoProvider = photoProvider;
         }
 
         [HttpGet("{id:long}")]
         public async Task<IActionResult> GetPhotoAsync(long id)
         {
-            var fileContents = await _fileProvider.GetFileContents(id);
+            var fileContents = await _photoProvider.GetPhotoAsync(id);
+            if (fileContents != null)
+            {
+                return new FileContentResult(fileContents, "image/jpg");
+            }
 
-            return new FileContentResult(fileContents, "image/jpg");
+            return BadRequest();
         }
         
         [HttpGet("{id:int}/thumb/{size}")]
         public async Task<IActionResult> GetThumbAsync(int id, string size)
         {
-            var photo = await _photoService.GetAsync(id);
-            
-            var filePath = size == "small" ? photo.ThumbnailSmallFilePath : photo.ThumbnailLargeFilePath;
+            var fileContents = await _photoProvider.GetThumbAsync(id, size);
+            if (fileContents != null)
+            {
+                return new FileContentResult(fileContents, "image/jpg");
+            }
 
-            var bytes = await _fileStorage.GetAsync(filePath);
-
-            return new FileContentResult(bytes, "image/jpg");
+            return BadRequest();
         }
     }
+
+    
 }

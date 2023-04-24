@@ -2,7 +2,7 @@ using ImageMagick;
 using PhotoMap.Worker.Models.Image;
 using SkiaSharp;
 
-namespace PhotoMap.Worker.Services.Implementations
+namespace PhotoMap.Worker.Services.Implementations.Core
 {
     public class ImageProcessor : IDisposable
     {

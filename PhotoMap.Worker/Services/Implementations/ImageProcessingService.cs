@@ -4,6 +4,7 @@ using PhotoMap.Worker.Helpers;
 using PhotoMap.Worker.Models;
 using PhotoMap.Worker.Models.Image;
 using PhotoMap.Worker.Services.Definitions;
+using PhotoMap.Worker.Services.Implementations.Core;
 using PhotoMap.Worker.Settings;
 
 namespace PhotoMap.Worker.Services.Implementations

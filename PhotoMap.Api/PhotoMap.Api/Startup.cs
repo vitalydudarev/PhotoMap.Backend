@@ -1,4 +1,7 @@
 using System;
+using System.Collections.Generic;
+using System.Net;
+using System.Text;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
@@ -6,6 +9,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using Microsoft.OpenApi.Models;
+using NATS.Client;
 using PhotoMap.Api.Database;
 using PhotoMap.Api.Database.Repositories;
 using PhotoMap.Api.Domain.Models;
@@ -93,6 +97,7 @@ namespace PhotoMap.Api
             services.AddScoped<IStorageService, StorageServiceClient>();
             services.AddScoped<HostInfo>();
             services.AddScoped<IFileProvider, LocalFileProvider>();
+            services.AddScoped<IPhotoProvider, PhotoProvider>();
             services.AddSingleton<IConvertedImageHolder, ConvertedImageHolder>();
 
             services.AddScoped<IPhotoRepository, PhotoRepository>();
@@ -146,6 +151,38 @@ namespace PhotoMap.Api
             app.UseSwaggerUI(c =>
             {
                 c.SwaggerEndpoint("/swagger/v1/swagger.json", "PhotoMap API V1");
+            });
+            
+            InitNATS(app, "127.0.0.1:4222");
+        }
+        
+        // 127.0.0.1:4222
+        private void InitNATS(IApplicationBuilder app, string natsUrl)
+        {
+            ConnectionFactory cf = new();
+            IConnection natsConnection = cf.CreateConnection($"nats://{natsUrl}");
+
+            ConfigureNats(app, natsConnection);
+        }
+        
+        // listener
+        protected virtual void ConfigureNats(IApplicationBuilder app, IConnection natsConnection)
+        {
+            natsConnection.SubscribeAsync("Subject1", (sender, args) =>
+            {
+                if (args.Message.Data == null)
+                {
+                    return;
+                }
+
+                string scopesStr = Encoding.UTF8.GetString(args.Message.Data);
+                
+                // deserialize message
+                
+                // do action
+               
+                // reply
+                // natsConnection.Publish(MessagesConstants.ResetCacheReplySubject, Encoding.UTF8.GetBytes(reply));
             });
         }
     }

@@ -12,7 +12,7 @@ namespace PhotoMap.Shared.Yandex.Disk.Models
         public DateTime? PhotosliceTime { get; set; }
         [JsonPropertyName("_embedded")]
         public ResourceList Embedded { get; set; }
-        public Exif Exif { get; set; }
+        public Exif? Exif { get; set; }
         public string CustomProperties { get; set; }
         public string MediaType { get; set; }
         public string Preview { get; set; }

@@ -5,5 +5,5 @@ namespace PhotoMap.Shared.Messaging.EventHandlerManager;
 
 public interface IEventHandlerManager
 {
-    IEventHandler GetHandler(EventBase eventBase);
+    IEventHandler? GetHandler(EventBase eventBase);
 }

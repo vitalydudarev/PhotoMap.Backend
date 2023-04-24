@@ -12,7 +12,7 @@ public class EventHandlerManager : IEventHandlerManager
         _eventHandlerMap = eventHandlers.ToDictionary(a => a.Type, b => b);
     }
 
-    public IEventHandler GetHandler(EventBase eventBase)
+    public IEventHandler? GetHandler(EventBase eventBase)
     {
         var commandType = eventBase.GetType();
 
