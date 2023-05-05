@@ -22,34 +22,7 @@ namespace PhotoMap.Api.Database.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
-            modelBuilder.Entity("PhotoMap.Api.Domain.Models.File", b =>
-                {
-                    b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
-
-                    b.Property<DateTimeOffset>("AddedOn")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("FileName")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("FullPath")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<long>("Size")
-                        .HasColumnType("bigint");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("Files", (string)null);
-                });
-
-            modelBuilder.Entity("PhotoMap.Api.Domain.Models.Photo", b =>
+            modelBuilder.Entity("PhotoMap.Api.Database.Entities.PhotoEntity", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -64,7 +37,6 @@ namespace PhotoMap.Api.Database.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("ExifString")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<string>("FileName")
@@ -81,76 +53,86 @@ namespace PhotoMap.Api.Database.Migrations
                         .HasColumnType("double precision");
 
                     b.Property<string>("Path")
-                        .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<long?>("PhotoFileId")
+                    b.Property<long>("PhotoSourceId")
                         .HasColumnType("bigint");
 
-                    b.Property<string>("Source")
-                        .IsRequired()
-                        .HasColumnType("text");
-
                     b.Property<string>("ThumbnailLargeFilePath")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<string>("ThumbnailSmallFilePath")
-                        .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<int>("UserId")
-                        .HasColumnType("integer");
+                    b.Property<long>("UserId")
+                        .HasColumnType("bigint");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("PhotoSourceId");
 
                     b.HasIndex("UserId");
 
                     b.ToTable("Photos", (string)null);
                 });
 
-            modelBuilder.Entity("PhotoMap.Api.Domain.Models.User", b =>
+            modelBuilder.Entity("PhotoMap.Api.Database.Entities.PhotoSourceEntity", b =>
                 {
-                    b.Property<int>("Id")
+                    b.Property<long>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
+                        .HasColumnType("bigint");
 
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
 
-                    b.Property<string>("DropboxAccessToken")
+                    b.Property<string>("ImplementationType")
+                        .IsRequired()
                         .HasColumnType("text");
-
-                    b.Property<DateTimeOffset?>("DropboxAccessTokenExpiresOn")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int?>("DropboxStatus")
-                        .HasColumnType("integer");
 
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<string>("YandexDiskAccessToken")
+                    b.Property<string>("Settings")
+                        .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<DateTimeOffset?>("YandexDiskAccessTokenExpiresOn")
-                        .HasColumnType("timestamp with time zone");
+                    b.HasKey("Id");
 
-                    b.Property<int?>("YandexDiskStatus")
-                        .HasColumnType("integer");
+                    b.ToTable("PhotoSources", (string)null);
+                });
+
+            modelBuilder.Entity("PhotoMap.Api.Database.Entities.UserEntity", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text");
 
                     b.HasKey("Id");
 
                     b.ToTable("Users", (string)null);
                 });
 
-            modelBuilder.Entity("PhotoMap.Api.Domain.Models.Photo", b =>
+            modelBuilder.Entity("PhotoMap.Api.Database.Entities.PhotoEntity", b =>
                 {
-                    b.HasOne("PhotoMap.Api.Domain.Models.User", "User")
+                    b.HasOne("PhotoMap.Api.Database.Entities.PhotoSourceEntity", "PhotoSource")
+                        .WithMany()
+                        .HasForeignKey("PhotoSourceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("PhotoMap.Api.Database.Entities.UserEntity", "User")
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("PhotoSource");
 
                     b.Navigation("User");
                 });

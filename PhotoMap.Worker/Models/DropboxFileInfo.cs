@@ -7,8 +7,8 @@ namespace PhotoMap.Worker.Models
         public string FileId { get; set; }
 
         public DropboxFileInfo(string resourceName, string path, DateTime? createdOn, string fileId, string userName,
-            byte[] fileContents)
-            : base(resourceName, path, createdOn, userName, fileContents)
+            byte[] fileContents, long photoSourceId)
+            : base(resourceName, path, createdOn, userName, fileContents, photoSourceId)
         {
             FileId = fileId;
         }

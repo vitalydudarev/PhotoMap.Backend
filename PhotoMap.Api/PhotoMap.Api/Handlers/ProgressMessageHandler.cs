@@ -28,9 +28,13 @@ namespace PhotoMap.Api.Handlers
                 var progress = new Progress { Processed = progressMessage.Processed, Total = progressMessage.Total };
 
                 if (progressMessage.UserIdentifier is YandexDiskUserIdentifier)
+                {
                     await _yandexDiskHub.SendProgressAsync(userId, progress);
+                }
                 else if (progressMessage.UserIdentifier is DropboxUserIdentifier)
+                {
                     await _dropboxHub.SendProgressAsync(userId, progress);
+                }
             }
         }
     }

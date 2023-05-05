@@ -2,7 +2,7 @@ namespace PhotoMap.Shared
 {
     public interface IUserIdentifier
     {
-        int UserId { get; set; }
+        long UserId { get; set; }
         string GetKey();
     }
 }

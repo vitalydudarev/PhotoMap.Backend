@@ -2,7 +2,7 @@ namespace PhotoMap.Api.Domain.Models;
 
 public class User
 {
-    public int Id { get; set; }
+    public long Id { get; set; }
     public string Name { get; set; }
     public string? YandexDiskAccessToken { get; set; }
     public DateTimeOffset? YandexDiskAccessTokenExpiresOn { get; set; }

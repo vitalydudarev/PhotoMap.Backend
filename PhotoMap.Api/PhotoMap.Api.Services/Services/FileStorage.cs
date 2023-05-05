@@ -25,8 +25,10 @@ public class FileStorage : IFileStorage
         string filePath = GetFilePath(fileName);
 
         var dir = Path.GetDirectoryName(filePath);
-        if (!Directory.Exists(dir))
+        if (dir != null && !Directory.Exists(dir))
+        {
             Directory.CreateDirectory(dir);
+        }
 
         await File.WriteAllBytesAsync(filePath, bytes);
 

@@ -1,7 +1,7 @@
 namespace PhotoMap.Api.Database.Entities;
 
-public class FileSource
+public class UserEntity
 {
     public long Id { get; set; }
-    public string Name { get; set; } = null!;
+    public required string Name { get; set; }
 }

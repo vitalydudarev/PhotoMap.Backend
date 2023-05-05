@@ -97,7 +97,7 @@ namespace PhotoMap.Worker.Services.Implementations
             SaveState();
         }
 
-        private async Task<DropboxFileInfo> DownloadFileAsync(Metadata metadata, Account account)
+        private async Task<DropboxFileInfo?> DownloadFileAsync(Metadata metadata, Account account)
         {
             var metadataName = metadata.Name;
 
@@ -115,7 +115,7 @@ namespace PhotoMap.Worker.Services.Implementations
                 var createdOn = fileMetadata.Response.ClientModified;
 
                 var downloadedFileInfo = new DropboxFileInfo(metadataName, path, createdOn, fileMetadata.Response.Id,
-                    account.Email, fileContents);
+                    account.Email, fileContents, 1);
 
                 _logger.LogInformation($"Dropbox: finished saving {metadataName}.");
 

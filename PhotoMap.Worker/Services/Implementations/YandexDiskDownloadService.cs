@@ -111,7 +111,7 @@ namespace PhotoMap.Worker.Services.Implementations
                 var createdOn = resource.Exif != null ? resource.Exif.DateTime : resource.PhotosliceTime;
 
                 var downloadedFileInfo = new YandexDiskFileInfo(resource.Name, resource.Path, createdOn,
-                    disk.User.Login, bytes);
+                    disk.User.Login, bytes, 2);
 
                 _logger.LogInformation($"Finished downloading {resource.Name}.");
 

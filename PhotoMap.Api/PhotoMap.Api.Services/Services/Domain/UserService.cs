@@ -2,7 +2,7 @@ using PhotoMap.Api.Domain.Models;
 using PhotoMap.Api.Domain.Repositories;
 using PhotoMap.Api.Domain.Services;
 
-namespace PhotoMap.Api.Services.Services
+namespace PhotoMap.Api.Services.Services.Domain
 {
     public class UserService : IUserService
     {
@@ -18,13 +18,13 @@ namespace PhotoMap.Api.Services.Services
             await _userRepository.AddAsync(name);
         }
 
-        public async Task<User?> GetAsync(int id)
+        public async Task<User?> GetAsync(long id)
         {
             return await _userRepository.GetAsync(id);
         }
 
         public async Task UpdateAsync(
-            int id,
+            long id,
             string? yandexDiskToken,
             int? yandexDiskTokenExpiresIn,
             ProcessingStatus? yandexDiskStatus,
@@ -63,7 +63,7 @@ namespace PhotoMap.Api.Services.Services
                 if (dropboxStatus.HasValue)
                     user.DropboxStatus = dropboxStatus.Value;
 
-                await _userRepository.UpdateAsync(user);
+                // await _userRepository.UpdateAsync(user);
             }
         }
     }

@@ -62,7 +62,8 @@ namespace PhotoMap.Api.Handlers
                 {
                     UserId = imageProcessedEvent.UserIdentifier.UserId,
                     FileName = imageProcessedEvent.FileName,
-                    Source = imageProcessedEvent.FileSource,
+                    PhotoSourceId = imageProcessedEvent.PhotoSourceId,
+                    // Source = imageProcessedEvent.FileSource,
                     ThumbnailSmallFilePath = thumbSmallPath,
                     ThumbnailLargeFilePath = thumbLargePath,
                     // ThumbnailSmallFileId = thumbSmall,

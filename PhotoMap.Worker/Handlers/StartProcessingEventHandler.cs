@@ -143,6 +143,7 @@ namespace PhotoMap.Worker.Handlers
             {
                 UserIdentifier = userIdentifier,
                 FileName = file.FileName,
+                PhotoSourceId = file.PhotoSourceId,
                 FileSource = file.FileSource,
                 Thumbs = file.Thumbs,
                 Path = file.Path,

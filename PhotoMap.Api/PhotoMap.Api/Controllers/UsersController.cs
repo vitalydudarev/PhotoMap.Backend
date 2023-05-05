@@ -48,7 +48,9 @@ namespace PhotoMap.Api.Controllers
         {
             var user = await _dbUserService.GetAsync(id);
             if (user != null)
+            {
                 return Ok(user);
+            }
 
             return NotFound();
         }
@@ -78,7 +80,7 @@ namespace PhotoMap.Api.Controllers
                 Id = a.Id,
                 Latitude = a.Latitude,
                 Longitude = a.Longitude,
-                PhotoUrl = $"{url}/{Source(a.Source)}/photos/" + a.Id,
+                PhotoUrl = $"{url}/{Source("a.Source")}/photos/" + a.Id,
                 ThumbnailLargeUrl = $"{url}/photos/{a.Id}/thumb/large",
                 ThumbnailSmallUrl = $"{url}/photos/{a.Id}/thumb/small"
             }).ToArray();

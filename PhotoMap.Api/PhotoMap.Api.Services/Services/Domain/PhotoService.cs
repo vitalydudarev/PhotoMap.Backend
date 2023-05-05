@@ -2,7 +2,7 @@ using PhotoMap.Api.Domain.Models;
 using PhotoMap.Api.Domain.Repositories;
 using PhotoMap.Api.Domain.Services;
 
-namespace PhotoMap.Api.Services.Services
+namespace PhotoMap.Api.Services.Services.Domain
 {
     public class PhotoService : IPhotoService
     {

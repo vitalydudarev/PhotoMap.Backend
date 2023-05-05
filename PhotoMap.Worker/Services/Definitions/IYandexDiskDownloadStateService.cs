@@ -4,7 +4,7 @@ namespace PhotoMap.Worker.Services.Definitions
 {
     public interface IYandexDiskDownloadStateService
     {
-        YandexDiskData GetData(int userId);
+        YandexDiskData GetData(long userId);
 
         void SaveData(YandexDiskData data);
     }

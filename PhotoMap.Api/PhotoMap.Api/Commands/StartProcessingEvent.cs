@@ -5,7 +5,7 @@ namespace PhotoMap.Api.Commands
 {
     public class StartProcessingEvent : EventBase
     {
-        public IUserIdentifier UserIdentifier { get; set; }
+        public required IUserIdentifier UserIdentifier { get; set; }
 
         public string Token { get; set; }
     }

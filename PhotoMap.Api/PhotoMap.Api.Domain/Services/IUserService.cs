@@ -6,10 +6,10 @@ namespace PhotoMap.Api.Domain.Services
     {
         Task AddAsync(string name);
 
-        Task<User?> GetAsync(int id);
+        Task<User?> GetAsync(long id);
 
         Task UpdateAsync(
-            int id,
+            long id,
             string? yandexDiskToken,
             int? yandexDiskTokenExpiresIn,
             ProcessingStatus? yandexDiskStatus,

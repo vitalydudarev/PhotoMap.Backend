@@ -12,7 +12,7 @@ namespace PhotoMap.Worker.Services.Implementations
     public class YandexDiskDownloadStateService : IYandexDiskDownloadStateService
     {
         private const string FileName = "yandex-disk-data.json";
-        private readonly Dictionary<int, YandexDiskData> _map = new Dictionary<int, YandexDiskData>();
+        private readonly Dictionary<long, YandexDiskData> _map = new Dictionary<long, YandexDiskData>();
         private readonly ILogger<YandexDiskDownloadStateService> _logger;
 
         public YandexDiskDownloadStateService(ILogger<YandexDiskDownloadStateService> logger)
@@ -37,7 +37,7 @@ namespace PhotoMap.Worker.Services.Implementations
             }
         }
 
-        public YandexDiskData GetData(int userId)
+        public YandexDiskData GetData(long userId)
         {
             return _map.TryGetValue(userId, out var data) ? data : null;
         }

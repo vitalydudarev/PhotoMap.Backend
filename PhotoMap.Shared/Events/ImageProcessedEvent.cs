@@ -6,6 +6,7 @@ namespace PhotoMap.Shared.Events
     {
         public IUserIdentifier UserIdentifier { get; set; }
         public string FileName { get; set; }
+        public long PhotoSourceId { get; set; }
         public string FileSource { get; set; }
         public Dictionary<int, byte[]> Thumbs { get; set; }
         public string Path { get; set; }

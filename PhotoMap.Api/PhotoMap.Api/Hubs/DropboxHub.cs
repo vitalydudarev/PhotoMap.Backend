@@ -6,11 +6,12 @@ using PhotoMap.Api.Handlers;
 
 namespace PhotoMap.Api.Hubs
 {
+    // TODO: use one hub for both Dropbox and Yandex.Disk
     public class DropboxHub : Hub
     {
-        private readonly Dictionary<int, HashSet<string>> _map = new Dictionary<int, HashSet<string>>();
+        private readonly Dictionary<long, HashSet<string>> _map = new Dictionary<long, HashSet<string>>();
 
-        public void RegisterClient(int userId)
+        public void RegisterClient(long userId)
         {
             var connectionId = Context.ConnectionId;
 
@@ -20,7 +21,7 @@ namespace PhotoMap.Api.Hubs
                 _map.Add(userId, new HashSet<string> { connectionId });
         }
 
-        public async Task SendErrorAsync(int userId, string errorText)
+        public async Task SendErrorAsync(long userId, string errorText)
         {
             if (_map.TryGetValue(userId, out var connectionIds))
             {
@@ -28,7 +29,7 @@ namespace PhotoMap.Api.Hubs
             }
         }
 
-        public async Task SendProgressAsync(int userId, Progress processed)
+        public async Task SendProgressAsync(long userId, Progress processed)
         {
             if (_map.TryGetValue(userId, out var connectionIds))
             {

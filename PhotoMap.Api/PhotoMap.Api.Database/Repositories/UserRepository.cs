@@ -1,3 +1,4 @@
+using PhotoMap.Api.Database.Entities;
 using PhotoMap.Api.Domain.Models;
 using PhotoMap.Api.Domain.Repositories;
 
@@ -14,24 +15,27 @@ public class UserRepository : IUserRepository
     
     public async Task AddAsync(string name)
     {
-        var user = new User();
-        user.Name = name;
+        var user = new UserEntity { Name = name };
 
         await _context.Users.AddAsync(user);
         await _context.SaveChangesAsync();
     }
 
-    public async Task<User?> GetAsync(int id)
+    public async Task<User?> GetAsync(long id)
     {
         var user = await _context.Users.FindAsync(id);
+        if (user != null)
+        {
+            return new User { Id = user.Id, Name = user.Name };
+        }
 
-        return user;
+        return null;
     }
 
-    public async Task UpdateAsync(User user)
-    {
-        _context.Users.Update(user);
+    // public async Task UpdateAsync(User user)
+    // {
+        // _context.Users.Update(user);
 
-        await _context.SaveChangesAsync();
-    }
+        // await _context.SaveChangesAsync();
+    // }
 }

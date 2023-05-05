@@ -5,6 +5,7 @@ using Dropbox.Api;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using PhotoMap.Api.Domain.Services;
+using PhotoMap.Api.DTOs;
 using PhotoMap.Api.Services.Interfaces;
 using PhotoMap.Shared.Events;
 using PhotoMap.Shared.Messaging.MessageSender;
@@ -33,6 +34,13 @@ namespace PhotoMap.Api.Controllers
             _photoService = photoService;
             _messageSender = messageSender;
             _convertedImageHolder = convertedImageHolder;
+        }
+
+        [HttpPost("auth")]
+        public async Task<IActionResult> Authorize([FromBody] UserAuthorizedDto userAuthorizedDto)
+        {
+            // save info in DB
+            return Ok();
         }
 
         [HttpPost]

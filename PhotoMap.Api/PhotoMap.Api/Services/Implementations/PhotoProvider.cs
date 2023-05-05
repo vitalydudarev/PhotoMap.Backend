@@ -24,16 +24,16 @@ public class PhotoProvider : IPhotoProvider
             throw new Exception("Photo not found");
         }
 
-        if (photo.Source == "Yandex.Disk")
-        {
-            var user = photo.User;
-            if (user == null)
-            {
-                throw new Exception("User not found");
-            }
+        // if (photo.Source == "Yandex.Disk")
+        // {
+            // var user = photo.User;
+            // if (user == null)
+            // {
+                // throw new Exception("User not found");
+            // }
             
             // TODO: implement
-        }
+        // }
 
         throw new NotImplementedException();
     }

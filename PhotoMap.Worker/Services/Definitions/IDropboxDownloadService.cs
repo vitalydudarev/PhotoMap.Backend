@@ -5,7 +5,7 @@ namespace PhotoMap.Worker.Services.Definitions
 {
     public interface IDropboxDownloadService
     {
-        IAsyncEnumerable<DropboxFileInfo> DownloadAsync(
+        IAsyncEnumerable<DropboxFileInfo?> DownloadAsync(
             IUserIdentifier userIdentifier,
             string apiToken,
             StoppingAction stoppingAction,

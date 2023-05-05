@@ -1,19 +1,17 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using PhotoMap.Api.Database.Configurations;
-using PhotoMap.Api.Domain.Models;
-using File = PhotoMap.Api.Domain.Models.File;
+using PhotoMap.Api.Database.Entities;
 
 namespace PhotoMap.Api.Database
 {
     public class PhotoMapContext : DbContext
     {
-        private readonly IConfiguration _configuration;
+        private readonly IConfiguration? _configuration;
 
-        public DbSet<User> Users { get; set; }
-        public DbSet<Photo> Photos { get; set; }
-        // TODO: delete?
-        // public DbSet<File> Files { get; set; }
+        public DbSet<UserEntity> Users { get; set; }
+        public DbSet<PhotoEntity> Photos { get; set; }
+        public DbSet<PhotoSourceEntity> PhotoSources { get; set; }
 
         public PhotoMapContext(IConfiguration configuration, DbContextOptions<PhotoMapContext> options)
             : base(options)
@@ -23,9 +21,9 @@ namespace PhotoMap.Api.Database
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
-            modelBuilder.ApplyConfiguration(new UserTypeConfiguration());
-            modelBuilder.ApplyConfiguration(new PhotoTypeConfiguration());
-            modelBuilder.ApplyConfiguration(new FileTypeConfiguration());
+            modelBuilder.ApplyConfiguration(new UserEntityConfiguration());
+            modelBuilder.ApplyConfiguration(new PhotoEntityConfiguration());
+            modelBuilder.ApplyConfiguration(new PhotoSourceEntityConfiguration());
         }
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)

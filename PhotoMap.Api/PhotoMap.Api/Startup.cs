@@ -4,6 +4,7 @@ using System.Net;
 using System.Text;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -11,6 +12,7 @@ using Microsoft.Extensions.Options;
 using Microsoft.OpenApi.Models;
 using NATS.Client;
 using PhotoMap.Api.Database;
+using PhotoMap.Api.Database.Entities;
 using PhotoMap.Api.Database.Repositories;
 using PhotoMap.Api.Domain.Models;
 using PhotoMap.Api.Domain.Repositories;
@@ -22,6 +24,7 @@ using PhotoMap.Api.Services;
 using PhotoMap.Api.Services.Implementations;
 using PhotoMap.Api.Services.Interfaces;
 using PhotoMap.Api.Services.Services;
+using PhotoMap.Api.Services.Services.Domain;
 using PhotoMap.Api.Settings;
 using PhotoMap.Shared;
 using PhotoMap.Shared.Messaging;
@@ -71,10 +74,23 @@ namespace PhotoMap.Api
             services.AddHttpClient();
 
             services.AddScoped<IImageStore, ImageStore>();
+            services.AddScoped<IPhotoProvider, PhotoProvider>();
 
+            services.AddScoped<IPhotoSourceDownloadServiceFactory, PhotoSourceDownloadServiceFactory>();
+
+            // domain services
             services.AddScoped<IPhotoService, PhotoService>();
             services.AddScoped<IUserService, UserService>();
-            // services.AddScoped<IFileService, FileService>();
+            services.AddScoped<IPhotoSourceService, PhotoSourceService>();
+            
+            // repositories
+            services.AddScoped<IPhotoRepository, PhotoRepository>();
+            services.AddScoped<IUserRepository, UserRepository>();
+            services.AddScoped<IPhotoSourceRepository, PhotoSourceRepository>();
+
+            // database context
+            services.AddDbContext<PhotoMapContext>();
+            
             services.AddScoped<IFileStorage, FileStorage>(provider =>
             {
                 var settings = provider.GetRequiredService<IOptions<FileStorageSettings>>().Value;
@@ -82,30 +98,25 @@ namespace PhotoMap.Api
                 return new FileStorage(settings);
             });
 
-            services.AddHostedService<HostedService>();
+            // services.AddHostedService<HostedService>();
 
+            // hubs
             services.AddSingleton<YandexDiskHub>();
             services.AddSingleton<DropboxHub>();
 
+            // event handlers
             services.AddSingleton<IEventHandler, ProgressMessageHandler>();
             services.AddSingleton<IEventHandler, ImageProcessedEventHandler>();
             services.AddSingleton<IEventHandler, NotificationHandler>();
+            
             services.AddSingleton<IMessageSender, RabbitMqMessageSender>();
             services.AddSingleton<IMessageListener, RabbitMqMessageListener>();
             services.AddSingleton<IEventHandlerManager, EventHandlerManager>();
-            services.AddScoped<IUserService, UserService>();
             services.AddScoped<IStorageService, StorageServiceClient>();
             services.AddScoped<HostInfo>();
             services.AddScoped<IFileProvider, LocalFileProvider>();
-            services.AddScoped<IPhotoProvider, PhotoProvider>();
             services.AddSingleton<IConvertedImageHolder, ConvertedImageHolder>();
-
-            services.AddScoped<IPhotoRepository, PhotoRepository>();
-            services.AddScoped<IUserRepository, UserRepository>();
-            // services.AddScoped<IFileRepository, FileRepository>();
-
-            services.AddDbContext<PhotoMapContext>();
-
+            
             services.AddSwaggerGen(c =>
             {
                 c.SwaggerDoc("v1", new OpenApiInfo { Title = "PhotoMap API V1", Version = "v1" });
@@ -154,6 +165,8 @@ namespace PhotoMap.Api
             });
             
             InitNATS(app, "127.0.0.1:4222");
+
+            ApplyDatabaseMigrations(app);
         }
         
         // 127.0.0.1:4222
@@ -184,6 +197,35 @@ namespace PhotoMap.Api
                 // reply
                 // natsConnection.Publish(MessagesConstants.ResetCacheReplySubject, Encoding.UTF8.GetBytes(reply));
             });
+        }
+        
+        private static void ApplyDatabaseMigrations(IApplicationBuilder app)
+        {
+            using var scope = app.ApplicationServices.CreateScope();
+            using var context = scope.ServiceProvider.GetRequiredService<PhotoMapContext>();
+
+            var dbCreated = context.Database.EnsureCreated();
+            if (!dbCreated)
+            {
+                // database is created and no migrations needed
+                return;
+            }
+
+            if (context.Database.IsRelational())
+            {
+                context.Database.Migrate();
+            }
+            
+            SeedDatabase(context);
+        }
+        
+        private static void SeedDatabase(PhotoMapContext context)
+        {
+            context.Users.Add(new UserEntity { Id = 1, Name = "Vitaly" });
+            context.PhotoSources.Add(new PhotoSourceEntity { Id = 1, Name = "Dropbox", Settings = "", ImplementationType = "" });
+            context.PhotoSources.Add(new PhotoSourceEntity { Id = 2, Name = "Yandex.Disk", Settings = "", ImplementationType = "" });
+
+            context.SaveChanges();
         }
     }
 }
