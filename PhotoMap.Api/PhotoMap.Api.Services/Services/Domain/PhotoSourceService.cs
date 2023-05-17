@@ -1,3 +1,4 @@
+using System.Text.Json;
 using PhotoMap.Api.Domain.Models;
 using PhotoMap.Api.Domain.Repositories;
 using PhotoMap.Api.Domain.Services;
@@ -21,5 +22,12 @@ public class PhotoSourceService : IPhotoSourceService
     public Task<PhotoSource?> GetByIdAsync(long id)
     {
         return _photoSourceRepository.GetByIdAsync(id);
+    }
+    
+    public async Task<OAuthSettings?> GetSourceAuthSettingsAsync(long id)
+    {
+        var source = await _photoSourceRepository.GetByIdAsync(id);
+        
+        return source?.AuthSettings;
     }
 }

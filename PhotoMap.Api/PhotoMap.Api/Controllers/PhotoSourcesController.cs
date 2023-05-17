@@ -28,4 +28,26 @@ public class PhotoSourcesController : ControllerBase
 
         return Ok(dtos);
     }
+    
+    [HttpGet("{id:long}/auth-settings")]
+    [ProducesResponseType(typeof(OAuthSettingsDto), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetSourceAuthSettings(long id)
+    {
+        var oAuthSettings = await _photoSourceService.GetSourceAuthSettingsAsync(id);
+        if (oAuthSettings == null)
+        {
+            return NotFound();
+        }
+
+        var dto = new OAuthSettingsDto
+        {
+            ClientId = oAuthSettings.ClientId,
+            ResponseType = oAuthSettings.ResponseType,
+            RedirectUri = oAuthSettings.RedirectUri,
+            AuthorizeUrl = oAuthSettings.AuthorizeUrl,
+            TokenUrl = oAuthSettings.TokenUrl
+        };
+
+        return Ok(dto);
+    }
 }

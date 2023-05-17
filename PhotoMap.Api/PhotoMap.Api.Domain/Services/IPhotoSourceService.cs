@@ -6,4 +6,5 @@ public interface IPhotoSourceService
 {
     Task<IEnumerable<PhotoSource>> GetAsync();
     Task<PhotoSource?> GetByIdAsync(long id);
+    Task<OAuthSettings?> GetSourceAuthSettingsAsync(long id);
 }

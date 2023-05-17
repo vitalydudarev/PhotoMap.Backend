@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using PhotoMap.Api.Database.Entities;
 using PhotoMap.Api.Domain.Models;
 using PhotoMap.Api.Domain.Repositories;
 
@@ -17,23 +18,26 @@ public class PhotoSourceRepository : IPhotoSourceRepository
     {
         var fileSources = await _context.PhotoSources.ToListAsync();
 
-        return fileSources.Select(a => new PhotoSource { Id = a.Id, Name = a.Name, Settings = a.Settings, ImplementationType = a.ImplementationType });
+        return fileSources.Select(EntityToModel);
     }
 
     public async Task<PhotoSource?> GetByIdAsync(long id)
     {
         var fileSource = await _context.PhotoSources.FindAsync(id);
-        if (fileSource != null)
-        {
-            return new PhotoSource
-            {
-                Id = fileSource.Id,
-                Name = fileSource.Name,
-                Settings = fileSource.Settings,
-                ImplementationType = fileSource.ImplementationType
-            };
-        }
+        
+        return fileSource != null ? EntityToModel(fileSource) : null;
+    }
 
-        return null;
+    private static PhotoSource EntityToModel(PhotoSourceEntity entity)
+    {
+        return new PhotoSource
+        {
+            Id = entity.Id,
+            Name = entity.Name,
+            ServiceSettings = entity.Settings,
+            AuthSettings = entity.AuthSettings,
+            ServiceImplementationType = entity.ServiceImplementationType,
+            SettingsImplementationType = entity.SettingsImplementationType
+        };
     }
 }

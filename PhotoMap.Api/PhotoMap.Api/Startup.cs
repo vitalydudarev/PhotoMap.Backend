@@ -1,10 +1,15 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net;
 using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -82,6 +87,7 @@ namespace PhotoMap.Api
             services.AddScoped<IPhotoService, PhotoService>();
             services.AddScoped<IUserService, UserService>();
             services.AddScoped<IPhotoSourceService, PhotoSourceService>();
+            services.AddScoped<IUserPhotoSourceService, UserPhotoSourceService>();
             
             // repositories
             services.AddScoped<IPhotoRepository, PhotoRepository>();
@@ -164,7 +170,7 @@ namespace PhotoMap.Api
                 c.SwaggerEndpoint("/swagger/v1/swagger.json", "PhotoMap API V1");
             });
             
-            InitNATS(app, "127.0.0.1:4222");
+            // InitNATS(app, "127.0.0.1:4222");
 
             ApplyDatabaseMigrations(app);
         }
@@ -204,28 +210,17 @@ namespace PhotoMap.Api
             using var scope = app.ApplicationServices.CreateScope();
             using var context = scope.ServiceProvider.GetRequiredService<PhotoMapContext>();
 
-            var dbCreated = context.Database.EnsureCreated();
-            if (!dbCreated)
-            {
-                // database is created and no migrations needed
-                return;
-            }
+            var dbExists = context.GetService<IDatabaseCreator>().CanConnect();
 
-            if (context.Database.IsRelational())
+            if (context.Database.IsRelational() && context.Database.GetPendingMigrations().Any())
             {
                 context.Database.Migrate();
             }
-            
-            SeedDatabase(context);
-        }
-        
-        private static void SeedDatabase(PhotoMapContext context)
-        {
-            context.Users.Add(new UserEntity { Id = 1, Name = "Vitaly" });
-            context.PhotoSources.Add(new PhotoSourceEntity { Id = 1, Name = "Dropbox", Settings = "", ImplementationType = "" });
-            context.PhotoSources.Add(new PhotoSourceEntity { Id = 2, Name = "Yandex.Disk", Settings = "", ImplementationType = "" });
 
-            context.SaveChanges();
+            if (!dbExists)
+            {
+                SeedDatabaseUtil.SeedDatabase(context);
+            }
         }
     }
 }

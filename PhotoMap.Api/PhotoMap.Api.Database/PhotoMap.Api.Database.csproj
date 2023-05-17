@@ -13,11 +13,11 @@
     </ItemGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\PhotoMap.Api.Domain\PhotoMap.Api.Domain.csproj" />
+      <Folder Include="Migrations\" />
     </ItemGroup>
 
     <ItemGroup>
-      <Folder Include="Migrations\" />
+      <ProjectReference Include="..\PhotoMap.Api.Domain\PhotoMap.Api.Domain.csproj" />
     </ItemGroup>
 
 </Project>

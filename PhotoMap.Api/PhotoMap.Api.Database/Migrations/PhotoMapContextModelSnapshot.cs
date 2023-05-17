@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using PhotoMap.Api.Database;
+using PhotoMap.Api.Domain.Models;
 
 #nullable disable
 
@@ -84,15 +85,23 @@ namespace PhotoMap.Api.Database.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
 
-                    b.Property<string>("ImplementationType")
+                    b.Property<OAuthSettings>("AuthSettings")
                         .IsRequired()
-                        .HasColumnType("text");
+                        .HasColumnType("jsonb");
 
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<string>("ServiceImplementationType")
+                        .IsRequired()
+                        .HasColumnType("text");
+
                     b.Property<string>("Settings")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("SettingsImplementationType")
                         .IsRequired()
                         .HasColumnType("text");
 
@@ -118,7 +127,52 @@ namespace PhotoMap.Api.Database.Migrations
                     b.ToTable("Users", (string)null);
                 });
 
+            modelBuilder.Entity("PhotoMap.Api.Database.Entities.UserPhotoSourceEntity", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<AuthResult>("AuthSettings")
+                        .HasColumnType("jsonb");
+
+                    b.Property<long>("PhotoSourceId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("UserId")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PhotoSourceId");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("UserPhotoSources", (string)null);
+                });
+
             modelBuilder.Entity("PhotoMap.Api.Database.Entities.PhotoEntity", b =>
+                {
+                    b.HasOne("PhotoMap.Api.Database.Entities.PhotoSourceEntity", "PhotoSource")
+                        .WithMany()
+                        .HasForeignKey("PhotoSourceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("PhotoMap.Api.Database.Entities.UserEntity", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("PhotoSource");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("PhotoMap.Api.Database.Entities.UserPhotoSourceEntity", b =>
                 {
                     b.HasOne("PhotoMap.Api.Database.Entities.PhotoSourceEntity", "PhotoSource")
                         .WithMany()
