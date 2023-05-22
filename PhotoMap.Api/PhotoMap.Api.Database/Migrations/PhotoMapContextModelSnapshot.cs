@@ -129,26 +129,18 @@ namespace PhotoMap.Api.Database.Migrations
 
             modelBuilder.Entity("PhotoMap.Api.Database.Entities.UserPhotoSourceEntity", b =>
                 {
-                    b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
+                    b.Property<long>("UserId")
                         .HasColumnType("bigint");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
-
-                    b.Property<AuthResult>("AuthSettings")
-                        .HasColumnType("jsonb");
 
                     b.Property<long>("PhotoSourceId")
                         .HasColumnType("bigint");
 
-                    b.Property<long>("UserId")
-                        .HasColumnType("bigint");
+                    b.Property<AuthResult>("AuthSettings")
+                        .HasColumnType("jsonb");
 
-                    b.HasKey("Id");
+                    b.HasKey("UserId", "PhotoSourceId");
 
                     b.HasIndex("PhotoSourceId");
-
-                    b.HasIndex("UserId");
 
                     b.ToTable("UserPhotoSources", (string)null);
                 });
@@ -175,13 +167,13 @@ namespace PhotoMap.Api.Database.Migrations
             modelBuilder.Entity("PhotoMap.Api.Database.Entities.UserPhotoSourceEntity", b =>
                 {
                     b.HasOne("PhotoMap.Api.Database.Entities.PhotoSourceEntity", "PhotoSource")
-                        .WithMany()
+                        .WithMany("UserPhotoSources")
                         .HasForeignKey("PhotoSourceId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.HasOne("PhotoMap.Api.Database.Entities.UserEntity", "User")
-                        .WithMany()
+                        .WithMany("UserPhotoSources")
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -189,6 +181,16 @@ namespace PhotoMap.Api.Database.Migrations
                     b.Navigation("PhotoSource");
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("PhotoMap.Api.Database.Entities.PhotoSourceEntity", b =>
+                {
+                    b.Navigation("UserPhotoSources");
+                });
+
+            modelBuilder.Entity("PhotoMap.Api.Database.Entities.UserEntity", b =>
+                {
+                    b.Navigation("UserPhotoSources");
                 });
 #pragma warning restore 612, 618
         }

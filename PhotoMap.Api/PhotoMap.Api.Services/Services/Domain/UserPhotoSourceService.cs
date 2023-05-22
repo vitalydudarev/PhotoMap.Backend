@@ -15,11 +15,20 @@ public class UserPhotoSourceService : IUserPhotoSourceService
         _context = context;
     }
 
-    public async Task<AuthResult?> GetAuthSettings(long userId, long photoSourceId)
+    public async Task<IEnumerable<UserPhotoSourceSettings>> GetUserPhotoSourceSettings(long userId)
     {
-        var userPhotoSource = await _context.UserPhotoSources.FirstOrDefaultAsync(a => a.UserId == userId && a.PhotoSourceId == photoSourceId);
-        
-        return userPhotoSource?.AuthSettings;
+        var photoSourceEntities = await _context.PhotoSources
+            .Include(a => a.UserPhotoSources.Where(b => b.UserId == userId))
+            .ToListAsync();
+
+        return photoSourceEntities.Select(a => new UserPhotoSourceSettings
+        {
+            UserId = userId,
+            PhotoSourceId = a.Id,
+            PhotoSourceName = a.Name,
+            AuthSettings = a.UserPhotoSources.FirstOrDefault()?.AuthSettings,
+            IsUserAuthorized = a.UserPhotoSources.FirstOrDefault()?.AuthSettings?.TokenExpiresOn > DateTime.UtcNow
+        });
     }
     
     public async Task UpdateAuthSettings(long userId, long photoSourceId, AuthResult authResult)

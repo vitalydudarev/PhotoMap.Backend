@@ -83,15 +83,13 @@ namespace PhotoMap.Api.Database.Migrations
                 name: "UserPhotoSources",
                 columns: table => new
                 {
-                    Id = table.Column<long>(type: "bigint", nullable: false)
-                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
                     UserId = table.Column<long>(type: "bigint", nullable: false),
                     PhotoSourceId = table.Column<long>(type: "bigint", nullable: false),
                     AuthSettings = table.Column<AuthResult>(type: "jsonb", nullable: true)
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_UserPhotoSources", x => x.Id);
+                    table.PrimaryKey("PK_UserPhotoSources", x => new { x.UserId, x.PhotoSourceId });
                     table.ForeignKey(
                         name: "FK_UserPhotoSources_PhotoSources_PhotoSourceId",
                         column: x => x.PhotoSourceId,
@@ -120,11 +118,6 @@ namespace PhotoMap.Api.Database.Migrations
                 name: "IX_UserPhotoSources_PhotoSourceId",
                 table: "UserPhotoSources",
                 column: "PhotoSourceId");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_UserPhotoSources_UserId",
-                table: "UserPhotoSources",
-                column: "UserId");
         }
 
         /// <inheritdoc />

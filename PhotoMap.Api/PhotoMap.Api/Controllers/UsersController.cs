@@ -15,12 +15,49 @@ namespace PhotoMap.Api.Controllers
         private readonly IPhotoService _photoService;
         private readonly IUserService _dbUserService;
         private readonly HostInfo _hostInfo;
+        private readonly IUserPhotoSourceService _userPhotoSourceService;
 
-        public UsersController(IPhotoService photoService, IUserService dbUserService, HostInfo hostInfo)
+        public UsersController(IPhotoService photoService, IUserService dbUserService, IUserPhotoSourceService userPhotoSourceService, HostInfo hostInfo)
         {
             _photoService = photoService;
             _dbUserService = dbUserService;
+            _userPhotoSourceService = userPhotoSourceService;
             _hostInfo = hostInfo;
+        }
+
+        [HttpGet("{id:long}")]
+        [ProducesResponseType(typeof(User), StatusCodes.Status200OK)]
+        public async Task<IActionResult> GetUser(long id)
+        {
+            var user = await _dbUserService.GetAsync(id);
+            if (user != null)
+            {
+                return Ok(user);
+            }
+
+            return NotFound();
+        }
+        
+        [HttpGet("{id:long}/photo-source-settings")]
+        [ProducesResponseType(typeof(User), StatusCodes.Status200OK)]
+        public async Task<IActionResult> GetUserPhotoSourceSettings(long id)
+        {
+            var userPhotoSourceSettings = await _userPhotoSourceService.GetUserPhotoSourceSettings(id);
+
+            var dtos = userPhotoSourceSettings.Select(a => new UserPhotoSourceSettingsDto
+            {
+                UserId = a.UserId,
+                PhotoSourceId = a.PhotoSourceId,
+                PhotoSourceName = a.PhotoSourceName,
+                IsUserAuthorized = a.IsUserAuthorized,
+                AuthResult = a.AuthSettings != null ? new AuthResultDto
+                {
+                    Token = a.AuthSettings.Token,
+                    TokenExpiresOn = a.AuthSettings.TokenExpiresOn
+                } : null
+            });
+
+            return Ok(dtos);
         }
 
         [HttpPost]
@@ -32,28 +69,15 @@ namespace PhotoMap.Api.Controllers
             return Ok();
         }
 
-        [HttpPatch("{id}")]
+        [HttpPatch("{id:long}")]
         [ProducesResponseType(StatusCodes.Status200OK)]
-        public async Task<IActionResult> UpdateUserAsync(int id, [FromBody] UpdateUserDto updateUserDto)
+        public async Task<IActionResult> UpdateUserAsync(long id, [FromBody] UpdateUserDto updateUserDto)
         {
             await _dbUserService.UpdateAsync(id, updateUserDto.YandexDiskToken, updateUserDto.YandexDiskTokenExpiresIn,
                 updateUserDto.YandexDiskStatus, updateUserDto.DropboxToken, updateUserDto.DropboxTokenExpiresIn,
                 updateUserDto.DropboxStatus);
 
             return Ok();
-        }
-
-        [HttpGet("{id}")]
-        [ProducesResponseType(typeof(User), StatusCodes.Status200OK)]
-        public async Task<IActionResult> GetUserAsync(int id)
-        {
-            var user = await _dbUserService.GetAsync(id);
-            if (user != null)
-            {
-                return Ok(user);
-            }
-
-            return NotFound();
         }
 
         [HttpGet("{id}/photos")]
