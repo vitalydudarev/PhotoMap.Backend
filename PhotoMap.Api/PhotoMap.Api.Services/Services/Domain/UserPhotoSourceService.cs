@@ -15,13 +15,13 @@ public class UserPhotoSourceService : IUserPhotoSourceService
         _context = context;
     }
 
-    public async Task<IEnumerable<UserPhotoSourceSettings>> GetUserPhotoSourceSettings(long userId)
+    public async Task<IEnumerable<UserPhotoSource>> GetUserPhotoSourcesAsync(long userId)
     {
         var photoSourceEntities = await _context.PhotoSources
             .Include(a => a.UserPhotoSources.Where(b => b.UserId == userId))
             .ToListAsync();
 
-        return photoSourceEntities.Select(a => new UserPhotoSourceSettings
+        return photoSourceEntities.Select(a => new UserPhotoSource
         {
             UserId = userId,
             PhotoSourceId = a.Id,
@@ -31,7 +31,7 @@ public class UserPhotoSourceService : IUserPhotoSourceService
         });
     }
     
-    public async Task UpdateAuthSettings(long userId, long photoSourceId, AuthResult authResult)
+    public async Task UpdateUserPhotoSourceAuthResultAsync(long userId, long photoSourceId, AuthResult authResult)
     {
         var userPhotoSource = await _context.UserPhotoSources.FirstOrDefaultAsync(a => a.UserId == userId && a.PhotoSourceId == photoSourceId);
 

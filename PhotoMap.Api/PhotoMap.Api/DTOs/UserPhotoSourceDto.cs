@@ -1,6 +1,6 @@
 namespace PhotoMap.Api.DTOs;
 
-public class UserPhotoSourceSettingsDto
+public class UserPhotoSourceDto
 {
     public long UserId { get; set; }
     public long PhotoSourceId { get; set; }

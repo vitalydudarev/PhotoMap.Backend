@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
+using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -38,6 +39,7 @@ using PhotoMap.Shared.Messaging.EventHandlerManager;
 using PhotoMap.Shared.Messaging.MessageListener;
 using PhotoMap.Shared.Messaging.MessageSender;
 using Serilog;
+using Swashbuckle.AspNetCore.SwaggerGen;
 
 namespace PhotoMap.Api
 {
@@ -126,6 +128,9 @@ namespace PhotoMap.Api
             services.AddSwaggerGen(c =>
             {
                 c.SwaggerDoc("v1", new OpenApiInfo { Title = "PhotoMap API V1", Version = "v1" });
+                
+                // generated client methods will have the same names as C# controllers
+                c.CustomOperationIds(apiDesc => apiDesc.TryGetMethodInfo(out MethodInfo methodInfo) ? methodInfo.Name : null);
             });
 
             services.AddSignalR();

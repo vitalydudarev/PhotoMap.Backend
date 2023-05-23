@@ -15,13 +15,11 @@ namespace PhotoMap.Api.Controllers
         private readonly IPhotoService _photoService;
         private readonly IUserService _dbUserService;
         private readonly HostInfo _hostInfo;
-        private readonly IUserPhotoSourceService _userPhotoSourceService;
 
-        public UsersController(IPhotoService photoService, IUserService dbUserService, IUserPhotoSourceService userPhotoSourceService, HostInfo hostInfo)
+        public UsersController(IPhotoService photoService, IUserService dbUserService, HostInfo hostInfo)
         {
             _photoService = photoService;
             _dbUserService = dbUserService;
-            _userPhotoSourceService = userPhotoSourceService;
             _hostInfo = hostInfo;
         }
 
@@ -36,37 +34,6 @@ namespace PhotoMap.Api.Controllers
             }
 
             return NotFound();
-        }
-        
-        [HttpGet("{id:long}/photo-source-settings")]
-        [ProducesResponseType(typeof(User), StatusCodes.Status200OK)]
-        public async Task<IActionResult> GetUserPhotoSourceSettings(long id)
-        {
-            var userPhotoSourceSettings = await _userPhotoSourceService.GetUserPhotoSourceSettings(id);
-
-            var dtos = userPhotoSourceSettings.Select(a => new UserPhotoSourceSettingsDto
-            {
-                UserId = a.UserId,
-                PhotoSourceId = a.PhotoSourceId,
-                PhotoSourceName = a.PhotoSourceName,
-                IsUserAuthorized = a.IsUserAuthorized,
-                AuthResult = a.AuthSettings != null ? new AuthResultDto
-                {
-                    Token = a.AuthSettings.Token,
-                    TokenExpiresOn = a.AuthSettings.TokenExpiresOn
-                } : null
-            });
-
-            return Ok(dtos);
-        }
-
-        [HttpPost]
-        [ProducesResponseType(StatusCodes.Status200OK)]
-        public async Task<IActionResult> AddUserAsync([FromBody] AddUserDto addUserDto)
-        {
-            await _dbUserService.AddAsync(addUserDto.Name);
-
-            return Ok();
         }
 
         [HttpPatch("{id:long}")]

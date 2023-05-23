@@ -1,6 +1,6 @@
 namespace PhotoMap.Api.Domain.Models;
 
-public class UserPhotoSourceSettings
+public class UserPhotoSource
 {
     public long UserId { get; set; }
     public long PhotoSourceId { get; set; }
