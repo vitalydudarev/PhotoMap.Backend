@@ -85,7 +85,7 @@ namespace PhotoMap.Api.Database.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
 
-                    b.Property<OAuthSettings>("AuthSettings")
+                    b.Property<AuthSettings>("AuthSettings")
                         .IsRequired()
                         .HasColumnType("jsonb");
 

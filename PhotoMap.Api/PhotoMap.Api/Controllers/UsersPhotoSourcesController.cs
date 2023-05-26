@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -32,23 +33,27 @@ namespace PhotoMap.Api.Controllers
                 PhotoSourceId = a.PhotoSourceId,
                 PhotoSourceName = a.PhotoSourceName,
                 IsUserAuthorized = a.IsUserAuthorized,
-                AuthResult = a.AuthSettings != null ? new AuthResultDto
+                AuthResult = a.AuthSettings != null ? new AuthResultOutputDto
                 {
                     Token = a.AuthSettings.Token,
-                    TokenExpiresOn = a.AuthSettings.TokenExpiresOn
+                    TokenExpiresOn = DateTime.SpecifyKind(a.AuthSettings.TokenExpiresOn.DateTime, DateTimeKind.Utc)
                 } : null
             });
 
             return Ok(dtos);
         }
         
-        [HttpPut("{id:long}")]
+        [HttpPut("{sourceId:long}")]
         [ProducesResponseType(StatusCodes.Status200OK)]
-        public async Task<IActionResult> UpdateUserPhotoSource(long userId, long id, [FromBody] AuthResultDto authResultDto)
+        public async Task<IActionResult> UpdateUserPhotoSource(long userId, long sourceId, [FromBody] AuthResultInputDto authResultInputDto)
         {
-            var authResult = new AuthResult { Token = authResultDto.Token, TokenExpiresOn = authResultDto.TokenExpiresOn };
+            var authResult = new AuthResult
+            {
+                Token = authResultInputDto.Token,
+                TokenExpiresOn = DateTimeOffset.UtcNow.AddSeconds(authResultInputDto.TokenExpiresIn)
+            };
 
-            await _userPhotoSourceService.UpdateUserPhotoSourceAuthResultAsync(userId, id, authResult);
+            await _userPhotoSourceService.UpdateUserPhotoSourceAuthResultAsync(userId, sourceId, authResult);
 
             return Ok();
         }

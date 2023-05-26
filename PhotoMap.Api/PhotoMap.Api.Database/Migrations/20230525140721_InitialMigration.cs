@@ -21,7 +21,7 @@ namespace PhotoMap.Api.Database.Migrations
                         .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
                     Name = table.Column<string>(type: "text", nullable: false),
                     Settings = table.Column<string>(type: "text", nullable: false),
-                    AuthSettings = table.Column<OAuthSettings>(type: "jsonb", nullable: false),
+                    AuthSettings = table.Column<AuthSettings>(type: "jsonb", nullable: false),
                     ServiceImplementationType = table.Column<string>(type: "text", nullable: false),
                     SettingsImplementationType = table.Column<string>(type: "text", nullable: false)
                 },

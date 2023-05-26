@@ -13,7 +13,7 @@ using PhotoMap.Api.Domain.Models;
 namespace PhotoMap.Api.Database.Migrations
 {
     [DbContext(typeof(PhotoMapContext))]
-    [Migration("20230518183515_InitialMigration")]
+    [Migration("20230525140721_InitialMigration")]
     partial class InitialMigration
     {
         /// <inheritdoc />
@@ -88,7 +88,7 @@ namespace PhotoMap.Api.Database.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
 
-                    b.Property<OAuthSettings>("AuthSettings")
+                    b.Property<AuthSettings>("AuthSettings")
                         .IsRequired()
                         .HasColumnType("jsonb");
 

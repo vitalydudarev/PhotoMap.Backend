@@ -24,7 +24,7 @@ public class PhotoSourceService : IPhotoSourceService
         return _photoSourceRepository.GetByIdAsync(id);
     }
     
-    public async Task<OAuthSettings?> GetSourceAuthSettingsAsync(long id)
+    public async Task<AuthSettings?> GetSourceAuthSettingsAsync(long id)
     {
         var source = await _photoSourceRepository.GetByIdAsync(id);
         

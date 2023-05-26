@@ -30,22 +30,27 @@ public class PhotoSourcesController : ControllerBase
     }
     
     [HttpGet("{id:long}/auth-settings")]
-    [ProducesResponseType(typeof(OAuthSettingsDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(AuthSettingsDto), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetSourceAuthSettings(long id)
     {
-        var oAuthSettings = await _photoSourceService.GetSourceAuthSettingsAsync(id);
-        if (oAuthSettings == null)
+        var authSettings = await _photoSourceService.GetSourceAuthSettingsAsync(id);
+        if (authSettings == null)
         {
             return NotFound();
         }
 
-        var dto = new OAuthSettingsDto
+        var dto = new AuthSettingsDto
         {
-            ClientId = oAuthSettings.ClientId,
-            ResponseType = oAuthSettings.ResponseType,
-            RedirectUri = oAuthSettings.RedirectUri,
-            AuthorizeUrl = oAuthSettings.AuthorizeUrl,
-            TokenUrl = oAuthSettings.TokenUrl
+            OAuthConfiguration = new OAuthConfigurationDto
+            {
+                ClientId = authSettings.OAuthConfiguration.ClientId,
+                ResponseType = authSettings.OAuthConfiguration.ResponseType,
+                RedirectUri = authSettings.OAuthConfiguration.RedirectUri,
+                AuthorizeUrl = authSettings.OAuthConfiguration.AuthorizeUrl,
+                TokenUrl = authSettings.OAuthConfiguration.TokenUrl,
+                Scope = authSettings.OAuthConfiguration.Scope
+            },
+            RelativeAuthUrl = authSettings.RelativeAuthUrl
         };
 
         return Ok(dto);
