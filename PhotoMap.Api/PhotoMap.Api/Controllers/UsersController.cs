@@ -36,17 +36,6 @@ namespace PhotoMap.Api.Controllers
             return NotFound();
         }
 
-        [HttpPatch("{id:long}")]
-        [ProducesResponseType(StatusCodes.Status200OK)]
-        public async Task<IActionResult> UpdateUserAsync(long id, [FromBody] UpdateUserDto updateUserDto)
-        {
-            await _dbUserService.UpdateAsync(id, updateUserDto.YandexDiskToken, updateUserDto.YandexDiskTokenExpiresIn,
-                updateUserDto.YandexDiskStatus, updateUserDto.DropboxToken, updateUserDto.DropboxTokenExpiresIn,
-                updateUserDto.DropboxStatus);
-
-            return Ok();
-        }
-
         [HttpGet("{id}/photos")]
         [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(PagedResponse<PhotoDto>))]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]

@@ -36,7 +36,7 @@ namespace PhotoMap.Api.Controllers
                 AuthResult = a.AuthSettings != null ? new AuthResultOutputDto
                 {
                     Token = a.AuthSettings.Token,
-                    TokenExpiresOn = DateTime.SpecifyKind(a.AuthSettings.TokenExpiresOn.DateTime, DateTimeKind.Utc)
+                    TokenExpiresOn = DateTime.SpecifyKind(a.AuthSettings.TokenExpiresOn.DateTime, DateTimeKind.Utc).ToString("o")
                 } : null
             });
 
