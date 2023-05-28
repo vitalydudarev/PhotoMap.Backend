@@ -33,16 +33,16 @@ public class PhotoSourceDownloadServiceFactory : IPhotoSourceDownloadServiceFact
         return null;
     }
     
-    public async Task<IDownloadService?> GetService(long id)
+    public async Task<IDownloadService?> GetService(long photoSourceId)
     {
         var photoSources = (await _photoSourceService.GetAsync()).ToDictionary(a => a.Id, b => b);
-        if (!photoSources.TryGetValue(id, out var photoSource))
+        if (!photoSources.TryGetValue(photoSourceId, out var photoSource))
         {
-            _logger.LogError("Service with ID {Id} not found", id);
-            throw new Exception($"Service with ID {id} not found");
+            _logger.LogError("Service with ID {Id} not found", photoSourceId);
+            throw new Exception($"Service with ID {photoSourceId} not found");
         }
 
-        var type = Type.GetType(photoSource.ServiceImplementationType);
+        var type = Type.GetType(photoSource.ServiceFactoryImplementationType);
         if (type != null)
         {
             var service = _serviceScopeFactory.CreateScope().ServiceProvider.GetRequiredService(type);

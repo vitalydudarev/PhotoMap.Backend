@@ -8,8 +8,7 @@ public class PhotoSourceEntity
     public required string Name { get; set; }
     public required string Settings { get; set; }
     public required AuthSettings AuthSettings { get; set; }
-    public required string ServiceImplementationType { get; set; }
-    public required string SettingsImplementationType { get; set; }
+    public required string ServiceFactoryImplementationType { get; set; }
     
     public ICollection<UserPhotoSourceEntity> UserPhotoSources { get; set; }
 }

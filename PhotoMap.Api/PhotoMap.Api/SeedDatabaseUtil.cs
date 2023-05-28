@@ -42,7 +42,7 @@ public static class SeedDatabaseUtil
             DownloadLimit = 2000
         };
 
-        return CreatePhotoSource(1, "Dropbox", dropboxSettings, dropboxAuthSettings, typeof(DropboxDownloadService));
+        return CreatePhotoSource(1, "Dropbox", dropboxSettings, dropboxAuthSettings, typeof(DropboxDownloadServiceFactory));
     }
 
     private static PhotoSourceEntity CreateYandexDiskEntity()
@@ -65,7 +65,7 @@ public static class SeedDatabaseUtil
             DownloadLimit = 100
         };
 
-        return CreatePhotoSource(2, "Yandex.Disk", yandexDiskSettings, yandexDiskAuthSettings, typeof(YandexDiskDownloadService));
+        return CreatePhotoSource(2, "Yandex.Disk", yandexDiskSettings, yandexDiskAuthSettings, typeof(YandexDiskDownloadServiceFactory));
     }
 
     private static PhotoSourceEntity CreatePhotoSource<TSettings>(long id, string name, TSettings settings, AuthSettings authSettings, Type serviceImplementationType)
@@ -76,8 +76,7 @@ public static class SeedDatabaseUtil
             Name = name,
             Settings = JsonSerializer.Serialize(settings),
             AuthSettings = authSettings,
-            ServiceImplementationType = GetImplementationClassName(serviceImplementationType),
-            SettingsImplementationType = GetImplementationClassName(typeof(TSettings)),
+            ServiceFactoryImplementationType = GetImplementationClassName(serviceImplementationType)
         };
     }
         

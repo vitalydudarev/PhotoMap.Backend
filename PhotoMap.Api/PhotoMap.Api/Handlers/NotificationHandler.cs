@@ -40,7 +40,7 @@ namespace PhotoMap.Api.Handlers
 
                 if (notification.UserIdentifier is YandexDiskUserIdentifier)
                 {
-                    await userService.UpdateAsync(userId, null, null, status, null, null, null);
+                    // await userService.UpdateAsync(userId, null, null, status, null, null, null);
 
                     if (notification.HasError)
                     {
@@ -49,7 +49,7 @@ namespace PhotoMap.Api.Handlers
                 }
                 else if (notification.UserIdentifier is DropboxUserIdentifier)
                 {
-                    await userService.UpdateAsync(userId, null, null, null, null, null, status);
+                    // await userService.UpdateAsync(userId, null, null, null, null, null, status);
 
                     if (notification.HasError)
                     {

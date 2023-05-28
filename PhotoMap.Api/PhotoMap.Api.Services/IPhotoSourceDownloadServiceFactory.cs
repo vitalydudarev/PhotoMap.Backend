@@ -4,5 +4,5 @@ namespace PhotoMap.Api.Services;
 
 public interface IPhotoSourceDownloadServiceFactory
 {
-    Task<IDownloadService?> GetService(long id);
+    Task<IDownloadService?> GetService(long photoSourceId);
 }
