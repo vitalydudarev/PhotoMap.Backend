@@ -5,6 +5,6 @@ public class UserPhotoSource
     public long UserId { get; set; }
     public long PhotoSourceId { get; set; }
     public string PhotoSourceName { get; set; } = null!;
-    public AuthResult? AuthSettings { get; set; }
     public bool IsUserAuthorized { get; set; }
+    public DateTime? TokenExpiresOn { get; set; }
 }

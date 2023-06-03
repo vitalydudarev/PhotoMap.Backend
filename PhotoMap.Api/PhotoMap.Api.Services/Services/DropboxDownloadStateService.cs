@@ -28,9 +28,9 @@ public class DropboxDownloadStateService : IDropboxDownloadStateService
 
     public DropboxDownloadState? GetState(long userId)
     {
-        _map.TryGetValue(userId, out var data);
+        _map.TryGetValue(userId, out var state);
 
-        return data;
+        return state;
     }
 
     public void SaveState(DropboxDownloadState state)

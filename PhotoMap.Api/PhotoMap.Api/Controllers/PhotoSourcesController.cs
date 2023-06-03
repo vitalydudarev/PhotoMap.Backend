@@ -1,5 +1,3 @@
-using System.Collections.Generic;
-using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -19,22 +17,12 @@ public class PhotoSourcesController : ControllerBase
         _photoSourceService = photoSourceService;
     }
 
-    [HttpGet]
-    [ProducesResponseType(typeof(IEnumerable<PhotoSourceDto>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetSources()
-    {
-        var sources = await _photoSourceService.GetAsync();
-        var dtos = sources.Select(a => new PhotoSourceDto { Id = a.Id, Name = a.Name });
-
-        return Ok(dtos);
-    }
-    
     [HttpGet("{id:long}/auth-settings")]
     [ProducesResponseType(typeof(AuthSettingsDto), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetSourceAuthSettings(long id)
     {
-        var authSettings = await _photoSourceService.GetSourceAuthSettingsAsync(id);
-        if (authSettings == null)
+        var clientAuthSettings = await _photoSourceService.GetSourceClientAuthSettingsAsync(id);
+        if (clientAuthSettings == null)
         {
             return NotFound();
         }
@@ -43,14 +31,14 @@ public class PhotoSourcesController : ControllerBase
         {
             OAuthConfiguration = new OAuthConfigurationDto
             {
-                ClientId = authSettings.OAuthConfiguration.ClientId,
-                ResponseType = authSettings.OAuthConfiguration.ResponseType,
-                RedirectUri = authSettings.OAuthConfiguration.RedirectUri,
-                AuthorizeUrl = authSettings.OAuthConfiguration.AuthorizeUrl,
-                TokenUrl = authSettings.OAuthConfiguration.TokenUrl,
-                Scope = authSettings.OAuthConfiguration.Scope
+                ClientId = clientAuthSettings.OAuthConfiguration.ClientId,
+                ResponseType = clientAuthSettings.OAuthConfiguration.ResponseType,
+                RedirectUri = clientAuthSettings.OAuthConfiguration.RedirectUri,
+                AuthorizeUrl = clientAuthSettings.OAuthConfiguration.AuthorizeUrl,
+                TokenUrl = clientAuthSettings.OAuthConfiguration.TokenUrl,
+                Scope = clientAuthSettings.OAuthConfiguration.Scope
             },
-            RelativeAuthUrl = authSettings.RelativeAuthUrl
+            RelativeAuthUrl = clientAuthSettings.RelativeAuthUrl
         };
 
         return Ok(dto);

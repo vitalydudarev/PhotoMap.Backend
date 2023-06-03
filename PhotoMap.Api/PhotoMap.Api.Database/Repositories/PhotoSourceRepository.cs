@@ -35,7 +35,7 @@ public class PhotoSourceRepository : IPhotoSourceRepository
             Id = entity.Id,
             Name = entity.Name,
             ServiceSettings = entity.Settings,
-            AuthSettings = entity.AuthSettings,
+            ClientAuthSettings = entity.ClientAuthSettings,
             ServiceFactoryImplementationType = entity.ServiceFactoryImplementationType,
         };
     }

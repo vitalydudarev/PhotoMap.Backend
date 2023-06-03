@@ -19,15 +19,21 @@ public class PhotoSourceService : IPhotoSourceService
         return _photoSourceRepository.GetAsync();
     }
     
-    public Task<PhotoSource?> GetByIdAsync(long id)
+    public async Task<PhotoSource> GetByIdAsync(long id)
     {
-        return _photoSourceRepository.GetByIdAsync(id);
+        var photoSource = await _photoSourceRepository.GetByIdAsync(id);
+        if (photoSource != null)
+        {
+            return photoSource;
+        }
+
+        throw new NotFoundException($"Photo source entity with ID {id} not found.");
     }
     
-    public async Task<AuthSettings?> GetSourceAuthSettingsAsync(long id)
+    public async Task<ClientAuthSettings?> GetSourceClientAuthSettingsAsync(long id)
     {
         var source = await _photoSourceRepository.GetByIdAsync(id);
         
-        return source?.AuthSettings;
+        return source?.ClientAuthSettings;
     }
 }

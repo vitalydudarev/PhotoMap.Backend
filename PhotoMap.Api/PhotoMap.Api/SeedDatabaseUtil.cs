@@ -22,7 +22,7 @@ public static class SeedDatabaseUtil
     
     private static PhotoSourceEntity CreateDropboxEntity()
     {
-        var dropboxAuthSettings = new AuthSettings
+        var dropboxAuthSettings = new ClientAuthSettings
         {
             OAuthConfiguration = new OAuthConfiguration
             {
@@ -47,7 +47,7 @@ public static class SeedDatabaseUtil
 
     private static PhotoSourceEntity CreateYandexDiskEntity()
     {
-        var yandexDiskAuthSettings = new AuthSettings
+        var yandexDiskAuthSettings = new ClientAuthSettings
         {
             OAuthConfiguration = new OAuthConfiguration
             {
@@ -68,20 +68,15 @@ public static class SeedDatabaseUtil
         return CreatePhotoSource(2, "Yandex.Disk", yandexDiskSettings, yandexDiskAuthSettings, typeof(YandexDiskDownloadServiceFactory));
     }
 
-    private static PhotoSourceEntity CreatePhotoSource<TSettings>(long id, string name, TSettings settings, AuthSettings authSettings, Type serviceImplementationType)
+    private static PhotoSourceEntity CreatePhotoSource<TSettings>(long id, string name, TSettings settings, ClientAuthSettings clientAuthSettings, Type serviceImplementationType)
     {
         return new PhotoSourceEntity
         {
             Id = id,
             Name = name,
             Settings = JsonSerializer.Serialize(settings),
-            AuthSettings = authSettings,
-            ServiceFactoryImplementationType = GetImplementationClassName(serviceImplementationType)
+            ClientAuthSettings = clientAuthSettings,
+            ServiceFactoryImplementationType = TypeHelper.GetTypeFullName(serviceImplementationType)
         };
-    }
-        
-    private static string GetImplementationClassName(Type type)
-    {
-        return $"{type.FullName}, {type.Assembly.FullName}";
     }
 }

@@ -13,7 +13,7 @@ using PhotoMap.Api.Domain.Models;
 namespace PhotoMap.Api.Database.Migrations
 {
     [DbContext(typeof(PhotoMapContext))]
-    [Migration("20230525140721_InitialMigration")]
+    [Migration("20230530152948_InitialMigration")]
     partial class InitialMigration
     {
         /// <inheritdoc />
@@ -88,7 +88,7 @@ namespace PhotoMap.Api.Database.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
 
-                    b.Property<AuthSettings>("AuthSettings")
+                    b.Property<ClientAuthSettings>("ClientAuthSettings")
                         .IsRequired()
                         .HasColumnType("jsonb");
 
@@ -96,15 +96,11 @@ namespace PhotoMap.Api.Database.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<string>("ServiceImplementationType")
+                    b.Property<string>("ServiceFactoryImplementationType")
                         .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<string>("Settings")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("SettingsImplementationType")
                         .IsRequired()
                         .HasColumnType("text");
 
@@ -138,7 +134,7 @@ namespace PhotoMap.Api.Database.Migrations
                     b.Property<long>("PhotoSourceId")
                         .HasColumnType("bigint");
 
-                    b.Property<AuthResult>("AuthSettings")
+                    b.Property<UserAuthSettings>("UserAuthSettings")
                         .HasColumnType("jsonb");
 
                     b.HasKey("UserId", "PhotoSourceId");

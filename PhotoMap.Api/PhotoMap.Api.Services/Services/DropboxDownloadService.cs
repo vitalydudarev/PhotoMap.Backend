@@ -2,58 +2,11 @@ using System.Runtime.CompilerServices;
 using Dropbox.Api;
 using Dropbox.Api.Auth;
 using Dropbox.Api.Files;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using PhotoMap.Shared;
 
 namespace PhotoMap.Api.Services.Services;
 
-public class DropboxDownloadState
-{
-    public long UserId { get; set; }
-    public int TotalFiles { get; set; }
-    public int? LastProcessedFileIndex { get; set; }
-    public string? LastProcessedFileId { get; set; }
-    public DateTimeOffset? LastAccessTime { get; set; }
-}
-
-public interface IDownloadServiceFactory
-{
-    IDownloadService Create(string settingsSerialized);
-}
-
-public class DropboxDownloadServiceFactory : IDownloadServiceFactory
-{
-    private readonly IServiceScopeFactory _serviceScopeFactory;
-    
-    public DropboxDownloadServiceFactory(IServiceScopeFactory serviceScopeFactory)
-    {
-        _serviceScopeFactory = serviceScopeFactory;
-    }
-    
-    public IDownloadService Create(string settingsSerialized)
-    {
-        var settings = System.Text.Json.JsonSerializer.Deserialize<DropboxSettings>(settingsSerialized);
-
-        var serviceProvider = _serviceScopeFactory.CreateScope().ServiceProvider;
-        
-        var logger = serviceProvider.GetRequiredService<ILogger<DropboxDownloadService>>();
-        var downloadStateService = serviceProvider.GetRequiredService<IDropboxDownloadStateService>();
-        var progressReporter = serviceProvider.GetRequiredService<IProgressReporter>();
-
-        return new DropboxDownloadService(logger, downloadStateService, progressReporter, settings!);
-    }
-}
-
-public class YandexDiskDownloadServiceFactory : IDownloadServiceFactory
-{
-    public IDownloadService Create(string settingsSerialized)
-    {
-        throw new NotImplementedException();
-    }
-}
-
-public class DropboxDownloadService : IDownloadService
+public sealed class DropboxDownloadService : IDownloadService
 {
     private readonly ILogger<DropboxDownloadService> _logger;
     private readonly IDropboxDownloadStateService _stateService;
@@ -61,7 +14,7 @@ public class DropboxDownloadService : IDownloadService
     private readonly DropboxSettings _settings;
     private DropboxClient _dropboxClient;
     private readonly HttpClient _httpClient;
-    private DropboxDownloadState? _state;
+    private DropboxDownloadState _state;
     private int? _lastProcessedFileIndex;
 
     public DropboxDownloadService(
@@ -76,50 +29,46 @@ public class DropboxDownloadService : IDownloadService
         _settings = settings;
         _httpClient = new HttpClient();
     }
-    
+
+    #region Public Methods
+
     public async IAsyncEnumerable<DownloadedFileInfo?> DownloadAsync(
-        IUserIdentifier userIdentifier,
-        string apiToken,
+        long userId,
+        string token,
         StopDownloadAction stoppingAction,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        CreateClient(apiToken);
+        CreateClient(token);
 
-        var account = await WrapApiCallAsync(_dropboxClient.Users.GetCurrentAccountAsync);
+        LoadOrCreateState(userId);
 
-        _state = _stateService.GetState(userIdentifier.UserId);
-        
-        if (_state != null)
-        {
-            _lastProcessedFileIndex = _state.LastProcessedFileIndex;
-        }
-        else
-        {
-            _state = new DropboxDownloadState { LastAccessTime = DateTimeOffset.UtcNow, UserId = userIdentifier.UserId };
-        }
-
-        bool firstIteration = true;
-        var filesMetadata = new List<Metadata>();
-
-        var listFolderResult = await WrapApiCallAsync(() => _dropboxClient.Files.ListFolderAsync(_settings.SourceFolder, limit: (uint?)_settings.DownloadLimit));
-
-        while (listFolderResult.HasMore || firstIteration)
-        {
-            if (!firstIteration)
-            {
-                listFolderResult = await WrapApiCallAsync(() => _dropboxClient.Files.ListFolderContinueAsync(listFolderResult.Cursor));
-            }
-
-            filesMetadata.AddRange(listFolderResult.Entries.Where(a => a is FileMetadata));
-
-            firstIteration = false;
-        }
+        var filesMetadata = await GetFileListAsync();
 
         _state.TotalFiles = filesMetadata.Count;
 
-        var index = _lastProcessedFileIndex > -1 ? _lastProcessedFileIndex : 0;
+        await foreach (var downloadedFileInfo in DownloadFilesAsync(stoppingAction, filesMetadata, cancellationToken)) yield return downloadedFileInfo;
+    }
 
-        for (int i = index.Value; i < filesMetadata.Count; i++)
+    public void Dispose()
+    {
+        SaveState();
+        
+        _dropboxClient.Dispose();
+        _httpClient.Dispose();
+    }
+    
+    #endregion Public Methods
+
+    #region Private Methods
+
+    private async IAsyncEnumerable<DownloadedFileInfo?> DownloadFilesAsync(
+        StopDownloadAction stoppingAction,
+        List<Metadata> filesMetadata,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        var index = _lastProcessedFileIndex ?? 0;
+
+        for (int i = index; i < filesMetadata.Count; i++)
         {
             if (cancellationToken.IsCancellationRequested || stoppingAction.IsStopRequested)
             {
@@ -129,22 +78,44 @@ public class DropboxDownloadService : IDownloadService
 
             var fileMetadata = filesMetadata[i];
 
-            var dropboxFile = await DownloadFileAsync(fileMetadata);
-            if (dropboxFile == null)
+            var downloadedFileInfo = await DownloadFileAsync(fileMetadata);
+            if (downloadedFileInfo == null)
             {
                 yield break;
             }
 
             _state.LastProcessedFileIndex++;
-            _state.LastProcessedFileId = dropboxFile.FileId;
+            _state.LastProcessedFileId = downloadedFileInfo.FileId;
 
             // TODO: revert
             // _progressReporter.Report(userIdentifier, _state.LastProcessedFileIndex, _state.TotalFiles);
 
-            yield return dropboxFile;
+            yield return downloadedFileInfo;
         }
     }
     
+    private async Task<List<Metadata>> GetFileListAsync()
+    {
+        var filesMetadata = new List<Metadata>();
+
+        bool firstIteration = true;
+        var listFolderResult = await WrapApiCallAsync(() => _dropboxClient.Files.ListFolderAsync(_settings.SourceFolder, limit: (uint?)_settings.DownloadLimit));
+        
+        do
+        {
+            if (!firstIteration)
+            {
+                listFolderResult = await WrapApiCallAsync(() => _dropboxClient.Files.ListFolderContinueAsync(listFolderResult.Cursor));
+            }
+
+            firstIteration = false;
+            
+            filesMetadata.AddRange(listFolderResult.Entries.Where(a => a is FileMetadata));
+        } while (listFolderResult.HasMore);
+
+        return filesMetadata;
+    }
+
     private async Task<DownloadedFileInfo?> DownloadFileAsync(Metadata metadata)
     {
         var metadataName = metadata.Name;
@@ -153,15 +124,14 @@ public class DropboxDownloadService : IDownloadService
         {
             _logger.LogInformation("Started downloading {MetadataName}", metadataName);
 
-            var path = _settings.SourceFolder + "/" + metadataName;
-            var fileMetadata = await WrapApiCallAsync(() => _dropboxClient.Files.DownloadAsync(path));
+            var fileMetadata = await WrapApiCallAsync(() => _dropboxClient.Files.DownloadAsync(metadata.PathDisplay));
             var fileContents = await fileMetadata.GetContentAsByteArrayAsync();
 
             _logger.LogInformation("Finished downloading {MetadataName}", metadataName);
 
             var createdOn = fileMetadata.Response.ClientModified;
 
-            return new DownloadedFileInfo(metadataName, path, createdOn, fileContents, fileMetadata.Response.Id);
+            return new DownloadedFileInfo(metadataName, metadata.PathDisplay, createdOn, fileContents, fileMetadata.Response.Id);
         }
         catch (Exception e)
         {
@@ -170,19 +140,33 @@ public class DropboxDownloadService : IDownloadService
 
         return null;
     }
+    
+    private void LoadOrCreateState(long userId)
+    {
+        var state = _stateService.GetState(userId);
+        
+        if (state != null)
+        {
+            _lastProcessedFileIndex = state.LastProcessedFileIndex;
+            _state = state;
+        }
+        else
+        {
+            _state = new DropboxDownloadState { LastAccessTime = DateTimeOffset.UtcNow, UserId = userId };
+        }
+    }
 
-    private void CreateClient(string apiToken)
+    private void CreateClient(string token)
     {
         var config = new DropboxClientConfig("PhotoMap") { HttpClient = _httpClient };
 
-        _dropboxClient = new DropboxClient(apiToken, config);
+        _dropboxClient = new DropboxClient(token, config);
     }
 
     private void SaveState()
     {
         _logger.LogInformation("Saving state");
-        _logger.LogInformation(
-            "Files processed/total - {_state.LastProcessedFileIndex}/{_state.TotalFiles}");
+        _logger.LogInformation("Files processed/total - {_state.LastProcessedFileIndex}/{_state.TotalFiles}");
 
         _stateService.SaveState(_state);
     }
@@ -213,4 +197,6 @@ public class DropboxDownloadService : IDownloadService
             throw new DropboxException("An error has occurred while calling API: " + e.Message);
         }
     }
+
+    #endregion Private Methods
 }

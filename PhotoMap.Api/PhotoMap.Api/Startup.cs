@@ -99,6 +99,13 @@ namespace PhotoMap.Api
             // database context
             services.AddDbContext<PhotoMapContext>();
             
+            // dropbox services
+            services.AddSingleton<IDropboxDownloadStateService, DropboxDownloadStateService>();
+            
+            // common
+            services.AddSingleton<IProgressReporter, ProgressReporter>();
+            services.AddSingleton<IBackgroundTaskManager, BackgroundTaskManager>();
+            
             services.AddScoped<IFileStorage, FileStorage>(provider =>
             {
                 var settings = provider.GetRequiredService<IOptions<FileStorageSettings>>().Value;

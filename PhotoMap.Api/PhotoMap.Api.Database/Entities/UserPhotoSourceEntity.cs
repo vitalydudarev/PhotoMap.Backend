@@ -8,5 +8,5 @@ public class UserPhotoSourceEntity
     public UserEntity? User { get; set; }
     public required long PhotoSourceId { get; set; }
     public PhotoSourceEntity? PhotoSource { get; set; }
-    public AuthResult? AuthSettings { get; set; }
+    public UserAuthSettings? UserAuthSettings { get; set; }
 }

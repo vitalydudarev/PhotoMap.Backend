@@ -11,7 +11,7 @@ namespace PhotoMap.Api.Database.Configurations
             builder.HasKey(a => new { a.UserId, a.PhotoSourceId });
             builder.Property(a => a.UserId).IsRequired();
             builder.Property(a => a.PhotoSourceId).IsRequired();
-            builder.Property(a => a.AuthSettings).HasColumnType("jsonb");
+            builder.Property(a => a.UserAuthSettings).HasColumnType("jsonb");
             builder.ToTable("UserPhotoSources");
 
             builder

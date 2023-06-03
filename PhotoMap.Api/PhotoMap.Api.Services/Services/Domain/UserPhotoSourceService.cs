@@ -26,23 +26,38 @@ public class UserPhotoSourceService : IUserPhotoSourceService
             UserId = userId,
             PhotoSourceId = a.Id,
             PhotoSourceName = a.Name,
-            AuthSettings = a.UserPhotoSources.FirstOrDefault()?.AuthSettings,
-            IsUserAuthorized = a.UserPhotoSources.FirstOrDefault()?.AuthSettings?.TokenExpiresOn > DateTime.UtcNow
+            IsUserAuthorized = a.UserPhotoSources.FirstOrDefault()?.UserAuthSettings?.TokenExpiresOn > DateTime.UtcNow,
+            TokenExpiresOn = a.UserPhotoSources.FirstOrDefault()?.UserAuthSettings?.TokenExpiresOn.UtcDateTime
         });
     }
     
-    public async Task UpdateUserPhotoSourceAuthResultAsync(long userId, long photoSourceId, AuthResult authResult)
+    public async Task<UserAuthSettings?> GetUserAuthSettingsAsync(long userId, long photoSourceId)
+    {
+        var userPhotoSourceEntity = await _context.UserPhotoSources
+            .Where(a => a.UserId == userId && a.PhotoSourceId == photoSourceId)
+            .Include(a => a.UserAuthSettings)
+            .FirstOrDefaultAsync();
+
+        if (userPhotoSourceEntity != null)
+        {
+            return userPhotoSourceEntity.UserAuthSettings;
+        }
+
+        throw new NotFoundException($"UserPhotoSource entity for user ID {userId} and photo source ID {photoSourceId} not found.");
+    }
+    
+    public async Task UpdateUserPhotoSourceAuthResultAsync(long userId, long photoSourceId, UserAuthSettings userAuthSettings)
     {
         var userPhotoSource = await _context.UserPhotoSources.FirstOrDefaultAsync(a => a.UserId == userId && a.PhotoSourceId == photoSourceId);
 
         if (userPhotoSource == null)
         {
-            var entity = new UserPhotoSourceEntity { UserId = userId, PhotoSourceId = photoSourceId, AuthSettings = authResult };
+            var entity = new UserPhotoSourceEntity { UserId = userId, PhotoSourceId = photoSourceId, UserAuthSettings = userAuthSettings };
             await _context.UserPhotoSources.AddAsync(entity);
         }
         else
         {
-            userPhotoSource.AuthSettings = authResult;
+            userPhotoSource.UserAuthSettings = userAuthSettings;
             _context.UserPhotoSources.Update(userPhotoSource);
         }
 

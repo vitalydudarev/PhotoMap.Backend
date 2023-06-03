@@ -21,9 +21,8 @@ namespace PhotoMap.Api.Database.Migrations
                         .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
                     Name = table.Column<string>(type: "text", nullable: false),
                     Settings = table.Column<string>(type: "text", nullable: false),
-                    AuthSettings = table.Column<AuthSettings>(type: "jsonb", nullable: false),
-                    ServiceImplementationType = table.Column<string>(type: "text", nullable: false),
-                    SettingsImplementationType = table.Column<string>(type: "text", nullable: false)
+                    ClientAuthSettings = table.Column<ClientAuthSettings>(type: "jsonb", nullable: false),
+                    ServiceFactoryImplementationType = table.Column<string>(type: "text", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -85,7 +84,7 @@ namespace PhotoMap.Api.Database.Migrations
                 {
                     UserId = table.Column<long>(type: "bigint", nullable: false),
                     PhotoSourceId = table.Column<long>(type: "bigint", nullable: false),
-                    AuthSettings = table.Column<AuthResult>(type: "jsonb", nullable: true)
+                    UserAuthSettings = table.Column<UserAuthSettings>(type: "jsonb", nullable: true)
                 },
                 constraints: table =>
                 {
