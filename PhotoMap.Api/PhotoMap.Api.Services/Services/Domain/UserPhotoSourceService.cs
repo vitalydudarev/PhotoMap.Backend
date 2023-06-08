@@ -35,7 +35,6 @@ public class UserPhotoSourceService : IUserPhotoSourceService
     {
         var userPhotoSourceEntity = await _context.UserPhotoSources
             .Where(a => a.UserId == userId && a.PhotoSourceId == photoSourceId)
-            .Include(a => a.UserAuthSettings)
             .FirstOrDefaultAsync();
 
         if (userPhotoSourceEntity != null)

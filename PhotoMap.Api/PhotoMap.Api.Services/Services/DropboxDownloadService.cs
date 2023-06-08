@@ -32,13 +32,12 @@ public sealed class DropboxDownloadService : IDownloadService
 
     #region Public Methods
 
-    public async IAsyncEnumerable<DownloadedFileInfo?> DownloadAsync(
+    public async IAsyncEnumerable<DownloadedFileInfo> DownloadAsync(
         long userId,
         string token,
-        StopDownloadAction stoppingAction,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        CreateClient(token);
+        CreateDropboxClient(token);
 
         LoadOrCreateState(userId);
 
@@ -46,7 +45,7 @@ public sealed class DropboxDownloadService : IDownloadService
 
         _state.TotalFiles = filesMetadata.Count;
 
-        await foreach (var downloadedFileInfo in DownloadFilesAsync(stoppingAction, filesMetadata, cancellationToken)) yield return downloadedFileInfo;
+        await foreach (var downloadedFileInfo in DownloadFilesAsync(filesMetadata, cancellationToken)) yield return downloadedFileInfo;
     }
 
     public void Dispose()
@@ -61,8 +60,7 @@ public sealed class DropboxDownloadService : IDownloadService
 
     #region Private Methods
 
-    private async IAsyncEnumerable<DownloadedFileInfo?> DownloadFilesAsync(
-        StopDownloadAction stoppingAction,
+    private async IAsyncEnumerable<DownloadedFileInfo> DownloadFilesAsync(
         List<Metadata> filesMetadata,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
@@ -70,7 +68,7 @@ public sealed class DropboxDownloadService : IDownloadService
 
         for (int i = index; i < filesMetadata.Count; i++)
         {
-            if (cancellationToken.IsCancellationRequested || stoppingAction.IsStopRequested)
+            if (cancellationToken.IsCancellationRequested)
             {
                 _logger.LogInformation("Cancellation requested");
                 yield break;
@@ -79,10 +77,6 @@ public sealed class DropboxDownloadService : IDownloadService
             var fileMetadata = filesMetadata[i];
 
             var downloadedFileInfo = await DownloadFileAsync(fileMetadata);
-            if (downloadedFileInfo == null)
-            {
-                yield break;
-            }
 
             _state.LastProcessedFileIndex++;
             _state.LastProcessedFileId = downloadedFileInfo.FileId;
@@ -116,7 +110,7 @@ public sealed class DropboxDownloadService : IDownloadService
         return filesMetadata;
     }
 
-    private async Task<DownloadedFileInfo?> DownloadFileAsync(Metadata metadata)
+    private async Task<DownloadedFileInfo> DownloadFileAsync(Metadata metadata)
     {
         var metadataName = metadata.Name;
 
@@ -136,9 +130,8 @@ public sealed class DropboxDownloadService : IDownloadService
         catch (Exception e)
         {
             _logger.LogError("Failed downloading/saving {MetadataName}: {ErrorMessage}.", metadataName, e.Message);
+            throw;
         }
-
-        return null;
     }
     
     private void LoadOrCreateState(long userId)
@@ -156,7 +149,7 @@ public sealed class DropboxDownloadService : IDownloadService
         }
     }
 
-    private void CreateClient(string token)
+    private void CreateDropboxClient(string token)
     {
         var config = new DropboxClientConfig("PhotoMap") { HttpClient = _httpClient };
 
@@ -166,7 +159,7 @@ public sealed class DropboxDownloadService : IDownloadService
     private void SaveState()
     {
         _logger.LogInformation("Saving state");
-        _logger.LogInformation("Files processed/total - {_state.LastProcessedFileIndex}/{_state.TotalFiles}");
+        _logger.LogInformation("Files processed/total - {LastProcessedFileIndex}/{TotalFiles}", _state.LastProcessedFileIndex, _state.TotalFiles);
 
         _stateService.SaveState(_state);
     }

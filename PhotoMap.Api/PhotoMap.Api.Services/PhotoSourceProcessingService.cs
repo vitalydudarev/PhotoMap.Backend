@@ -3,7 +3,7 @@ using PhotoMap.Api.Services.Services;
 
 namespace PhotoMap.Api.Services;
 
-public class PhotoSourceProcessingService
+public class PhotoSourceProcessingService : IPhotoSourceProcessingService
 {
     private readonly IPhotoSourceDownloadServiceFactory _downloadServiceFactory;
     private readonly IUserPhotoSourceService _userPhotoSourceService;
@@ -24,19 +24,21 @@ public class PhotoSourceProcessingService
     
     public async Task ProcessAsync(long userId, long sourceId, PhotoSourceProcessingCommands command)
     {
-        var taskName = $"UserId={userId}-SourceId={sourceId}";
+        // var taskName = $"UserId={userId}-SourceId={sourceId}";
+        var taskName = string.Format("UserId={0}-SourceId={1}", userId, sourceId);
         
         if (command == PhotoSourceProcessingCommands.Start)
         {
-            var (downloadService, token) = await GetDownloadServiceAndTokenAsync(userId, sourceId);
+            var token = await GetAuthTokenAsync(userId, sourceId);
+            var downloadService = await CreateDownloadServiceAsync(sourceId);
 
             var cancellationTokenSource = new CancellationTokenSource();
             
-            _backgroundTaskManager.Run(taskName, () => DoWork(downloadService, userId, token, cancellationTokenSource.Token), cancellationTokenSource);
+            _backgroundTaskManager.AddTask(taskName, () => DoWork(downloadService, userId, token, cancellationTokenSource.Token), cancellationTokenSource);
         }
         else if (command == PhotoSourceProcessingCommands.Stop)
         {
-            _backgroundTaskManager.Cancel(taskName);
+            _backgroundTaskManager.CancelTask(taskName);
             // take job and terminate it
         }
         else
@@ -49,39 +51,39 @@ public class PhotoSourceProcessingService
     {
         try
         {
-            await foreach (var downloadedFileInfo in downloadService.DownloadAsync(userId, token, new StopDownloadAction(), cancellationToken))
+            await foreach (var downloadedFileInfo in downloadService.DownloadAsync(userId, token, cancellationToken))
             {
+                var name = downloadedFileInfo.ResourceName;
                 // send file to photo processing service
             }
         }
         catch (Exception e)
         {
+            // TODO: handle auth exceptions
             Console.WriteLine(e);
             throw;
         }
+        finally
+        {
+            downloadService.Dispose();
+        }
     }
 
-    private async Task<(IDownloadService, string)> GetDownloadServiceAndTokenAsync(long userId, long sourceId)
+    private async Task<string> GetAuthTokenAsync(long userId, long sourceId)
     {
-        try
+        var authSettings = await _userPhotoSourceService.GetUserAuthSettingsAsync(userId, sourceId);
+        if (authSettings?.Token == null || authSettings.TokenExpiresOn < DateTimeOffset.UtcNow)
         {
-            var authSettings = await _userPhotoSourceService.GetUserAuthSettingsAsync(userId, sourceId);
-            if (authSettings == null || authSettings.Token == null || authSettings.TokenExpiresOn > DateTimeOffset.UtcNow)
-            {
-                throw new Exception("User is not authorized.");
-            }
+            throw new Exception("User is not authorized.");
+        }
 
-            var photoSource = await _photoSourceService.GetByIdAsync(sourceId);
+        return authSettings.Token;
+    }
 
-            return (_downloadServiceFactory.GetService(photoSource), authSettings.Token);
-        }
-        catch (NotFoundException e)
-        {
-            throw;
-        }
-        catch (Exception e)
-        {
-            throw;
-        }
+    private async Task<IDownloadService> CreateDownloadServiceAsync(long sourceId)
+    {
+        var photoSource = await _photoSourceService.GetByIdAsync(sourceId);
+
+        return _downloadServiceFactory.GetService(photoSource);
     }
 }

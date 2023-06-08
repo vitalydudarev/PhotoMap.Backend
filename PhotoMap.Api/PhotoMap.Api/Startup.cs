@@ -84,6 +84,9 @@ namespace PhotoMap.Api
             services.AddScoped<IPhotoProvider, PhotoProvider>();
 
             services.AddScoped<IPhotoSourceDownloadServiceFactory, PhotoSourceDownloadServiceFactory>();
+            services.AddScoped<IPhotoSourceProcessingService, PhotoSourceProcessingService>();
+            services.AddScoped<IDownloadServiceFactory, DropboxDownloadServiceFactory>();
+            services.AddScoped<IDownloadServiceFactory, YandexDiskDownloadServiceFactory>();
 
             // domain services
             services.AddScoped<IPhotoService, PhotoService>();

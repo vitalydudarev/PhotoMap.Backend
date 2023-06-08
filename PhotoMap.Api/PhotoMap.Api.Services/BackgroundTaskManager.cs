@@ -14,27 +14,21 @@ public class BackgroundTaskManager : IBackgroundTaskManager
         _logger = logger;
     }
     
-    public void Run(string taskName, Func<Task> taskFunction, CancellationTokenSource cancellationTokenSource)
+    public void AddTask(string taskName, Func<Task> taskFunction, CancellationTokenSource cancellationTokenSource)
     {
-        Task.Run(async () =>
-        {
-            await Task.Run(taskFunction);
-        });
-
-        // try this
-        // Task.Run(taskFunction, cancellationTokenSource.Token);
+        Task.Run(taskFunction, cancellationTokenSource.Token);
         
         _tasks.TryAdd(taskName, cancellationTokenSource);
     }
 
-    public bool Cancel(string taskName)
+    public bool CancelTask(string taskName)
     {
         if (_tasks.TryGetValue(taskName, out CancellationTokenSource? cancellationTokenSource))
         {
             cancellationTokenSource.Cancel();
             _tasks.TryRemove(taskName, out _);
             
-            _logger.LogInformation("BackgroundTaskManager {taskName} cancelled", taskName);
+            _logger.LogInformation("Task {TaskName} cancelled", taskName);
             return true;
         }
         

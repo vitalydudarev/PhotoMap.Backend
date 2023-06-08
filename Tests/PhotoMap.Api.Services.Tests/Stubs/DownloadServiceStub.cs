@@ -4,8 +4,7 @@ namespace PhotoMap.Api.Services.Tests.Stubs;
 
 public class DownloadServiceStub : IDownloadService
 {
-    public IAsyncEnumerable<DownloadedFileInfo?> DownloadAsync(long userId, string token, StopDownloadAction stoppingAction,
-        CancellationToken cancellationToken)
+    public IAsyncEnumerable<DownloadedFileInfo> DownloadAsync(long userId, string token, CancellationToken cancellationToken)
     {
         throw new NotImplementedException();
     }

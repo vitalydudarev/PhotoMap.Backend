@@ -7,6 +7,8 @@ using Microsoft.AspNetCore.Mvc;
 using PhotoMap.Api.Domain.Models;
 using PhotoMap.Api.Domain.Services;
 using PhotoMap.Api.DTOs;
+using PhotoMap.Api.Services;
+using PhotoMap.Api.Services.Services;
 
 namespace PhotoMap.Api.Controllers
 {
@@ -15,10 +17,14 @@ namespace PhotoMap.Api.Controllers
     public class UsersPhotoSourcesController : ControllerBase
     {
         private readonly IUserPhotoSourceService _userPhotoSourceService;
+        private readonly IPhotoSourceProcessingService _photoSourceProcessingService;
 
-        public UsersPhotoSourcesController(IUserPhotoSourceService userPhotoSourceService)
+        public UsersPhotoSourcesController(
+            IUserPhotoSourceService userPhotoSourceService,
+            IPhotoSourceProcessingService photoSourceProcessingService)
         {
             _userPhotoSourceService = userPhotoSourceService;
+            _photoSourceProcessingService = photoSourceProcessingService;
         }
 
         [HttpGet]
@@ -56,15 +62,9 @@ namespace PhotoMap.Api.Controllers
         
         [HttpPost("{sourceId:long}")]
         [ProducesResponseType(StatusCodes.Status200OK)]
-        public async Task<IActionResult> SourceProcessing(long userId, long sourceId, [FromBody] AuthResultInputDto authResultInputDto)
+        public async Task<IActionResult> SourceProcessing(long userId, long sourceId, [FromBody] PhotoSourceProcessingCommands command)
         {
-            // var authResult = new AuthResult
-            // {
-                // Token = authResultInputDto.Token,
-                // TokenExpiresOn = DateTimeOffset.UtcNow.AddSeconds(authResultInputDto.TokenExpiresIn)
-            // };
-
-            // await _userPhotoSourceService.UpdateUserPhotoSourceAuthResultAsync(userId, sourceId, authResult);
+            await _photoSourceProcessingService.ProcessAsync(userId, sourceId, command);
 
             return Ok();
         }

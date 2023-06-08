@@ -13,7 +13,7 @@ using PhotoMap.Api.Domain.Models;
 namespace PhotoMap.Api.Database.Migrations
 {
     [DbContext(typeof(PhotoMapContext))]
-    [Migration("20230530152948_InitialMigration")]
+    [Migration("20230608133315_InitialMigration")]
     partial class InitialMigration
     {
         /// <inheritdoc />
