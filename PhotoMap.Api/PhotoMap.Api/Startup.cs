@@ -175,6 +175,7 @@ namespace PhotoMap.Api
             {
                 endpoints.MapHub<YandexDiskHub>("/yandex-disk-hub");
                 endpoints.MapHub<DropboxHub>("/dropbox-hub");
+                endpoints.MapHub<NotificationHub>("/notifications");
                 endpoints.MapControllers();
             });
 
