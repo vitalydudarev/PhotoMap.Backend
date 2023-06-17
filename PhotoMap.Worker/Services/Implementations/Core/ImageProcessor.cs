@@ -10,8 +10,8 @@ namespace PhotoMap.Worker.Services.Implementations.Core
         private readonly Stream _stream;
         private readonly bool _disposeStream;
 
-        private SKBitmap _bitmap;
-        private SKImage _image;
+        private SKBitmap? _bitmap;
+        private SKImage? _image;
         private readonly SKCodec _codec;
 
         public ImageProcessor(string filePath) : this(File.ReadAllBytes(filePath))
@@ -27,14 +27,15 @@ namespace PhotoMap.Worker.Services.Implementations.Core
             var firstBytes = bytes.Skip(4).Take(4);
             if (firstBytes.SequenceEqual(heicSignature))
             {
-                using (var image = new MagickImage(bytes))
-                {
-                    var byteArray = image.ToByteArray(MagickFormat.Jpeg);
-                    _stream = new MemoryStream(byteArray);
-                }
+                using var image = new MagickImage(bytes);
+                
+                var byteArray = image.ToByteArray(MagickFormat.Jpeg);
+                _stream = new MemoryStream(byteArray);
             }
             else
+            {
                 _stream = new MemoryStream(bytes);
+            }
 
             _codec = SKCodec.Create(_stream);
             _bitmap = SKBitmap.Decode(_codec);
@@ -42,7 +43,13 @@ namespace PhotoMap.Worker.Services.Implementations.Core
 
         public void Crop(int size)
         {
+            if (_bitmap == null)
+            {
+                return;
+            }
+            
             int width, height;
+            
             if (_bitmap.Width > _bitmap.Height)
             {
                 height = size;
@@ -92,45 +99,44 @@ namespace PhotoMap.Worker.Services.Implementations.Core
             _image?.Dispose();
 
             if (_disposeStream)
+            {
                 _stream?.Dispose();
+            }
         }
 
-        private SKBitmap RotateBitmap()
+        private SKBitmap? RotateBitmap()
         {
             var orientation = _codec.EncodedOrigin;
 
             var bitmapOptions = GetBitmapOptions(orientation);
             if (bitmapOptions == null)
+            {
                 return _bitmap;
+            }
 
             var rotated = new SKBitmap(bitmapOptions.Width, bitmapOptions.Height);
 
-            using (var canvas = new SKCanvas(rotated))
-            {
-                canvas.Translate(bitmapOptions.Dx, bitmapOptions.Dy);
-                canvas.RotateDegrees(bitmapOptions.Degrees);
-                canvas.DrawBitmap(_bitmap, 0, 0);
-            }
+            using var canvas = new SKCanvas(rotated);
+            
+            canvas.Translate(bitmapOptions.Dx, bitmapOptions.Dy);
+            canvas.RotateDegrees(bitmapOptions.Degrees);
+            canvas.DrawBitmap(_bitmap, 0, 0);
 
             return rotated;
         }
 
-        private BitmapOptions GetBitmapOptions(SKEncodedOrigin orientation)
+        private BitmapOptions? GetBitmapOptions(SKEncodedOrigin orientation)
         {
-            switch (orientation)
+            var width = _bitmap.Width;
+            var height = _bitmap.Height;
+            
+            return orientation switch
             {
-                case SKEncodedOrigin.BottomRight:
-                    return new BitmapOptions(_bitmap.Width, _bitmap.Height, _bitmap.Width, _bitmap.Height, 180);
-
-                case SKEncodedOrigin.RightTop:
-                    return new BitmapOptions(_bitmap.Height, _bitmap.Width, _bitmap.Height, 0, 90);
-
-                case SKEncodedOrigin.LeftBottom:
-                    return new BitmapOptions(_bitmap.Height, _bitmap.Width, 0, _bitmap.Height, 270);
-
-                default:
-                    return null;
-            }
+                SKEncodedOrigin.BottomRight => new BitmapOptions(width, height, width, height, 180),
+                SKEncodedOrigin.RightTop => new BitmapOptions(height, width, height, 0, 90),
+                SKEncodedOrigin.LeftBottom => new BitmapOptions(height, width, 0, height, 270),
+                _ => null
+            };
         }
     }
 }

@@ -55,13 +55,6 @@ namespace PhotoMap.Worker.Handlers
                     await HandleYandexRequestAsync(yandexDiskDownloadService, userIdentifier, startProcessingCommand,
                         stoppingAction, cancellationToken);
                 }
-                else if (userIdentifier is DropboxUserIdentifier)
-                {
-                    var dropboxDownloadService = scope.ServiceProvider.GetRequiredService<IDropboxDownloadService>();
-
-                    await HandleDropboxRequestAsync(dropboxDownloadService, userIdentifier, startProcessingCommand,
-                        stoppingAction, cancellationToken);
-                }
             }
         }
 
@@ -98,42 +91,6 @@ namespace PhotoMap.Worker.Handlers
                 _messageSender.Send(finishedNotification, ApiConstants.PhotoMapApi);
 
                 _logger.LogInformation("Processing finished");
-            }
-        }
-
-        private async Task HandleDropboxRequestAsync(
-            IDropboxDownloadService dropboxDownloadService,
-            IUserIdentifier userIdentifier,
-            StartProcessingEvent startProcessingCommand,
-            StoppingAction stoppingAction,
-            CancellationToken cancellationToken)
-        {
-            try
-            {
-                await foreach (var file in dropboxDownloadService.DownloadAsync(userIdentifier,
-                                   startProcessingCommand.Token, stoppingAction, cancellationToken))
-                {
-                    var processedDownloadedFile = await _imageProcessingService.ProcessImageAsync(file);
-                    var imageProcessedEvent = CreateImageProcessedEvent(startProcessingCommand.UserIdentifier, processedDownloadedFile);
-                    _messageSender.Send(imageProcessedEvent, ApiConstants.PhotoMapApi);
-                }
-            }
-            catch (Exception e)
-            {
-                _logger.LogError(e.Message);
-
-                var stoppedNotification =
-                    CreateNotification(userIdentifier, ProcessingStatus.NotRunning, true, e.Message);
-                _messageSender.Send(stoppedNotification, ApiConstants.PhotoMapApi);
-            }
-            finally
-            {
-                _downloadManager.Remove(userIdentifier);
-
-                var finishedNotification = CreateNotification(userIdentifier, ProcessingStatus.NotRunning);
-                _messageSender.Send(finishedNotification, ApiConstants.PhotoMapApi);
-
-                _logger.LogInformation("Processing finished.");
             }
         }
 

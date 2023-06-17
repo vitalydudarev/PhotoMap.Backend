@@ -79,9 +79,5 @@ void ConfigureServices(IServiceCollection services, ConfigurationManager configu
     services.AddSingleton<IYandexDiskDownloadStateService, YandexDiskDownloadStateService>();
     services.AddScoped<IYandexDiskDownloadService, YandexDiskDownloadService>();
 
-    // Dropbox services
-    services.AddSingleton<IDropboxDownloadStateService, DropboxDownloadStateService>();
-    services.AddScoped<IDropboxDownloadService, DropboxDownloadService>();
-
     services.AddHostedService<HostedService>();
 }
