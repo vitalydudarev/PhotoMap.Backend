@@ -3,7 +3,6 @@ using PhotoMap.Shared.Messaging.Events;
 using PhotoMap.Shared.Messaging.MessageSender;
 using PhotoMap.Worker.Models;
 using PhotoMap.Worker.Services.Definitions;
-using DropboxUserIdentifier = PhotoMap.Worker.Models.DropboxUserIdentifier;
 using ImageProcessedEvent = PhotoMap.Shared.Events.ImageProcessedEvent;
 using Notification = PhotoMap.Worker.Commands.Notification;
 using ProcessingStatus = PhotoMap.Worker.Commands.ProcessingStatus;
