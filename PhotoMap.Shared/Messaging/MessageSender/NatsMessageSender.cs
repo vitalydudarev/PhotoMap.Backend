@@ -3,7 +3,7 @@ using NATS.Client;
 
 namespace PhotoMap.Shared.Messaging.MessageSender;
 
-public class NatsMessageSender
+public class NatsMessageSender : IMessageSenderNew
 {
     private readonly string _natsUrl;
     private readonly bool _hasNats;
@@ -14,7 +14,7 @@ public class NatsMessageSender
         _hasNats = !string.IsNullOrEmpty(_natsUrl);
     }
     
-    public async Task PublishMessageAsync(string message, string subject, int timeout = 30 * 1000)
+    public async Task PublishMessageAsync<T>(T message, string subject, int timeout = 30 * 1000)
     {
         if (!_hasNats)
         {
@@ -24,7 +24,7 @@ public class NatsMessageSender
         Msg msg = new()
         {
             Subject = subject,
-            Data = Encoding.UTF8.GetBytes(message)
+            Data = Encoding.UTF8.GetBytes(System.Text.Json.JsonSerializer.Serialize(message))
         };
 
         using IConnection connection = new ConnectionFactory().CreateConnection($"nats://{_natsUrl}");

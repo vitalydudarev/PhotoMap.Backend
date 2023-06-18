@@ -10,6 +10,7 @@ using PhotoMap.Worker.Handlers;
 using PhotoMap.Worker.Services;
 using PhotoMap.Worker.Services.Definitions;
 using PhotoMap.Worker.Services.Implementations;
+using PhotoMap.Worker.Services.Implementations.Core;
 using PhotoMap.Worker.Settings;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -74,6 +75,7 @@ void ConfigureServices(IServiceCollection services, ConfigurationManager configu
     services.AddSingleton<IDownloadManager, DownloadManager>();
     services.AddSingleton<IProgressReporter, ProgressReporter>();
     services.AddScoped<IImageProcessingService, ImageProcessingService>();
+    services.AddScoped<IExifExtractor, ExifExtractor>();
 
     // Yandex.Disk services
     services.AddSingleton<IYandexDiskDownloadStateService, YandexDiskDownloadStateService>();
