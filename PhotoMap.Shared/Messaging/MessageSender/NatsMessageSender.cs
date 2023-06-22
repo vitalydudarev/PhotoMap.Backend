@@ -6,21 +6,19 @@ namespace PhotoMap.Shared.Messaging.MessageSender;
 public class NatsMessageSender : IMessageSenderNew
 {
     private readonly string _natsUrl;
-    private readonly bool _hasNats;
 
     public NatsMessageSender(string natsUrl)
     {
+        if (string.IsNullOrEmpty(natsUrl))
+        {
+            throw new Exception("NATS url is not correct.");
+        }
+        
         _natsUrl = natsUrl;
-        _hasNats = !string.IsNullOrEmpty(_natsUrl);
     }
     
     public async Task PublishMessageAsync<T>(T message, string subject, int timeout = 30 * 1000)
     {
-        if (!_hasNats)
-        {
-            return;
-        }
-
         Msg msg = new()
         {
             Subject = subject,
