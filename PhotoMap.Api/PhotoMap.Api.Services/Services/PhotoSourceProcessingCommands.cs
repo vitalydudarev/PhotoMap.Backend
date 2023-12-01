@@ -2,6 +2,6 @@ namespace PhotoMap.Api.Services.Services;
 
 public enum PhotoSourceProcessingCommands
 {
-    Start,
-    Stop
+    Start = 1,
+    Stop = 2
 }

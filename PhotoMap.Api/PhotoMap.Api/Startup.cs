@@ -27,6 +27,7 @@ using PhotoMap.Api.Handlers;
 using PhotoMap.Api.Hubs;
 using PhotoMap.Api.Middlewares;
 using PhotoMap.Api.Services;
+using PhotoMap.Api.Services.Factories;
 using PhotoMap.Api.Services.Implementations;
 using PhotoMap.Api.Services.Interfaces;
 using PhotoMap.Api.Services.Services;
@@ -121,6 +122,7 @@ namespace PhotoMap.Api
             // hubs
             services.AddSingleton<YandexDiskHub>();
             services.AddSingleton<DropboxHub>();
+            services.AddSingleton<NotificationHub>();
 
             // event handlers
             services.AddSingleton<IEventHandler, ProgressMessageHandler>();
@@ -134,6 +136,8 @@ namespace PhotoMap.Api
             services.AddScoped<HostInfo>();
             services.AddScoped<IFileProvider, LocalFileProvider>();
             services.AddSingleton<IConvertedImageHolder, ConvertedImageHolder>();
+
+            services.AddSingleton<IFrontendNotificationService, FrontendNotificationService>();
             
             services.AddSwaggerGen(c =>
             {

@@ -1,8 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using PhotoMap.Api.Database;
-using PhotoMap.Api.Database.Entities;
 using PhotoMap.Api.Domain.Models;
 using PhotoMap.Api.Domain.Services;
+using PhotoMap.Api.Services.Exceptions;
 
 namespace PhotoMap.Api.Services.Services.Domain;
 
@@ -17,48 +17,45 @@ public class UserPhotoSourceService : IUserPhotoSourceService
 
     public async Task<IEnumerable<UserPhotoSource>> GetUserPhotoSourcesAsync(long userId)
     {
-        var photoSourceEntities = await _context.PhotoSources
-            .Include(a => a.UserPhotoSources.Where(b => b.UserId == userId))
+        var userPhotoSourceEntities = await _context.UserPhotoSourcesAuth
+            .Where(a => a.UserId == userId)
+            .Include(b => b.PhotoSource)
             .ToListAsync();
 
-        return photoSourceEntities.Select(a => new UserPhotoSource
+        return userPhotoSourceEntities.Select(a => new UserPhotoSource
         {
             UserId = userId,
-            PhotoSourceId = a.Id,
-            PhotoSourceName = a.Name,
-            IsUserAuthorized = a.UserPhotoSources.FirstOrDefault()?.UserAuthSettings?.TokenExpiresOn > DateTime.UtcNow,
-            TokenExpiresOn = a.UserPhotoSources.FirstOrDefault()?.UserAuthSettings?.TokenExpiresOn.UtcDateTime
+            PhotoSourceId = a.PhotoSource!.Id,
+            PhotoSourceName = a.PhotoSource!.Name,
+            IsUserAuthorized = a.UserAuthResult?.TokenExpiresOn > DateTime.UtcNow,
+            TokenExpiresOn = a.UserAuthResult?.TokenExpiresOn.UtcDateTime
         });
     }
     
-    public async Task<UserAuthSettings?> GetUserAuthSettingsAsync(long userId, long photoSourceId)
+    public async Task<UserAuthResult?> GetAuthResultAsync(long userId, long photoSourceId)
     {
-        var userPhotoSourceEntity = await _context.UserPhotoSources
+        var userPhotoSourceEntity = await _context.UserPhotoSourcesAuth
             .Where(a => a.UserId == userId && a.PhotoSourceId == photoSourceId)
             .FirstOrDefaultAsync();
 
         if (userPhotoSourceEntity != null)
         {
-            return userPhotoSourceEntity.UserAuthSettings;
+            return userPhotoSourceEntity.UserAuthResult;
         }
 
         throw new NotFoundException($"UserPhotoSource entity for user ID {userId} and photo source ID {photoSourceId} not found.");
     }
     
-    public async Task UpdateUserPhotoSourceAuthResultAsync(long userId, long photoSourceId, UserAuthSettings userAuthSettings)
+    public async Task UpdateAuthResultAsync(long userId, long photoSourceId, UserAuthResult userAuthResult)
     {
-        var userPhotoSource = await _context.UserPhotoSources.FirstOrDefaultAsync(a => a.UserId == userId && a.PhotoSourceId == photoSourceId);
-
+        var userPhotoSource = await _context.UserPhotoSourcesAuth.FirstOrDefaultAsync(a => a.UserId == userId && a.PhotoSourceId == photoSourceId);
         if (userPhotoSource == null)
         {
-            var entity = new UserPhotoSourceEntity { UserId = userId, PhotoSourceId = photoSourceId, UserAuthSettings = userAuthSettings };
-            await _context.UserPhotoSources.AddAsync(entity);
+            throw new NotFoundException($"UserPhotoSource entity for user ID {userId} and photo source ID {photoSourceId} not found.");
         }
-        else
-        {
-            userPhotoSource.UserAuthSettings = userAuthSettings;
-            _context.UserPhotoSources.Update(userPhotoSource);
-        }
+        
+        userPhotoSource.UserAuthResult = userAuthResult;
+        _context.UserPhotoSourcesAuth.Update(userPhotoSource);
 
         await _context.SaveChangesAsync();
     }

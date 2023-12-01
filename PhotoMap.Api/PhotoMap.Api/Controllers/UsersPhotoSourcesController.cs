@@ -39,7 +39,8 @@ namespace PhotoMap.Api.Controllers
                 PhotoSourceId = a.PhotoSourceId,
                 PhotoSourceName = a.PhotoSourceName,
                 IsUserAuthorized = a.IsUserAuthorized,
-                TokenExpiresOn = a.TokenExpiresOn.HasValue ? DateTime.SpecifyKind(a.TokenExpiresOn.Value, DateTimeKind.Utc).ToString("o") : null
+                TokenExpiresOn = a.TokenExpiresOn.HasValue ? DateTime.SpecifyKind(a.TokenExpiresOn.Value, DateTimeKind.Utc).ToString("o") : null,
+                Status = Enum.Parse<UserPhotoSourceStatusDto>(a.Status.ToString())
             });
 
             return Ok(dtos);
@@ -49,13 +50,13 @@ namespace PhotoMap.Api.Controllers
         [ProducesResponseType(StatusCodes.Status200OK)]
         public async Task<IActionResult> UpdateUserPhotoSource(long userId, long sourceId, [FromBody] AuthResultInputDto authResultInputDto)
         {
-            var authResult = new UserAuthSettings
+            var authResult = new UserAuthResult
             {
                 Token = authResultInputDto.Token,
                 TokenExpiresOn = DateTimeOffset.UtcNow.AddSeconds(authResultInputDto.TokenExpiresIn)
             };
 
-            await _userPhotoSourceService.UpdateUserPhotoSourceAuthResultAsync(userId, sourceId, authResult);
+            await _userPhotoSourceService.UpdateAuthResultAsync(userId, sourceId, authResult);
 
             return Ok();
         }
@@ -64,7 +65,7 @@ namespace PhotoMap.Api.Controllers
         [ProducesResponseType(StatusCodes.Status200OK)]
         public async Task<IActionResult> SourceProcessing(long userId, long sourceId, [FromBody] PhotoSourceProcessingCommands command)
         {
-            await _photoSourceProcessingService.ProcessAsync(userId, sourceId, command);
+            await _photoSourceProcessingService.RunCommandAsync(userId, sourceId, command);
 
             return Ok();
         }

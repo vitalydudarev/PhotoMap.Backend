@@ -10,7 +10,7 @@ namespace PhotoMap.Api.Database.Configurations
         {
             builder.HasKey(a => a.Id);
             builder.Property(a => a.Name).IsRequired();
-            builder.ToTable("Users");
+            builder.ToTable("users");
         }
     }
 }

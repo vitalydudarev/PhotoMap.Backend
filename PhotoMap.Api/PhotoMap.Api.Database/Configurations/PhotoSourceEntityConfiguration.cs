@@ -13,7 +13,7 @@ namespace PhotoMap.Api.Database.Configurations
             builder.Property(a => a.Settings).IsRequired();
             builder.Property(a => a.ClientAuthSettings).IsRequired().HasColumnType("jsonb");
             builder.Property(a => a.ServiceFactoryImplementationType).IsRequired();
-            builder.ToTable("PhotoSources");
+            builder.ToTable("photo_sources");
         }
     }
 }

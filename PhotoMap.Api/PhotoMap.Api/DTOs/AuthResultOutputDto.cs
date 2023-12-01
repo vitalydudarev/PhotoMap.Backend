@@ -1,5 +1,3 @@
-using System;
-
 namespace PhotoMap.Api.DTOs;
 
 public class AuthResultOutputDto

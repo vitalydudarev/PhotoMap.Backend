@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using PhotoMap.Api.Domain.Models;
 using PhotoMap.Api.Domain.Services;
+using PhotoMap.Api.Services.Factories;
 using PhotoMap.Api.Services.Tests.Stubs;
 
 namespace PhotoMap.Api.Services.Tests;

@@ -6,6 +6,8 @@ public interface IDownloadService : IDisposable
         long userId,
         string token,
         CancellationToken cancellationToken);
+
+    Task<int> GetTotalFileCountAsync();
 }
 
 public interface IDownloadStateService

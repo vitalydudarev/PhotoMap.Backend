@@ -2,6 +2,7 @@ using System.Text.Json;
 using PhotoMap.Api.Domain.Models;
 using PhotoMap.Api.Domain.Repositories;
 using PhotoMap.Api.Domain.Services;
+using PhotoMap.Api.Services.Exceptions;
 
 namespace PhotoMap.Api.Services.Services.Domain;
 

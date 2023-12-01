@@ -2,7 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using PhotoMap.Api.Services.Services;
 
-namespace PhotoMap.Api.Services;
+namespace PhotoMap.Api.Services.Factories;
 
 public class DropboxDownloadServiceFactory : IDownloadServiceFactory
 {

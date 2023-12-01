@@ -26,4 +26,8 @@
       <ProjectReference Include="..\PhotoMap.Api.Services\PhotoMap.Api.Services.csproj" />
     </ItemGroup>
 
+    <ItemGroup>
+      <Compile Remove="DTOs\UpdateUserDto.cs" />
+    </ItemGroup>
+
 </Project>

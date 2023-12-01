@@ -7,4 +7,5 @@ public class UserPhotoSourceDto
     public string PhotoSourceName { get; set; } = null!;
     public bool IsUserAuthorized { get; set; }
     public string? TokenExpiresOn { get; set; }
+    public UserPhotoSourceStatusDto Status { get; set; }
 }

@@ -10,5 +10,6 @@ public class PhotoSourceEntity
     public required ClientAuthSettings ClientAuthSettings { get; set; }
     public required string ServiceFactoryImplementationType { get; set; }
     
-    public ICollection<UserPhotoSourceEntity> UserPhotoSources { get; set; }
+    public ICollection<UserPhotoSourceAuthEntity>? UserPhotoSourcesAuth { get; set; }
+    public ICollection<UserPhotoSourceStatusEntity>? UserPhotoSourcesStatus { get; set; }
 }

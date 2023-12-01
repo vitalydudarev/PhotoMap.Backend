@@ -21,7 +21,7 @@ namespace PhotoMap.Api.Database.Configurations
             builder.Property(a => a.PhotoSourceId).IsRequired();
             builder.Property(a => a.Path);
             builder.Property(a => a.AddedOn).IsRequired();
-            builder.ToTable("Photos");
+            builder.ToTable("photos");
 
             builder.HasOne(a => a.User).WithMany().HasForeignKey(a => a.UserId);
             builder.HasOne(a => a.PhotoSource).WithMany().HasForeignKey(a => a.PhotoSourceId);

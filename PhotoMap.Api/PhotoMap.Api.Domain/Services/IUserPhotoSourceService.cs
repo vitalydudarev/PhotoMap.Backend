@@ -5,6 +5,6 @@ namespace PhotoMap.Api.Domain.Services;
 public interface IUserPhotoSourceService
 {
     Task<IEnumerable<UserPhotoSource>> GetUserPhotoSourcesAsync(long userId);
-    Task<UserAuthSettings?> GetUserAuthSettingsAsync(long userId, long photoSourceId);
-    Task UpdateUserPhotoSourceAuthResultAsync(long userId, long photoSourceId, UserAuthSettings userAuthSettings);
+    Task<UserAuthResult?> GetAuthResultAsync(long userId, long photoSourceId);
+    Task UpdateAuthResultAsync(long userId, long photoSourceId, UserAuthResult userAuthResult);
 }

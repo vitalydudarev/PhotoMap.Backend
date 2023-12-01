@@ -3,6 +3,7 @@ using Dropbox.Api;
 using Dropbox.Api.Auth;
 using Dropbox.Api.Files;
 using Microsoft.Extensions.Logging;
+using DropboxException = PhotoMap.Api.Services.Exceptions.DropboxException;
 
 namespace PhotoMap.Api.Services.Services;
 
@@ -46,6 +47,28 @@ public sealed class DropboxDownloadService : IDownloadService
         _state.TotalFiles = filesMetadata.Count;
 
         await foreach (var downloadedFileInfo in DownloadFilesAsync(filesMetadata, cancellationToken)) yield return downloadedFileInfo;
+    }
+    
+    public async Task<int> GetTotalFileCountAsync()
+    {
+        int totalCount = 0;
+
+        bool firstIteration = true;
+        var listFolderResult = await WrapApiCallAsync(() => _dropboxClient.Files.ListFolderAsync(_settings.SourceFolder, limit: (uint?)_settings.DownloadLimit));
+        
+        do
+        {
+            if (!firstIteration)
+            {
+                listFolderResult = await WrapApiCallAsync(() => _dropboxClient.Files.ListFolderContinueAsync(listFolderResult.Cursor));
+            }
+
+            firstIteration = false;
+
+            totalCount += listFolderResult.Entries.Count;
+        } while (listFolderResult.HasMore);
+
+        return totalCount;
     }
 
     public void Dispose()

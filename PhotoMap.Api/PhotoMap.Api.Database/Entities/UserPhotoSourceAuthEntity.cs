@@ -2,11 +2,11 @@ using PhotoMap.Api.Domain.Models;
 
 namespace PhotoMap.Api.Database.Entities;
 
-public class UserPhotoSourceEntity
+public class UserPhotoSourceAuthEntity
 {
     public required long UserId { get; set; }
     public UserEntity? User { get; set; }
     public required long PhotoSourceId { get; set; }
     public PhotoSourceEntity? PhotoSource { get; set; }
-    public UserAuthSettings? UserAuthSettings { get; set; }
+    public UserAuthResult? UserAuthResult { get; set; }
 }

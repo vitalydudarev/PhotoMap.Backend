@@ -12,7 +12,8 @@ namespace PhotoMap.Api.Database
         public DbSet<UserEntity> Users { get; set; }
         public DbSet<PhotoEntity> Photos { get; set; }
         public DbSet<PhotoSourceEntity> PhotoSources { get; set; }
-        public DbSet<UserPhotoSourceEntity> UserPhotoSources { get; set; }
+        public DbSet<UserPhotoSourceAuthEntity> UserPhotoSourcesAuth { get; set; }
+        public DbSet<UserPhotoSourceStatusEntity> UserPhotoSourcesStatus { get; set; }
 
         public PhotoMapContext(IConfiguration configuration, DbContextOptions<PhotoMapContext> options)
             : base(options)
@@ -25,7 +26,8 @@ namespace PhotoMap.Api.Database
             modelBuilder.ApplyConfiguration(new UserEntityConfiguration());
             modelBuilder.ApplyConfiguration(new PhotoEntityConfiguration());
             modelBuilder.ApplyConfiguration(new PhotoSourceEntityConfiguration());
-            modelBuilder.ApplyConfiguration(new UserPhotoSourceEntityConfiguration());
+            modelBuilder.ApplyConfiguration(new UserPhotoSourceAuthEntityConfiguration());
+            modelBuilder.ApplyConfiguration(new UserPhotoSourceStatusEntityConfiguration());
         }
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
@@ -33,7 +35,9 @@ namespace PhotoMap.Api.Database
             if (_configuration == null || optionsBuilder.IsConfigured)
                 return;
 
-            optionsBuilder.UseNpgsql(_configuration["ConnectionString"]);
+            optionsBuilder
+                .UseNpgsql(_configuration["ConnectionString"])
+                .UseSnakeCaseNamingConvention();
         }
     }
 }

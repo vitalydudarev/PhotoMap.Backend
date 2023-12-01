@@ -4,6 +4,7 @@ using PhotoMap.Api.Database;
 using PhotoMap.Api.Database.Entities;
 using PhotoMap.Api.Domain.Models;
 using PhotoMap.Api.Services;
+using PhotoMap.Api.Services.Factories;
 using PhotoMap.Api.Services.Services;
 
 namespace PhotoMap.Api;
@@ -12,11 +13,26 @@ public static class SeedDatabaseUtil
 {
     public static void SeedDatabase(PhotoMapContext context)
     {
-        context.Users.Add(new UserEntity { Id = 1, Name = "Vitaly" });
+        // User
+        var userEntity = new UserEntity { Id = 1, Name = "Vitaly" };
 
-        context.PhotoSources.Add(CreateDropboxEntity());
-        context.PhotoSources.Add(CreateYandexDiskEntity());
-
+        // Photo Sources
+        var dropboxPhotoSource = CreateDropboxEntity();
+        var yandexDiskPhotoSource = CreateYandexDiskEntity();
+        
+        // User - Photo Sources Auth
+        var dropboxUserPhotoSourceAuth = CreateUserPhotoSourceAuth(userEntity.Id, dropboxPhotoSource.Id);
+        var yandexDiskUserPhotoSourceAuth = CreateUserPhotoSourceAuth(userEntity.Id, yandexDiskPhotoSource.Id);
+        
+        // User - Photo Sources Status
+        var dropboxUserPhotoSourceStatus = CreateUserPhotoSourceStatus(userEntity.Id, dropboxPhotoSource.Id);
+        var yandexDiskUserPhotoSourceStatus = CreateUserPhotoSourceStatus(userEntity.Id, yandexDiskPhotoSource.Id);
+        
+        // Save to DB
+        context.Users.Add(userEntity);
+        context.PhotoSources.AddRange(dropboxPhotoSource, yandexDiskPhotoSource);
+        context.UserPhotoSourcesAuth.AddRange(dropboxUserPhotoSourceAuth, yandexDiskUserPhotoSourceAuth);
+        context.UserPhotoSourcesStatus.AddRange(dropboxUserPhotoSourceStatus, yandexDiskUserPhotoSourceStatus);
         context.SaveChanges();
     }
     
@@ -77,6 +93,25 @@ public static class SeedDatabaseUtil
             Settings = JsonSerializer.Serialize(settings),
             ClientAuthSettings = clientAuthSettings,
             ServiceFactoryImplementationType = TypeHelper.GetTypeFullName(serviceImplementationType)
+        };
+    }
+
+    private static UserPhotoSourceAuthEntity CreateUserPhotoSourceAuth(long userId, long photoSourceId)
+    {
+        return new UserPhotoSourceAuthEntity
+        {
+            UserId = userId,
+            PhotoSourceId = photoSourceId
+        };
+    }
+    
+    private static UserPhotoSourceStatusEntity CreateUserPhotoSourceStatus(long userId, long photoSourceId)
+    {
+        return new UserPhotoSourceStatusEntity
+        {
+            UserId = userId,
+            PhotoSourceId = photoSourceId,
+            Status = UserPhotoSourceStatus.NotStarted
         };
     }
 }

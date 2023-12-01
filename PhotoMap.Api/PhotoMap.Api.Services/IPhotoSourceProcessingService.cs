@@ -4,5 +4,5 @@ namespace PhotoMap.Api.Services;
 
 public interface IPhotoSourceProcessingService
 {
-    Task ProcessAsync(long userId, long sourceId, PhotoSourceProcessingCommands command);
+    Task RunCommandAsync(long userId, long sourceId, PhotoSourceProcessingCommands command);
 }

@@ -4,24 +4,24 @@ using PhotoMap.Api.Database.Entities;
 
 namespace PhotoMap.Api.Database.Configurations
 {
-    public class UserPhotoSourceEntityConfiguration : IEntityTypeConfiguration<UserPhotoSourceEntity>
+    public class UserPhotoSourceAuthEntityConfiguration : IEntityTypeConfiguration<UserPhotoSourceAuthEntity>
     {
-        public void Configure(EntityTypeBuilder<UserPhotoSourceEntity> builder)
+        public void Configure(EntityTypeBuilder<UserPhotoSourceAuthEntity> builder)
         {
             builder.HasKey(a => new { a.UserId, a.PhotoSourceId });
             builder.Property(a => a.UserId).IsRequired();
             builder.Property(a => a.PhotoSourceId).IsRequired();
-            builder.Property(a => a.UserAuthSettings).HasColumnType("jsonb");
-            builder.ToTable("UserPhotoSources");
+            builder.Property(a => a.UserAuthResult).HasColumnType("jsonb");
+            builder.ToTable("users_photo_sources_auth");
 
             builder
                 .HasOne(a => a.User)
-                .WithMany(b => b.UserPhotoSources)
+                .WithMany(b => b.UserPhotoSourcesAuth)
                 .HasForeignKey(a => a.UserId);
             
             builder
                 .HasOne(a => a.PhotoSource)
-                .WithMany(b => b.UserPhotoSources)
+                .WithMany(b => b.UserPhotoSourcesAuth)
                 .HasForeignKey(a => a.PhotoSourceId);
         }
     }

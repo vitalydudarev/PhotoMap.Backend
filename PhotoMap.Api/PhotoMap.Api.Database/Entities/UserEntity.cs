@@ -5,5 +5,6 @@ public class UserEntity
     public long Id { get; set; }
     public required string Name { get; set; }
     
-    public ICollection<UserPhotoSourceEntity>? UserPhotoSources { get; set; }
+    public ICollection<UserPhotoSourceAuthEntity>? UserPhotoSourcesAuth { get; set; }
+    public ICollection<UserPhotoSourceStatusEntity>? UserPhotoSourcesStatus { get; set; }
 }

@@ -1,3 +1,4 @@
+using PhotoMap.Api.Services.Factories;
 using PhotoMap.Api.Services.Services;
 
 namespace PhotoMap.Api.Services.Tests.Stubs;

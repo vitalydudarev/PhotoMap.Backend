@@ -14,7 +14,7 @@ public class NotificationHub : Hub
     public override Task OnConnectedAsync()
     {
         var userIdQueryParameter = Context.GetHttpContext()?.Request.Query["userId"];
-        if (userIdQueryParameter?.ToString() != null)
+        if (!string.IsNullOrEmpty(userIdQueryParameter?.ToString()))
         {
             var userId = long.Parse(userIdQueryParameter.ToString() ?? string.Empty);
             var connectionId = Context.ConnectionId;
@@ -46,11 +46,11 @@ public class NotificationHub : Hub
         }
     }
 
-    public async Task SendProgressAsync(long userId, long sourceId, Progress progress)
+    public async Task SendProgressAsync(long userId, long sourceId, int processed, int total)
     {
         if (_userConnections.TryGetValue(userId, out var connectionId))
         {
-            var hubProgressModel = new HubProgressModel(sourceId, progress.Processed, progress.Total);
+            var hubProgressModel = new HubProgressModel(sourceId, processed, total);
             await Clients.Client(connectionId).SendAsync("Progress", hubProgressModel);
         }
     }

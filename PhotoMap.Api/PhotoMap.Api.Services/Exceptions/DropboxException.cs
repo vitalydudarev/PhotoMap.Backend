@@ -1,4 +1,4 @@
-namespace PhotoMap.Api.Services
+namespace PhotoMap.Api.Services.Exceptions
 {
     public class DropboxException : Exception
     {
