@@ -13,10 +13,11 @@ public sealed class DropboxDownloadService : IDownloadService
     private readonly IDropboxDownloadStateService _stateService;
     private readonly IProgressReporter _progressReporter;
     private readonly DropboxSettings _settings;
-    private DropboxClient _dropboxClient;
+    private DropboxClient? _dropboxClient;
     private readonly HttpClient _httpClient;
-    private DropboxDownloadState _state;
-    private int? _lastProcessedFileIndex;
+    private DropboxDownloadState? _state;
+    private long _userId;
+    private long _sourceId;
 
     public DropboxDownloadService(
         ILogger<DropboxDownloadService> logger,
@@ -35,16 +36,19 @@ public sealed class DropboxDownloadService : IDownloadService
 
     public async IAsyncEnumerable<DownloadedFileInfo> DownloadAsync(
         long userId,
+        long sourceId,
         string token,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        CreateDropboxClient(token);
-
-        LoadOrCreateState(userId);
+        _userId = userId;
+        _sourceId = sourceId;
+        
+        _dropboxClient = CreateDropboxClient(token);
+        _state = await LoadOrCreateStateAsync();
 
         var filesMetadata = await GetFileListAsync();
 
-        _state.TotalFiles = filesMetadata.Count;
+        // _state.TotalFiles = filesMetadata.Count;
 
         await foreach (var downloadedFileInfo in DownloadFilesAsync(filesMetadata, cancellationToken)) yield return downloadedFileInfo;
     }
@@ -71,11 +75,11 @@ public sealed class DropboxDownloadService : IDownloadService
         return totalCount;
     }
 
-    public void Dispose()
+    public async ValueTask DisposeAsync()
     {
-        SaveState();
+        await SaveStateAsync();
         
-        _dropboxClient.Dispose();
+        _dropboxClient?.Dispose();
         _httpClient.Dispose();
     }
     
@@ -87,7 +91,7 @@ public sealed class DropboxDownloadService : IDownloadService
         List<Metadata> filesMetadata,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        var index = _lastProcessedFileIndex ?? 0;
+        var index = _state?.LastProcessedFileIndex ?? 0;
 
         for (int i = index; i < filesMetadata.Count; i++)
         {
@@ -157,34 +161,28 @@ public sealed class DropboxDownloadService : IDownloadService
         }
     }
     
-    private void LoadOrCreateState(long userId)
+    private async Task<DropboxDownloadState> LoadOrCreateStateAsync()
     {
-        var state = _stateService.GetState(userId);
-        
-        if (state != null)
+        var state = await _stateService.GetStateAsync(_userId, _sourceId);
+
+        return state ?? new DropboxDownloadState();
+    }
+
+    private async Task SaveStateAsync()
+    {
+        _logger.LogInformation("Saving state");
+
+        if (_state != null)
         {
-            _lastProcessedFileIndex = state.LastProcessedFileIndex;
-            _state = state;
-        }
-        else
-        {
-            _state = new DropboxDownloadState { LastAccessTime = DateTimeOffset.UtcNow, UserId = userId };
+            await _stateService.SaveStateAsync(_userId, _sourceId, _state);
         }
     }
 
-    private void CreateDropboxClient(string token)
+    private DropboxClient CreateDropboxClient(string token)
     {
         var config = new DropboxClientConfig("PhotoMap") { HttpClient = _httpClient };
 
-        _dropboxClient = new DropboxClient(token, config);
-    }
-
-    private void SaveState()
-    {
-        _logger.LogInformation("Saving state");
-        _logger.LogInformation("Files processed/total - {LastProcessedFileIndex}/{TotalFiles}", _state.LastProcessedFileIndex, _state.TotalFiles);
-
-        _stateService.SaveState(_state);
+        return new DropboxClient(token, config);
     }
 
     private async Task<T> WrapApiCallAsync<T>(Func<Task<T>> apiCall)

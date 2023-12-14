@@ -32,7 +32,7 @@ public static class SeedDatabaseUtil
         context.Users.Add(userEntity);
         context.PhotoSources.AddRange(dropboxPhotoSource, yandexDiskPhotoSource);
         context.UserPhotoSourcesAuth.AddRange(dropboxUserPhotoSourceAuth, yandexDiskUserPhotoSourceAuth);
-        context.UserPhotoSourcesStatus.AddRange(dropboxUserPhotoSourceStatus, yandexDiskUserPhotoSourceStatus);
+        context.UserPhotoSourcesStatuses.AddRange(dropboxUserPhotoSourceStatus, yandexDiskUserPhotoSourceStatus);
         context.SaveChanges();
     }
     
@@ -111,7 +111,7 @@ public static class SeedDatabaseUtil
         {
             UserId = userId,
             PhotoSourceId = photoSourceId,
-            Status = UserPhotoSourceStatus.NotStarted
+            Status = PhotoSourceStatus.NotStarted
         };
     }
 }

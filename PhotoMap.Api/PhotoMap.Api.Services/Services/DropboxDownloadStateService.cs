@@ -1,54 +1,32 @@
-using Microsoft.Extensions.Logging;
+using System.Text.Json;
+using PhotoMap.Api.Domain.Services;
 
 namespace PhotoMap.Api.Services.Services;
 
 public class DropboxDownloadStateService : IDropboxDownloadStateService
 {
-    private const string FileName = "dropbox-data.json";
-    private readonly Dictionary<long, DropboxDownloadState> _map = new();
-    private readonly ILogger<DropboxDownloadStateService> _logger;
+    private readonly IUserPhotoSourceService _userPhotoSourceService;
 
-    public DropboxDownloadStateService(ILogger<DropboxDownloadStateService> logger)
+    public DropboxDownloadStateService(IUserPhotoSourceService userPhotoSourceService)
     {
-        _logger = logger;
-
-        _logger.LogInformation("Directory: {Directory}", Directory.GetCurrentDirectory());
-
-        if (File.Exists(FileName))
-        {
-            var fileContents = File.ReadAllText(FileName);
-            var list = System.Text.Json.JsonSerializer.Deserialize<List<DropboxDownloadState>>(fileContents);
-
-            if (list != null)
-            {
-                _map = list.ToDictionary(a => a.UserId, b => b);
-            }
-        }
+        _userPhotoSourceService = userPhotoSourceService;
     }
 
-    public DropboxDownloadState? GetState(long userId)
+    public async Task<DropboxDownloadState?> GetStateAsync(long userId, long sourceId)
     {
-        _map.TryGetValue(userId, out var state);
-
-        return state;
-    }
-
-    public void SaveState(DropboxDownloadState state)
-    {
-        if (!_map.TryGetValue(state.UserId, out _))
+        var sourceState = await _userPhotoSourceService.GetUserPhotoStateAsync(userId, sourceId);
+        if (sourceState?.State == null)
         {
-            state.LastAccessTime = DateTimeOffset.UtcNow;
-            _map.Add(state.UserId, state);
+            return null;
         }
 
-        var values = _map.Values.ToList();
+        return JsonSerializer.Deserialize<DropboxDownloadState>(sourceState.State);
+    }
 
-        // TODO: make async
-        var fileContents = System.Text.Json.JsonSerializer.Serialize(values);
-        
-        File.WriteAllText(FileName, fileContents);
+    public Task SaveStateAsync(long userId, long sourceId, DropboxDownloadState state)
+    {
+        var stateString = JsonSerializer.Serialize(state);
 
-        _logger.LogInformation("Directory: {Directory}", Directory.GetCurrentDirectory());
-        _logger.LogInformation("Saved");
+        return _userPhotoSourceService.UpdateUserPhotoStateAsync(userId, sourceId, stateString);
     }
 }

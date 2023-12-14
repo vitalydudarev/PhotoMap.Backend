@@ -4,27 +4,24 @@ using PhotoMap.Api.Database.Entities;
 
 namespace PhotoMap.Api.Database.Configurations
 {
-    public class UserPhotoSourceStatusEntityConfiguration : IEntityTypeConfiguration<UserPhotoSourceStatusEntity>
+    public class UserPhotoSourceStateEntityConfiguration : IEntityTypeConfiguration<UserPhotoSourceStateEntity>
     {
-        public void Configure(EntityTypeBuilder<UserPhotoSourceStatusEntity> builder)
+        public void Configure(EntityTypeBuilder<UserPhotoSourceStateEntity> builder)
         {
             builder.HasKey(a => new { a.UserId, a.PhotoSourceId });
             builder.Property(a => a.UserId).IsRequired();
             builder.Property(a => a.PhotoSourceId).IsRequired();
-            builder.Property(a => a.TotalCount);
-            builder.Property(a => a.ProcessedCount);
-            builder.Property(a => a.FailedCount);
-            builder.Property(a => a.LastUpdatedAt);
-            builder.ToTable("users_photo_sources_status");
+            builder.Property(a => a.State);
+            builder.ToTable("users_photo_sources_states");
 
             builder
                 .HasOne(a => a.User)
-                .WithMany(b => b.UserPhotoSourcesStatuses)
+                .WithMany(b => b.UserPhotoSourcesStates)
                 .HasForeignKey(a => a.UserId);
             
             builder
                 .HasOne(a => a.PhotoSource)
-                .WithMany(b => b.UserPhotoSourcesStatuses)
+                .WithMany(b => b.UserPhotoSourcesStates)
                 .HasForeignKey(a => a.PhotoSourceId);
         }
     }

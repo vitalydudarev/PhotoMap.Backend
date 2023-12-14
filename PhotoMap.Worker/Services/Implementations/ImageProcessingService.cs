@@ -1,5 +1,5 @@
+using System.Text.Json;
 using Microsoft.Extensions.Options;
-using Newtonsoft.Json;
 using PhotoMap.Worker.Helpers;
 using PhotoMap.Worker.Models;
 using PhotoMap.Worker.Services.Definitions;
@@ -62,7 +62,7 @@ namespace PhotoMap.Worker.Services.Implementations
                 processedFile.Latitude = ExifHelper.GetLatitude(exif);
                 processedFile.Longitude = ExifHelper.GetLongitude(exif);
                 // TODO: switch to System.Text.Json serializer
-                processedFile.ExifString = JsonConvert.SerializeObject(exif);
+                processedFile.ExifString = JsonSerializer.Serialize(exif);
             }
 
             return processedFile;

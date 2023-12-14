@@ -8,10 +8,9 @@ public class UserPhotoSourceStatusEntity
     public UserEntity? User { get; set; }
     public required long PhotoSourceId { get; set; }
     public PhotoSourceEntity? PhotoSource { get; set; }
-    public UserPhotoSourceStatus Status { get; set; }
-    public int? TotalCount { get; set; }
-    public int? ProcessedCount { get; set; }
-    public int? FailedCount { get; set; }
-    public int? LastProcessedFileIndex { get; set; }
+    public PhotoSourceStatus Status { get; set; }
+    public int TotalCount { get; set; }
+    public int ProcessedCount { get; set; }
+    public int FailedCount { get; set; }
     public DateTimeOffset? LastUpdatedAt { get; set; }
 }

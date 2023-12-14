@@ -12,7 +12,8 @@ public class YandexDiskDownloadService : IDownloadService
     {
     }
     
-    public IAsyncEnumerable<DownloadedFileInfo?> DownloadAsync(long userId, string token, CancellationToken cancellationToken)
+    public IAsyncEnumerable<DownloadedFileInfo> DownloadAsync(long userId, long sourceId, string token,
+        CancellationToken cancellationToken)
     {
         throw new NotImplementedException();
     }
@@ -22,7 +23,8 @@ public class YandexDiskDownloadService : IDownloadService
         throw new NotImplementedException();
     }
 
-    public void Dispose()
+    public async ValueTask DisposeAsync()
     {
+        // TODO release managed resources here
     }
 }

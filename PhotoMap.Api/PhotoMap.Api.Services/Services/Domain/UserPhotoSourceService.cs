@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using PhotoMap.Api.Database;
+using PhotoMap.Api.Database.Entities;
 using PhotoMap.Api.Domain.Models;
 using PhotoMap.Api.Domain.Services;
 using PhotoMap.Api.Services.Exceptions;
@@ -56,6 +57,57 @@ public class UserPhotoSourceService : IUserPhotoSourceService
         
         userPhotoSource.UserAuthResult = userAuthResult;
         _context.UserPhotoSourcesAuth.Update(userPhotoSource);
+
+        await _context.SaveChangesAsync();
+    }
+    
+    public async Task<UserPhotoSourceStatus?> GetUserPhotoStatusAsync(long userId, long photoSourceId)
+    {
+        var entity = await _context.UserPhotoSourcesStatuses
+            .Where(a => a.UserId == userId && a.PhotoSourceId == photoSourceId)
+            .FirstOrDefaultAsync();
+
+        if (entity == null)
+        {
+            return null;
+        }
+
+        return new UserPhotoSourceStatus
+        {
+            UserId = entity.UserId,
+            PhotoSourceId = entity.PhotoSourceId,
+            Status = entity.Status,
+            TotalCount = entity.TotalCount,
+            ProcessedCount = entity.ProcessedCount,
+            FailedCount = entity.FailedCount,
+            LastUpdatedAt = entity.LastUpdatedAt
+        };
+    }
+    
+    public async Task<UserPhotoSourceState?> GetUserPhotoStateAsync(long userId, long photoSourceId)
+    {
+        var entity = await _context.UserPhotoSourcesStates
+            .Where(a => a.UserId == userId && a.PhotoSourceId == photoSourceId)
+            .FirstOrDefaultAsync();
+
+        if (entity == null)
+        {
+            return null;
+        }
+
+        return new UserPhotoSourceState
+        {
+            UserId = entity.UserId,
+            PhotoSourceId = entity.PhotoSourceId,
+            State = entity.State
+        };
+    }
+    
+    public async Task UpdateUserPhotoStateAsync(long userId, long photoSourceId, string state)
+    {
+        var entity = new UserPhotoSourceStateEntity { UserId = userId, PhotoSourceId = photoSourceId, State = state };
+
+        _context.UserPhotoSourcesStates.Update(entity);
 
         await _context.SaveChangesAsync();
     }

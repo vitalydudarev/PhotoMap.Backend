@@ -9,11 +9,12 @@ namespace PhotoMap.Api.Database
     {
         private readonly IConfiguration? _configuration;
 
-        public DbSet<UserEntity> Users { get; set; }
-        public DbSet<PhotoEntity> Photos { get; set; }
-        public DbSet<PhotoSourceEntity> PhotoSources { get; set; }
-        public DbSet<UserPhotoSourceAuthEntity> UserPhotoSourcesAuth { get; set; }
-        public DbSet<UserPhotoSourceStatusEntity> UserPhotoSourcesStatus { get; set; }
+        public DbSet<UserEntity> Users { get; set; } = null!;
+        public DbSet<PhotoEntity> Photos { get; set; } = null!;
+        public DbSet<PhotoSourceEntity> PhotoSources { get; set; } = null!;
+        public DbSet<UserPhotoSourceAuthEntity> UserPhotoSourcesAuth { get; set; } = null!;
+        public DbSet<UserPhotoSourceStatusEntity> UserPhotoSourcesStatuses { get; set; } = null!;
+        public DbSet<UserPhotoSourceStateEntity> UserPhotoSourcesStates { get; set; } = null!;
 
         public PhotoMapContext(IConfiguration configuration, DbContextOptions<PhotoMapContext> options)
             : base(options)
@@ -28,6 +29,7 @@ namespace PhotoMap.Api.Database
             modelBuilder.ApplyConfiguration(new PhotoSourceEntityConfiguration());
             modelBuilder.ApplyConfiguration(new UserPhotoSourceAuthEntityConfiguration());
             modelBuilder.ApplyConfiguration(new UserPhotoSourceStatusEntityConfiguration());
+            modelBuilder.ApplyConfiguration(new UserPhotoSourceStateEntityConfiguration());
         }
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)

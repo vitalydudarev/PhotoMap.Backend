@@ -4,7 +4,8 @@ namespace PhotoMap.Api.Services.Tests.Stubs;
 
 public class DownloadServiceStub : IDownloadService
 {
-    public IAsyncEnumerable<DownloadedFileInfo> DownloadAsync(long userId, string token, CancellationToken cancellationToken)
+    public IAsyncEnumerable<DownloadedFileInfo> DownloadAsync(long userId, long sourceId, string token,
+        CancellationToken cancellationToken)
     {
         throw new NotImplementedException();
     }
@@ -14,7 +15,8 @@ public class DownloadServiceStub : IDownloadService
         throw new NotImplementedException();
     }
 
-    public void Dispose()
+    public async ValueTask DisposeAsync()
     {
+        // TODO release managed resources here
     }
 }

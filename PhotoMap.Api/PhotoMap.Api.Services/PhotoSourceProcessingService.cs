@@ -29,22 +29,14 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
     
     public async Task RunCommandAsync(long userId, long sourceId, PhotoSourceProcessingCommands command)
     {
-        // var taskName = $"UserId={userId}-SourceId={sourceId}";
-        var taskName = string.Format("UserId={0}-SourceId={1}", userId, sourceId);
-        
         if (command == PhotoSourceProcessingCommands.Start)
         {
-            var token = await GetAuthTokenAsync(userId, sourceId);
-            var downloadService = await CreateDownloadServiceAsync(sourceId);
-
-            var totalFileCount = await downloadService.GetTotalFileCountAsync();
-
-            var cancellationTokenSource = new CancellationTokenSource();
-            
-            _backgroundTaskManager.AddTask(taskName, () => DoWork(downloadService, _frontendNotificationService, userId, token, cancellationTokenSource.Token), cancellationTokenSource);
+            await Start(userId, sourceId);
         }
         else if (command == PhotoSourceProcessingCommands.Stop)
         {
+            var taskName = GetTaskName(userId, sourceId);
+            
             _backgroundTaskManager.CancelTask(taskName);
             // take job and terminate it
         }
@@ -54,16 +46,31 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
         }
     }
 
+    private async Task Start(long userId, long sourceId)
+    {
+        var taskName = GetTaskName(userId, sourceId);
+        
+        var token = await GetAuthTokenAsync(userId, sourceId);
+        var downloadService = await CreateDownloadServiceAsync(sourceId);
+
+        var totalFileCount = await downloadService.GetTotalFileCountAsync();
+
+        var cancellationTokenSource = new CancellationTokenSource();
+            
+        _backgroundTaskManager.AddTask(taskName, () => DoWork(downloadService, _frontendNotificationService, userId, sourceId, token, cancellationTokenSource.Token), cancellationTokenSource);
+    }
+
     private static async Task DoWork(
         IDownloadService downloadService,
         IFrontendNotificationService frontendNotificationService,
         long userId,
+        long sourceId,
         string token,
         CancellationToken cancellationToken)
     {
         try
         {
-            await foreach (var downloadedFileInfo in downloadService.DownloadAsync(userId, token, cancellationToken))
+            await foreach (var downloadedFileInfo in downloadService.DownloadAsync(userId, sourceId, token, cancellationToken))
             {
                 var name = downloadedFileInfo.ResourceName;
                 await frontendNotificationService.SendProgressAsync(userId, 111, 49, 33);
@@ -78,7 +85,7 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
         }
         finally
         {
-            downloadService.Dispose();
+            await downloadService.DisposeAsync();
         }
     }
 
@@ -91,6 +98,11 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
         }
 
         return authSettings.Token;
+    }
+
+    private static string GetTaskName(long userId, long sourceId)
+    {
+        return $"UserId={userId}-SourceId={sourceId}";
     }
 
     private async Task<IDownloadService> CreateDownloadServiceAsync(long sourceId)
