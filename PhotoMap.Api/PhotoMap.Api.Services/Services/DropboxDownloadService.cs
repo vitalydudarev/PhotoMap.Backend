@@ -43,9 +43,9 @@ public sealed class DropboxDownloadService : IDownloadService
         _userId = userId;
         _sourceId = sourceId;
         
-        _dropboxClient = CreateDropboxClient(token);
         _state = await LoadOrCreateStateAsync();
 
+        CreateDropboxClient(token);
         var filesMetadata = await GetFileListAsync();
 
         // _state.TotalFiles = filesMetadata.Count;
@@ -53,8 +53,10 @@ public sealed class DropboxDownloadService : IDownloadService
         await foreach (var downloadedFileInfo in DownloadFilesAsync(filesMetadata, cancellationToken)) yield return downloadedFileInfo;
     }
     
-    public async Task<int> GetTotalFileCountAsync()
+    public async Task<int> GetTotalFileCountAsync(string token)
     {
+        CreateDropboxClient(token);
+        
         int totalCount = 0;
 
         bool firstIteration = true;
@@ -178,11 +180,11 @@ public sealed class DropboxDownloadService : IDownloadService
         }
     }
 
-    private DropboxClient CreateDropboxClient(string token)
+    private void CreateDropboxClient(string token)
     {
         var config = new DropboxClientConfig("PhotoMap") { HttpClient = _httpClient };
 
-        return new DropboxClient(token, config);
+        _dropboxClient = new DropboxClient(token, config);
     }
 
     private async Task<T> WrapApiCallAsync<T>(Func<Task<T>> apiCall)

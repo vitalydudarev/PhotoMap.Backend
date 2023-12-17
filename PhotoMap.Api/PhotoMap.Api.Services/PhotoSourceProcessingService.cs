@@ -53,7 +53,7 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
         var token = await GetAuthTokenAsync(userId, sourceId);
         var downloadService = await CreateDownloadServiceAsync(sourceId);
 
-        var totalFileCount = await downloadService.GetTotalFileCountAsync();
+        var totalFileCount = await downloadService.GetTotalFileCountAsync(token);
 
         var cancellationTokenSource = new CancellationTokenSource();
             

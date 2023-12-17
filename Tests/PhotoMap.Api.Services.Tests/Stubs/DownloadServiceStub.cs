@@ -10,7 +10,7 @@ public class DownloadServiceStub : IDownloadService
         throw new NotImplementedException();
     }
 
-    public Task<int> GetTotalFileCountAsync()
+    public Task<int> GetTotalFileCountAsync(string token)
     {
         throw new NotImplementedException();
     }

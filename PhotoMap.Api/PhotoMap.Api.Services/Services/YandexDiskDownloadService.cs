@@ -18,7 +18,7 @@ public class YandexDiskDownloadService : IDownloadService
         throw new NotImplementedException();
     }
 
-    public Task<int> GetTotalFileCountAsync()
+    public Task<int> GetTotalFileCountAsync(string token)
     {
         throw new NotImplementedException();
     }
