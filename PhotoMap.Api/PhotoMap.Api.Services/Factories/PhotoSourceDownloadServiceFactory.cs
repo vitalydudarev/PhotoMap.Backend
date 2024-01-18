@@ -12,7 +12,7 @@ public class PhotoSourceDownloadServiceFactory : IPhotoSourceDownloadServiceFact
         _serviceFactories = serviceFactories;
     }
 
-    public IDownloadService GetService(PhotoSource photoSource)
+    public IDownloadService GetService(PhotoSource photoSource, DownloadServiceParameters parameters)
     {
         var type = Type.GetType(photoSource.ServiceFactoryImplementationType);
         if (type != null)
@@ -20,7 +20,7 @@ public class PhotoSourceDownloadServiceFactory : IPhotoSourceDownloadServiceFact
             var serviceFactory = _serviceFactories.FirstOrDefault(a => a.GetType() == type);
             if (serviceFactory != null)
             {
-                return serviceFactory.Create(photoSource.ServiceSettings);
+                return serviceFactory.Create(photoSource.ServiceSettings, parameters);
             }
         }
 

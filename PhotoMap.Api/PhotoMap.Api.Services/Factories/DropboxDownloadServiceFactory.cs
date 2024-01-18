@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using PhotoMap.Api.Services.Services;
@@ -13,9 +14,13 @@ public class DropboxDownloadServiceFactory : IDownloadServiceFactory
         _serviceScopeFactory = serviceScopeFactory;
     }
     
-    public IDownloadService Create(string settingsSerialized)
+    public IDownloadService Create(string settingsSerialized, DownloadServiceParameters parameters)
     {
-        var settings = System.Text.Json.JsonSerializer.Deserialize<DropboxSettings>(settingsSerialized);
+        var settings = JsonSerializer.Deserialize<DropboxSettings>(settingsSerialized);
+        if (settings == null)
+        {
+            throw new Exception("Unable to deserialize settings");
+        }
 
         var serviceProvider = _serviceScopeFactory.CreateScope().ServiceProvider;
         
@@ -23,6 +28,6 @@ public class DropboxDownloadServiceFactory : IDownloadServiceFactory
         var downloadStateService = serviceProvider.GetRequiredService<IDropboxDownloadStateService>();
         var progressReporter = serviceProvider.GetRequiredService<IProgressReporter>();
 
-        return new DropboxDownloadService(logger, downloadStateService, progressReporter, settings!);
+        return new DropboxDownloadService(logger, downloadStateService, progressReporter, settings, parameters);
     }
 }

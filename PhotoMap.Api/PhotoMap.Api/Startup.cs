@@ -104,7 +104,7 @@ namespace PhotoMap.Api
             services.AddDbContext<PhotoMapContext>();
             
             // dropbox services
-            services.AddSingleton<IDropboxDownloadStateService, DropboxDownloadStateService>();
+            services.AddScoped<IDropboxDownloadStateService, DropboxDownloadStateService>();
             
             // common
             services.AddSingleton<IProgressReporter, ProgressReporter>();

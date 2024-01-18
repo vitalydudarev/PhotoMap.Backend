@@ -20,9 +20,9 @@ public static class SeedDatabaseUtil
         var dropboxPhotoSource = CreateDropboxEntity();
         var yandexDiskPhotoSource = CreateYandexDiskEntity();
         
-        // User - Photo Sources Auth
-        var dropboxUserPhotoSourceAuth = CreateUserPhotoSourceAuth(userEntity.Id, dropboxPhotoSource.Id);
-        var yandexDiskUserPhotoSourceAuth = CreateUserPhotoSourceAuth(userEntity.Id, yandexDiskPhotoSource.Id);
+        // User - Photo Sources
+        var dropboxUserPhotoSource = CreateUserPhotoSource(userEntity.Id, dropboxPhotoSource.Id);
+        var yandexDiskUserPhotoSource = CreateUserPhotoSource(userEntity.Id, yandexDiskPhotoSource.Id);
         
         // User - Photo Sources Status
         var dropboxUserPhotoSourceStatus = CreateUserPhotoSourceStatus(userEntity.Id, dropboxPhotoSource.Id);
@@ -31,7 +31,7 @@ public static class SeedDatabaseUtil
         // Save to DB
         context.Users.Add(userEntity);
         context.PhotoSources.AddRange(dropboxPhotoSource, yandexDiskPhotoSource);
-        context.UserPhotoSourcesAuth.AddRange(dropboxUserPhotoSourceAuth, yandexDiskUserPhotoSourceAuth);
+        context.UserPhotoSources.AddRange(dropboxUserPhotoSource, yandexDiskUserPhotoSource);
         context.UserPhotoSourcesStatuses.AddRange(dropboxUserPhotoSourceStatus, yandexDiskUserPhotoSourceStatus);
         context.SaveChanges();
     }
@@ -95,10 +95,10 @@ public static class SeedDatabaseUtil
             ServiceFactoryImplementationType = TypeHelper.GetTypeFullName(serviceImplementationType)
         };
     }
-
-    private static UserPhotoSourceAuthEntity CreateUserPhotoSourceAuth(long userId, long photoSourceId)
+    
+    private static UserPhotoSourceEntity CreateUserPhotoSource(long userId, long photoSourceId)
     {
-        return new UserPhotoSourceAuthEntity
+        return new UserPhotoSourceEntity
         {
             UserId = userId,
             PhotoSourceId = photoSourceId

@@ -61,7 +61,6 @@ namespace PhotoMap.Worker.Services.Implementations
                 processedFile.PhotoTakenOn = ExifHelper.GetDate(exif);
                 processedFile.Latitude = ExifHelper.GetLatitude(exif);
                 processedFile.Longitude = ExifHelper.GetLongitude(exif);
-                // TODO: switch to System.Text.Json serializer
                 processedFile.ExifString = JsonSerializer.Serialize(exif);
             }
 

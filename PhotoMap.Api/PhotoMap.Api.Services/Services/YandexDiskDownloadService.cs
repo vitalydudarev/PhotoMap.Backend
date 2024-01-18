@@ -12,13 +12,12 @@ public class YandexDiskDownloadService : IDownloadService
     {
     }
     
-    public IAsyncEnumerable<DownloadedFileInfo> DownloadAsync(long userId, long sourceId, string token,
-        CancellationToken cancellationToken)
+    public IAsyncEnumerable<DownloadedFileInfo> DownloadAsync(CancellationToken cancellationToken)
     {
         throw new NotImplementedException();
     }
 
-    public Task<int> GetTotalFileCountAsync(string token)
+    public Task<int> GetTotalFileCountAsync()
     {
         throw new NotImplementedException();
     }

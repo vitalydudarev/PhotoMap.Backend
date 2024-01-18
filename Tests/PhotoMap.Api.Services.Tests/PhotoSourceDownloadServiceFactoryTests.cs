@@ -3,6 +3,7 @@ using Moq;
 using PhotoMap.Api.Domain.Models;
 using PhotoMap.Api.Domain.Services;
 using PhotoMap.Api.Services.Factories;
+using PhotoMap.Api.Services.Services;
 using PhotoMap.Api.Services.Tests.Stubs;
 
 namespace PhotoMap.Api.Services.Tests;
@@ -21,7 +22,7 @@ public class PhotoSourceDownloadServiceFactoryTests
         var downloadServiceFactory = new PhotoSourceDownloadServiceFactory(serviceFactories);
 
         // Act
-        var downloadService = downloadServiceFactory.GetService(photoSource);
+        var downloadService = downloadServiceFactory.GetService(photoSource, new DownloadServiceParameters());
         
         // Assert
         Assert.NotNull(downloadService);

@@ -31,7 +31,7 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
     {
         if (command == PhotoSourceProcessingCommands.Start)
         {
-            await Start(userId, sourceId);
+            await StartAsync(userId, sourceId);
         }
         else if (command == PhotoSourceProcessingCommands.Stop)
         {
@@ -46,14 +46,14 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
         }
     }
 
-    private async Task Start(long userId, long sourceId)
+    private async Task StartAsync(long userId, long sourceId)
     {
         var taskName = GetTaskName(userId, sourceId);
         
         var token = await GetAuthTokenAsync(userId, sourceId);
-        var downloadService = await CreateDownloadServiceAsync(sourceId);
+        var downloadService = await CreateDownloadServiceAsync(userId, sourceId, token);
 
-        var totalFileCount = await downloadService.GetTotalFileCountAsync(token);
+        var totalFileCount = await downloadService.GetTotalFileCountAsync();
 
         var cancellationTokenSource = new CancellationTokenSource();
             
@@ -70,7 +70,7 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
     {
         try
         {
-            await foreach (var downloadedFileInfo in downloadService.DownloadAsync(userId, sourceId, token, cancellationToken))
+            await foreach (var downloadedFileInfo in downloadService.DownloadAsync(cancellationToken))
             {
                 var name = downloadedFileInfo.ResourceName;
                 await frontendNotificationService.SendProgressAsync(userId, 111, 49, 33);
@@ -105,10 +105,16 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
         return $"UserId={userId}-SourceId={sourceId}";
     }
 
-    private async Task<IDownloadService> CreateDownloadServiceAsync(long sourceId)
+    private async Task<IDownloadService> CreateDownloadServiceAsync(long userId, long sourceId, string token)
     {
         var photoSource = await _photoSourceService.GetByIdAsync(sourceId);
+        var parameters = new DownloadServiceParameters
+        {
+            UserId = userId,
+            SourceId = sourceId,
+            Token = token
+        };
 
-        return _downloadServiceFactory.GetService(photoSource);
+        return _downloadServiceFactory.GetService(photoSource, parameters);
     }
 }

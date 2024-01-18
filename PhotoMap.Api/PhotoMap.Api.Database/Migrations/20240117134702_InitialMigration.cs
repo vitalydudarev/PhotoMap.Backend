@@ -49,6 +49,7 @@ namespace PhotoMap.Api.Database.Migrations
                     id = table.Column<int>(type: "integer", nullable: false)
                         .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
                     user_id = table.Column<long>(type: "bigint", nullable: false),
+                    photo_source_id = table.Column<long>(type: "bigint", nullable: false),
                     thumbnail_small_file_path = table.Column<string>(type: "text", nullable: true),
                     thumbnail_large_file_path = table.Column<string>(type: "text", nullable: true),
                     file_name = table.Column<string>(type: "text", nullable: false),
@@ -57,7 +58,6 @@ namespace PhotoMap.Api.Database.Migrations
                     longitude = table.Column<double>(type: "double precision", nullable: true),
                     has_gps = table.Column<bool>(type: "boolean", nullable: false),
                     exif_string = table.Column<string>(type: "text", nullable: true),
-                    photo_source_id = table.Column<long>(type: "bigint", nullable: false),
                     path = table.Column<string>(type: "text", nullable: true),
                     added_on = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false)
                 },
@@ -79,24 +79,25 @@ namespace PhotoMap.Api.Database.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "users_photo_sources_auth",
+                name: "users_photo_sources",
                 columns: table => new
                 {
                     user_id = table.Column<long>(type: "bigint", nullable: false),
                     photo_source_id = table.Column<long>(type: "bigint", nullable: false),
-                    user_auth_result = table.Column<UserAuthResult>(type: "jsonb", nullable: true)
+                    user_auth_result = table.Column<UserAuthResult>(type: "jsonb", nullable: true),
+                    processing_state = table.Column<string>(type: "text", nullable: true)
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("pk_users_photo_sources_auth", x => new { x.user_id, x.photo_source_id });
+                    table.PrimaryKey("pk_users_photo_sources", x => new { x.user_id, x.photo_source_id });
                     table.ForeignKey(
-                        name: "fk_users_photo_sources_auth_photo_sources_photo_source_id",
+                        name: "fk_users_photo_sources_photo_sources_photo_source_id",
                         column: x => x.photo_source_id,
                         principalTable: "photo_sources",
                         principalColumn: "id",
                         onDelete: ReferentialAction.Cascade);
                     table.ForeignKey(
-                        name: "fk_users_photo_sources_auth_users_user_id",
+                        name: "fk_users_photo_sources_users_user_id",
                         column: x => x.user_id,
                         principalTable: "users",
                         principalColumn: "id",
@@ -110,10 +111,9 @@ namespace PhotoMap.Api.Database.Migrations
                     user_id = table.Column<long>(type: "bigint", nullable: false),
                     photo_source_id = table.Column<long>(type: "bigint", nullable: false),
                     status = table.Column<int>(type: "integer", nullable: false),
-                    total_count = table.Column<int>(type: "integer", nullable: true),
-                    processed_count = table.Column<int>(type: "integer", nullable: true),
-                    failed_count = table.Column<int>(type: "integer", nullable: true),
-                    last_processed_file_index = table.Column<int>(type: "integer", nullable: true),
+                    total_count = table.Column<int>(type: "integer", nullable: false),
+                    processed_count = table.Column<int>(type: "integer", nullable: false),
+                    failed_count = table.Column<int>(type: "integer", nullable: false),
                     last_updated_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true)
                 },
                 constraints: table =>
@@ -144,8 +144,8 @@ namespace PhotoMap.Api.Database.Migrations
                 column: "user_id");
 
             migrationBuilder.CreateIndex(
-                name: "ix_users_photo_sources_auth_photo_source_id",
-                table: "users_photo_sources_auth",
+                name: "ix_users_photo_sources_photo_source_id",
+                table: "users_photo_sources",
                 column: "photo_source_id");
 
             migrationBuilder.CreateIndex(
@@ -161,7 +161,7 @@ namespace PhotoMap.Api.Database.Migrations
                 name: "photos");
 
             migrationBuilder.DropTable(
-                name: "users_photo_sources_auth");
+                name: "users_photo_sources");
 
             migrationBuilder.DropTable(
                 name: "users_photo_sources_status");

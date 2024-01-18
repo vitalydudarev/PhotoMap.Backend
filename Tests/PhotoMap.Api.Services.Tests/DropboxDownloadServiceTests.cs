@@ -14,16 +14,12 @@ public class DropboxDownloadServiceTests
         stateService.Setup(a => a.GetStateAsync(It.IsAny<long>(), It.IsAny<long>())).ReturnsAsync((DropboxDownloadState?)null);
 
         var dropboxDownloadService = new DropboxDownloadService(NullLogger<DropboxDownloadService>.Instance, stateService.Object, null,
-            new DropboxSettings() { DownloadLimit = 2000, SourceFolder = "/Camera Uploads" });
+            new DropboxSettings() { DownloadLimit = 2000, SourceFolder = "/Camera Uploads" }, new DownloadServiceParameters());
 
         // var dropboxUserIdentifier = new DropboxUserIdentifier { UserId = 1 };
         var apiToken = "sl.BfTz67hm63XYPQFMxPWCX4mKwu63hq_XWQa52aFcT3lgGIf1Fp-RQ96qX8juHRrsL7sON5K6DuOvAqZTAdy1sx16Q2GbrKUJQjCupS-R3p5Ph96dybY3fAutNSgE7Aj4w7wbLvg";
         
-        await foreach (var downloadedFileInfo in dropboxDownloadService.DownloadAsync(
-                           1,
-                           1,
-                           apiToken,
-                           new CancellationToken()))
+        await foreach (var downloadedFileInfo in dropboxDownloadService.DownloadAsync(new CancellationToken()))
         {
             
         }

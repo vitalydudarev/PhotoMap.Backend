@@ -16,36 +16,32 @@ public sealed class DropboxDownloadService : IDownloadService
     private DropboxClient? _dropboxClient;
     private readonly HttpClient _httpClient;
     private DropboxDownloadState? _state;
-    private long _userId;
-    private long _sourceId;
+    // private long _userId;
+    // private long _sourceId;
+    private readonly DownloadServiceParameters _parameters;
 
     public DropboxDownloadService(
         ILogger<DropboxDownloadService> logger,
         IDropboxDownloadStateService stateService,
         IProgressReporter progressReporter,
-        DropboxSettings settings)
+        DropboxSettings settings,
+        DownloadServiceParameters parameters)
     {
         _logger = logger;
         _stateService = stateService;
         _progressReporter = progressReporter;
         _settings = settings;
+        _parameters = parameters;
         _httpClient = new HttpClient();
     }
 
     #region Public Methods
 
-    public async IAsyncEnumerable<DownloadedFileInfo> DownloadAsync(
-        long userId,
-        long sourceId,
-        string token,
-        [EnumeratorCancellation] CancellationToken cancellationToken)
+    public async IAsyncEnumerable<DownloadedFileInfo> DownloadAsync([EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        _userId = userId;
-        _sourceId = sourceId;
-        
-        _state = await LoadOrCreateStateAsync();
+        _state = await GetOrCreateStateAsync();
 
-        CreateDropboxClient(token);
+        CreateDropboxClient();
         var filesMetadata = await GetFileListAsync();
 
         // _state.TotalFiles = filesMetadata.Count;
@@ -53,9 +49,9 @@ public sealed class DropboxDownloadService : IDownloadService
         await foreach (var downloadedFileInfo in DownloadFilesAsync(filesMetadata, cancellationToken)) yield return downloadedFileInfo;
     }
     
-    public async Task<int> GetTotalFileCountAsync(string token)
+    public async Task<int> GetTotalFileCountAsync()
     {
-        CreateDropboxClient(token);
+        CreateDropboxClient();
         
         int totalCount = 0;
 
@@ -163,9 +159,9 @@ public sealed class DropboxDownloadService : IDownloadService
         }
     }
     
-    private async Task<DropboxDownloadState> LoadOrCreateStateAsync()
+    private async Task<DropboxDownloadState> GetOrCreateStateAsync()
     {
-        var state = await _stateService.GetStateAsync(_userId, _sourceId);
+        var state = await _stateService.GetStateAsync(_parameters.UserId, _parameters.SourceId);
 
         return state ?? new DropboxDownloadState();
     }
@@ -176,15 +172,15 @@ public sealed class DropboxDownloadService : IDownloadService
 
         if (_state != null)
         {
-            await _stateService.SaveStateAsync(_userId, _sourceId, _state);
+            await _stateService.SaveStateAsync(_parameters.UserId, _parameters.SourceId, _state);
         }
     }
 
-    private void CreateDropboxClient(string token)
+    private void CreateDropboxClient()
     {
         var config = new DropboxClientConfig("PhotoMap") { HttpClient = _httpClient };
 
-        _dropboxClient = new DropboxClient(token, config);
+        _dropboxClient = new DropboxClient(_parameters.Token, config);
     }
 
     private async Task<T> WrapApiCallAsync<T>(Func<Task<T>> apiCall)

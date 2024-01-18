@@ -16,14 +16,15 @@ public class UserPhotoSourceService : IUserPhotoSourceService
         _context = context;
     }
 
-    public async Task<IEnumerable<UserPhotoSource>> GetUserPhotoSourcesAsync(long userId)
+    public async Task<IEnumerable<Api.Domain.Models.UserPhotoSource>> GetUserPhotoSourcesAsync(long userId)
     {
-        var userPhotoSourceEntities = await _context.UserPhotoSourcesAuth
+        var userPhotoSourceEntities = await _context.UserPhotoSources
             .Where(a => a.UserId == userId)
-            .Include(b => b.PhotoSource)
+            .Include(userPhotoSource => userPhotoSource.PhotoSource!)
+            .AsNoTracking()
             .ToListAsync();
-
-        return userPhotoSourceEntities.Select(a => new UserPhotoSource
+            
+        return userPhotoSourceEntities.Select(a => new Api.Domain.Models.UserPhotoSource
         {
             UserId = userId,
             PhotoSourceId = a.PhotoSource!.Id,
@@ -35,13 +36,14 @@ public class UserPhotoSourceService : IUserPhotoSourceService
     
     public async Task<UserAuthResult?> GetAuthResultAsync(long userId, long photoSourceId)
     {
-        var userPhotoSourceEntity = await _context.UserPhotoSourcesAuth
+        var userPhotoSource = await _context.UserPhotoSources
             .Where(a => a.UserId == userId && a.PhotoSourceId == photoSourceId)
+            .AsNoTracking()
             .FirstOrDefaultAsync();
 
-        if (userPhotoSourceEntity != null)
+        if (userPhotoSource != null)
         {
-            return userPhotoSourceEntity.UserAuthResult;
+            return userPhotoSource.UserAuthResult;
         }
 
         throw new NotFoundException($"UserPhotoSource entity for user ID {userId} and photo source ID {photoSourceId} not found.");
@@ -49,14 +51,19 @@ public class UserPhotoSourceService : IUserPhotoSourceService
     
     public async Task UpdateAuthResultAsync(long userId, long photoSourceId, UserAuthResult userAuthResult)
     {
-        var userPhotoSource = await _context.UserPhotoSourcesAuth.FirstOrDefaultAsync(a => a.UserId == userId && a.PhotoSourceId == photoSourceId);
+        var userPhotoSource = await _context.UserPhotoSources
+            .Where(a => a.UserId == userId && a.PhotoSourceId == photoSourceId)
+            .AsNoTracking()
+            .FirstOrDefaultAsync();
+        
         if (userPhotoSource == null)
         {
             throw new NotFoundException($"UserPhotoSource entity for user ID {userId} and photo source ID {photoSourceId} not found.");
         }
         
         userPhotoSource.UserAuthResult = userAuthResult;
-        _context.UserPhotoSourcesAuth.Update(userPhotoSource);
+        
+        _context.UserPhotoSources.Update(userPhotoSource);
 
         await _context.SaveChangesAsync();
     }
@@ -86,7 +93,7 @@ public class UserPhotoSourceService : IUserPhotoSourceService
     
     public async Task<UserPhotoSourceState?> GetUserPhotoStateAsync(long userId, long photoSourceId)
     {
-        var entity = await _context.UserPhotoSourcesStates
+        var entity = await _context.UserPhotoSources
             .Where(a => a.UserId == userId && a.PhotoSourceId == photoSourceId)
             .FirstOrDefaultAsync();
 
@@ -99,15 +106,15 @@ public class UserPhotoSourceService : IUserPhotoSourceService
         {
             UserId = entity.UserId,
             PhotoSourceId = entity.PhotoSourceId,
-            State = entity.State
+            State = entity.ProcessingState
         };
     }
     
     public async Task UpdateUserPhotoStateAsync(long userId, long photoSourceId, string state)
     {
-        var entity = new UserPhotoSourceStateEntity { UserId = userId, PhotoSourceId = photoSourceId, State = state };
+        var entity = new UserPhotoSourceEntity { UserId = userId, PhotoSourceId = photoSourceId, ProcessingState = state };
 
-        _context.UserPhotoSourcesStates.Update(entity);
+        _context.UserPhotoSources.Update(entity);
 
         await _context.SaveChangesAsync();
     }

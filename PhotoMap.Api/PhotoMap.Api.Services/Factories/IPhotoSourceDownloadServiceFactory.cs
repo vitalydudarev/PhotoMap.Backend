@@ -5,5 +5,5 @@ namespace PhotoMap.Api.Services.Factories;
 
 public interface IPhotoSourceDownloadServiceFactory
 {
-    IDownloadService GetService(PhotoSource photoSource);
+    IDownloadService GetService(PhotoSource photoSource, DownloadServiceParameters parameters);
 }

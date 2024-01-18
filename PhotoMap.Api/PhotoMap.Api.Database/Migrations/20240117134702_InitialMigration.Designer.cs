@@ -13,7 +13,7 @@ using PhotoMap.Api.Domain.Models;
 namespace PhotoMap.Api.Database.Migrations
 {
     [DbContext(typeof(PhotoMapContext))]
-    [Migration("20230704134301_InitialMigration")]
+    [Migration("20240117134702_InitialMigration")]
     partial class InitialMigration
     {
         /// <inheritdoc />
@@ -151,7 +151,7 @@ namespace PhotoMap.Api.Database.Migrations
                     b.ToTable("users", (string)null);
                 });
 
-            modelBuilder.Entity("PhotoMap.Api.Database.Entities.UserPhotoSourceAuthEntity", b =>
+            modelBuilder.Entity("PhotoMap.Api.Database.Entities.UserPhotoSourceEntity", b =>
                 {
                     b.Property<long>("UserId")
                         .HasColumnType("bigint")
@@ -161,17 +161,21 @@ namespace PhotoMap.Api.Database.Migrations
                         .HasColumnType("bigint")
                         .HasColumnName("photo_source_id");
 
+                    b.Property<string>("ProcessingState")
+                        .HasColumnType("text")
+                        .HasColumnName("processing_state");
+
                     b.Property<UserAuthResult>("UserAuthResult")
                         .HasColumnType("jsonb")
                         .HasColumnName("user_auth_result");
 
                     b.HasKey("UserId", "PhotoSourceId")
-                        .HasName("pk_users_photo_sources_auth");
+                        .HasName("pk_users_photo_sources");
 
                     b.HasIndex("PhotoSourceId")
-                        .HasDatabaseName("ix_users_photo_sources_auth_photo_source_id");
+                        .HasDatabaseName("ix_users_photo_sources_photo_source_id");
 
-                    b.ToTable("users_photo_sources_auth", (string)null);
+                    b.ToTable("users_photo_sources", (string)null);
                 });
 
             modelBuilder.Entity("PhotoMap.Api.Database.Entities.UserPhotoSourceStatusEntity", b =>
@@ -184,19 +188,15 @@ namespace PhotoMap.Api.Database.Migrations
                         .HasColumnType("bigint")
                         .HasColumnName("photo_source_id");
 
-                    b.Property<int?>("FailedCount")
+                    b.Property<int>("FailedCount")
                         .HasColumnType("integer")
                         .HasColumnName("failed_count");
-
-                    b.Property<int?>("LastProcessedFileIndex")
-                        .HasColumnType("integer")
-                        .HasColumnName("last_processed_file_index");
 
                     b.Property<DateTimeOffset?>("LastUpdatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("last_updated_at");
 
-                    b.Property<int?>("ProcessedCount")
+                    b.Property<int>("ProcessedCount")
                         .HasColumnType("integer")
                         .HasColumnName("processed_count");
 
@@ -204,7 +204,7 @@ namespace PhotoMap.Api.Database.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("status");
 
-                    b.Property<int?>("TotalCount")
+                    b.Property<int>("TotalCount")
                         .HasColumnType("integer")
                         .HasColumnName("total_count");
 
@@ -238,21 +238,21 @@ namespace PhotoMap.Api.Database.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("PhotoMap.Api.Database.Entities.UserPhotoSourceAuthEntity", b =>
+            modelBuilder.Entity("PhotoMap.Api.Database.Entities.UserPhotoSourceEntity", b =>
                 {
                     b.HasOne("PhotoMap.Api.Database.Entities.PhotoSourceEntity", "PhotoSource")
-                        .WithMany("UserPhotoSourcesAuth")
+                        .WithMany("UserPhotoSourcesStates")
                         .HasForeignKey("PhotoSourceId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
-                        .HasConstraintName("fk_users_photo_sources_auth_photo_sources_photo_source_id");
+                        .HasConstraintName("fk_users_photo_sources_photo_sources_photo_source_id");
 
                     b.HasOne("PhotoMap.Api.Database.Entities.UserEntity", "User")
-                        .WithMany("UserPhotoSourcesAuth")
+                        .WithMany("UserPhotoSourcesStates")
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
-                        .HasConstraintName("fk_users_photo_sources_auth_users_user_id");
+                        .HasConstraintName("fk_users_photo_sources_users_user_id");
 
                     b.Navigation("PhotoSource");
 
@@ -262,14 +262,14 @@ namespace PhotoMap.Api.Database.Migrations
             modelBuilder.Entity("PhotoMap.Api.Database.Entities.UserPhotoSourceStatusEntity", b =>
                 {
                     b.HasOne("PhotoMap.Api.Database.Entities.PhotoSourceEntity", "PhotoSource")
-                        .WithMany("UserPhotoSourcesStatus")
+                        .WithMany("UserPhotoSourcesStatuses")
                         .HasForeignKey("PhotoSourceId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("fk_users_photo_sources_status_photo_sources_photo_source_id");
 
                     b.HasOne("PhotoMap.Api.Database.Entities.UserEntity", "User")
-                        .WithMany("UserPhotoSourcesStatus")
+                        .WithMany("UserPhotoSourcesStatuses")
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
@@ -282,16 +282,16 @@ namespace PhotoMap.Api.Database.Migrations
 
             modelBuilder.Entity("PhotoMap.Api.Database.Entities.PhotoSourceEntity", b =>
                 {
-                    b.Navigation("UserPhotoSourcesAuth");
+                    b.Navigation("UserPhotoSourcesStates");
 
-                    b.Navigation("UserPhotoSourcesStatus");
+                    b.Navigation("UserPhotoSourcesStatuses");
                 });
 
             modelBuilder.Entity("PhotoMap.Api.Database.Entities.UserEntity", b =>
                 {
-                    b.Navigation("UserPhotoSourcesAuth");
+                    b.Navigation("UserPhotoSourcesStates");
 
-                    b.Navigation("UserPhotoSourcesStatus");
+                    b.Navigation("UserPhotoSourcesStatuses");
                 });
 #pragma warning restore 612, 618
         }
