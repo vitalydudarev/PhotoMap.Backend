@@ -3,11 +3,11 @@ using NATS.Client;
 
 namespace PhotoMap.Shared.Messaging.MessageSender;
 
-public class NatsMessageSender : IMessageSenderNew
+public class NatsMessagingService : IMessagingService
 {
     private readonly string _natsUrl;
 
-    public NatsMessageSender(string natsUrl)
+    public NatsMessagingService(string natsUrl)
     {
         if (string.IsNullOrEmpty(natsUrl))
         {
@@ -17,7 +17,7 @@ public class NatsMessageSender : IMessageSenderNew
         _natsUrl = natsUrl;
     }
     
-    public async Task PublishMessageAsync<T>(T message, string subject, int timeout = 30 * 1000)
+    public async Task PublishMessageAsync<T>(string subject, T message, int timeout = 30 * 1000)
     {
         Msg msg = new()
         {

@@ -5,7 +5,7 @@ namespace PhotoMap.Worker.Models
         public string FileName { get; set; }
         public string FileUrl { get; set; }
         public long PhotoSourceId { get; set; }
-        public string FileSource { get; set; }
+        // public string FileSource { get; set; }
         public string RelativeFilePath { get; set; }
         public string Path { get; set; }
         public DateTime? FileCreatedOn { get; set; }

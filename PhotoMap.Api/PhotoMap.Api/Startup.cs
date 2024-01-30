@@ -1,11 +1,7 @@
 using System;
-using System.Collections.Generic;
 using System.Linq;
-using System.Net;
 using System.Reflection;
 using System.Text;
-using System.Text.Json;
-using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.EntityFrameworkCore;
@@ -18,7 +14,6 @@ using Microsoft.Extensions.Options;
 using Microsoft.OpenApi.Models;
 using NATS.Client;
 using PhotoMap.Api.Database;
-using PhotoMap.Api.Database.Entities;
 using PhotoMap.Api.Database.Repositories;
 using PhotoMap.Api.Domain.Models;
 using PhotoMap.Api.Domain.Repositories;
@@ -33,7 +28,6 @@ using PhotoMap.Api.Services.Interfaces;
 using PhotoMap.Api.Services.Services;
 using PhotoMap.Api.Services.Services.Domain;
 using PhotoMap.Api.Settings;
-using PhotoMap.Shared;
 using PhotoMap.Shared.Messaging;
 using PhotoMap.Shared.Messaging.EventHandler;
 using PhotoMap.Shared.Messaging.EventHandlerManager;
@@ -61,6 +55,7 @@ namespace PhotoMap.Api
             services.Configure<RabbitMqSettings>(Configuration.GetSection("RabbitMQ"));
             services.Configure<StorageServiceSettings>(Configuration.GetSection("Storage"));
             services.Configure<YandexDiskFileProviderSettings>(Configuration.GetSection("YandexDiskFileProvider"));
+            services.Configure<PhotoProcessingSettings>(Configuration.GetSection("PhotoProcessing"));
 
             services.AddSingleton(provider => new UserInfo { UserId = 1, Name = "Vitaly" });
 
@@ -139,6 +134,9 @@ namespace PhotoMap.Api
 
             services.AddSingleton<IFrontendNotificationService, FrontendNotificationService>();
             
+            // messaging
+            services.AddSingleton<IMessagingService, NatsMessagingService>();
+            
             services.AddSwaggerGen(c =>
             {
                 c.SwaggerDoc("v1", new OpenApiInfo { Title = "PhotoMap API V1", Version = "v1" });
@@ -193,19 +191,27 @@ namespace PhotoMap.Api
             // InitNATS(app, "127.0.0.1:4222");
 
             ApplyDatabaseMigrations(app);
+            
+            InitNATS();
         }
         
         // 127.0.0.1:4222
-        private void InitNATS(IApplicationBuilder app, string natsUrl)
+        private void InitNATS()
         {
+            string? natsUrl = Configuration["NatsUrl"];
+            if (string.IsNullOrEmpty(natsUrl))
+            {
+                throw new Exception("NATS Url is not specified in appsettings");
+            }
+                
             ConnectionFactory cf = new();
             IConnection natsConnection = cf.CreateConnection($"nats://{natsUrl}");
 
-            ConfigureNats(app, natsConnection);
+            ConfigureNats(natsConnection);
         }
         
-        // listener
-        protected virtual void ConfigureNats(IApplicationBuilder app, IConnection natsConnection)
+        // NATS listener
+        private void ConfigureNats(IConnection natsConnection)
         {
             natsConnection.SubscribeAsync("Subject1", (sender, args) =>
             {

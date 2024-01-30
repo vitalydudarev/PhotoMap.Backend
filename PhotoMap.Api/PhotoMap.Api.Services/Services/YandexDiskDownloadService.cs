@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using PhotoMap.Shared.Models;
 
 namespace PhotoMap.Api.Services.Services;
 

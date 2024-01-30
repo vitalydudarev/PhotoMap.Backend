@@ -1,10 +1,13 @@
+using System.Text;
 using Microsoft.Extensions.Options;
+using NATS.Client;
 using PhotoMap.Shared;
 using PhotoMap.Shared.Messaging;
 using PhotoMap.Shared.Messaging.EventHandler;
 using PhotoMap.Shared.Messaging.EventHandlerManager;
 using PhotoMap.Shared.Messaging.MessageListener;
 using PhotoMap.Shared.Messaging.MessageSender;
+using PhotoMap.Shared.Models;
 using PhotoMap.Worker;
 using PhotoMap.Worker.Handlers;
 using PhotoMap.Worker.Services;
@@ -63,23 +66,75 @@ void ConfigureServices(IServiceCollection services, ConfigurationManager configu
         };
     });
 
-    // register command handlers
-    services.AddSingleton<IEventHandler, StartProcessingEventHandler>();
-    services.AddSingleton<IEventHandler, PauseProcessingEventHandler>();
-    services.AddSingleton<IEventHandlerManager, EventHandlerManager>();
+    string natsUrl = GetConfigurationProperty("NatsUrl");
 
-    services.AddSingleton<IMessageListener, RabbitMqMessageListener>();
-    services.AddSingleton<IMessageSender2, RabbitMqMessageSender2>();
+    // register command handlers
+    // services.AddSingleton<IEventHandler, StartProcessingEventHandler>();
+    // services.AddSingleton<IEventHandler, PauseProcessingEventHandler>();
+    // services.AddSingleton<IEventHandlerManager, EventHandlerManager>();
+
+    // messaging
+    // services.AddSingleton<IMessageListener, RabbitMqMessageListener>();
+    // services.AddSingleton<IMessageSender2, RabbitMqMessageSender2>();
+    services.AddScoped<IMessagingService>(_ => new NatsMessagingService(natsUrl));
 
     // Common services
-    services.AddSingleton<IDownloadManager, DownloadManager>();
-    services.AddSingleton<IProgressReporter, ProgressReporter>();
+    // services.AddSingleton<IDownloadManager, DownloadManager>();
+    // services.AddSingleton<IProgressReporter, ProgressReporter>();
+    // services.AddScoped<IImageProcessingServiceOld, ImageProcessingServiceOld>();
     services.AddScoped<IImageProcessingService, ImageProcessingService>();
     services.AddScoped<IExifExtractor, ExifExtractor>();
 
     // Yandex.Disk services
-    services.AddSingleton<IYandexDiskDownloadStateService, YandexDiskDownloadStateService>();
-    services.AddScoped<IYandexDiskDownloadService, YandexDiskDownloadService>();
+    // services.AddSingleton<IYandexDiskDownloadStateService, YandexDiskDownloadStateService>();
+    // services.AddScoped<IYandexDiskDownloadService, YandexDiskDownloadService>();
 
-    services.AddHostedService<HostedService>();
+    // services.AddHostedService<HostedService>();
+    
+    InitNATS(services.BuildServiceProvider());
+}
+
+string GetConfigurationProperty(string name)
+{
+    return builder.Configuration[name] ?? throw new Exception($"Configuration property {name} not specified.");
+}
+
+void InitNATS(IServiceProvider serviceProvider)
+{
+    string? natsUrl = builder.Configuration["NatsUrl"];
+    if (string.IsNullOrEmpty(natsUrl))
+    {
+        throw new Exception("NATS Url is not specified in appsettings");
+    }
+                
+    ConnectionFactory cf = new();
+    IConnection natsConnection = cf.CreateConnection($"nats://{natsUrl}");
+
+    ConfigureNats(natsConnection, serviceProvider);
+}
+        
+// NATS listener
+void ConfigureNats(IConnection natsConnection, IServiceProvider serviceProvider)
+{
+    natsConnection.SubscribeAsync("pm-ImageDownloaded", (sender, args) =>
+    {
+        if (args.Message.Data == null)
+        {
+            return;
+        }
+
+        string message = Encoding.UTF8.GetString(args.Message.Data);
+
+        var processImageRequest = System.Text.Json.JsonSerializer.Deserialize<ProcessImageRequest>(message);
+        if (processImageRequest != null)
+        {
+            using var serviceScope = serviceProvider.CreateScope();
+            var imageProcessingService = serviceScope.ServiceProvider.GetService<IImageProcessingService>();
+            if (imageProcessingService != null)
+            {
+                imageProcessingService.ProcessImage(processImageRequest.DownloadedFileInfo, processImageRequest.Sizes);
+                // do action
+            }
+        }
+    });
 }

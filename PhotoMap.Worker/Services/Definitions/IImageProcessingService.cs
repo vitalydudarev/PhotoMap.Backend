@@ -1,10 +1,8 @@
-using System.Threading.Tasks;
-using PhotoMap.Worker.Models;
+using PhotoMap.Shared.Models;
 
-namespace PhotoMap.Worker.Services.Definitions
+namespace PhotoMap.Worker.Services.Definitions;
+
+public interface IImageProcessingService
 {
-    public interface IImageProcessingService
-    {
-        Task<ProcessedDownloadedFile> ProcessImageAsync(DownloadedFileInfo downloadedFile);
-    }
+    ProcessedImage ProcessImage(DownloadedFileInfo downloadedFile, IEnumerable<int> thumbSizes);
 }

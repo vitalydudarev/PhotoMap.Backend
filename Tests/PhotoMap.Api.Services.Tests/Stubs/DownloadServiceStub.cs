@@ -1,4 +1,5 @@
 using PhotoMap.Api.Services.Services;
+using PhotoMap.Shared.Models;
 
 namespace PhotoMap.Api.Services.Tests.Stubs;
 

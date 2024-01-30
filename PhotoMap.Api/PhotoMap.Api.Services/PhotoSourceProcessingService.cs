@@ -1,7 +1,12 @@
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
+using PhotoMap.Api.Domain.Models;
 using PhotoMap.Api.Domain.Services;
 using PhotoMap.Api.Services.Exceptions;
 using PhotoMap.Api.Services.Factories;
 using PhotoMap.Api.Services.Services;
+using PhotoMap.Shared.Messaging.MessageSender;
+using PhotoMap.Shared.Models;
 
 namespace PhotoMap.Api.Services;
 
@@ -12,19 +17,28 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
     private readonly IPhotoSourceService _photoSourceService;
     private readonly IFrontendNotificationService _frontendNotificationService;
     private readonly IBackgroundTaskManager _backgroundTaskManager;
+    // private readonly IMessagingService _messagingService;
+    private readonly IServiceProvider _serviceProvider;
+    private readonly PhotoProcessingSettings _photoProcessingSettings;
 
     public PhotoSourceProcessingService(
         IPhotoSourceDownloadServiceFactory downloadServiceFactory,
         IUserPhotoSourceService userPhotoSourceService,
         IPhotoSourceService photoSourceService,
         IFrontendNotificationService frontendNotificationService,
-        IBackgroundTaskManager backgroundTaskManager)
+        IBackgroundTaskManager backgroundTaskManager,
+        IMessagingService messagingService,
+        IServiceProvider serviceProvider,
+        IOptions<PhotoProcessingSettings> photoProcessingSettings)
     {
         _downloadServiceFactory = downloadServiceFactory;
         _userPhotoSourceService = userPhotoSourceService;
         _photoSourceService = photoSourceService;
         _frontendNotificationService = frontendNotificationService;
         _backgroundTaskManager = backgroundTaskManager;
+        // _messagingService = messagingService;
+        _serviceProvider = serviceProvider;
+        _photoProcessingSettings = photoProcessingSettings.Value;
     }
     
     public async Task RunCommandAsync(long userId, long sourceId, PhotoSourceProcessingCommands command)
@@ -56,24 +70,34 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
         var totalFileCount = await downloadService.GetTotalFileCountAsync();
 
         var cancellationTokenSource = new CancellationTokenSource();
-            
-        _backgroundTaskManager.AddTask(taskName, () => DoWork(downloadService, _frontendNotificationService, userId, sourceId, token, cancellationTokenSource.Token), cancellationTokenSource);
+
+        _backgroundTaskManager.AddTask(taskName,
+            () => DoWork(downloadService, _serviceProvider, _photoProcessingSettings.Sizes, userId, sourceId, token,
+                cancellationTokenSource.Token), cancellationTokenSource);
     }
 
     private static async Task DoWork(
         IDownloadService downloadService,
-        IFrontendNotificationService frontendNotificationService,
+        IServiceProvider serviceProvider,
+        int[] sizes,
+        // IFrontendNotificationService frontendNotificationService,
         long userId,
         long sourceId,
         string token,
         CancellationToken cancellationToken)
     {
+        var messagingService = serviceProvider.GetRequiredService<IMessagingService>();
+        
         try
         {
             await foreach (var downloadedFileInfo in downloadService.DownloadAsync(cancellationToken))
             {
                 var name = downloadedFileInfo.ResourceName;
-                await frontendNotificationService.SendProgressAsync(userId, 111, 49, 33);
+
+                var request = new ProcessImageRequest { DownloadedFileInfo = downloadedFileInfo, Sizes = sizes };
+
+                await messagingService.PublishMessageAsync("pm-ImageDownloaded", request);
+                // await frontendNotificationService.SendProgressAsync(userId, 111, 49, 33);
                 // send file to photo processing service
             }
         }

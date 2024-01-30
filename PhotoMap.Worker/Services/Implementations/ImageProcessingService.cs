@@ -1,55 +1,42 @@
 using System.Text.Json;
-using Microsoft.Extensions.Options;
+using PhotoMap.Shared.Models;
 using PhotoMap.Worker.Helpers;
-using PhotoMap.Worker.Models;
 using PhotoMap.Worker.Services.Definitions;
 using PhotoMap.Worker.Services.Implementations.Core;
-using PhotoMap.Worker.Settings;
 
 namespace PhotoMap.Worker.Services.Implementations
 {
     public class ImageProcessingService : IImageProcessingService
     {
         private readonly ILogger<ImageProcessingService> _logger;
-        private readonly ImageProcessingSettings _imageProcessingSettings;
         private readonly IExifExtractor _exifExtractor;
 
-        public ImageProcessingService(
-            ILogger<ImageProcessingService> logger,
-            IOptions<ImageProcessingSettings> imageProcessingOptions,
-            IExifExtractor exifExtractor)
+        public ImageProcessingService(ILogger<ImageProcessingService> logger, IExifExtractor exifExtractor)
         {
             _logger = logger;
-            _imageProcessingSettings = imageProcessingOptions.Value;
             _exifExtractor = exifExtractor;
         }
 
-        public async Task<ProcessedDownloadedFile> ProcessImageAsync(DownloadedFileInfo downloadedFile)
+        public ProcessedImage ProcessImage(DownloadedFileInfo downloadedFile, IEnumerable<int> thumbSizes)
         {
+            _logger.LogInformation("Processing image {FileName}", downloadedFile.ResourceName);
+            
             using var imageProcessor = new ImageProcessor(downloadedFile.FileContents);
             imageProcessor.Rotate();
-
-            // var sizeFileIdMap = new Dictionary<int, long>();
-
+            
             var sizeBytesMap = new Dictionary<int, byte[]>();
 
-            foreach (var size in _imageProcessingSettings.Sizes)
+            foreach (var size in thumbSizes)
             {
                 imageProcessor.Crop(size);
                 var bytes = imageProcessor.GetImageBytes();
                 
                 sizeBytesMap.Add(size, bytes);
-
-                // var savedFile = await _imageUploadService.SaveThumbnailAsync(bytes, downloadedFile.ResourceName,
-                    // downloadedFile.UserName, downloadedFile.Source, size);
-
-                // sizeFileIdMap.Add(size, savedFile.Id);
             }
             
-            var processedFile = new ProcessedDownloadedFile
+            var processedImage = new ProcessedImage
             {
                 FileName = downloadedFile.ResourceName,
-                FileSource = downloadedFile.Source,
                 Thumbs = sizeBytesMap,
                 Path = downloadedFile.Path,
                 FileCreatedOn = downloadedFile.CreatedOn
@@ -58,13 +45,15 @@ namespace PhotoMap.Worker.Services.Implementations
             var exif = _exifExtractor.GetDataAsync(downloadedFile.FileContents);
             if (exif != null)
             {
-                processedFile.PhotoTakenOn = ExifHelper.GetDate(exif);
-                processedFile.Latitude = ExifHelper.GetLatitude(exif);
-                processedFile.Longitude = ExifHelper.GetLongitude(exif);
-                processedFile.ExifString = JsonSerializer.Serialize(exif);
+                processedImage.PhotoTakenOn = ExifHelper.GetDate(exif);
+                processedImage.Latitude = ExifHelper.GetLatitude(exif);
+                processedImage.Longitude = ExifHelper.GetLongitude(exif);
+                processedImage.ExifString = JsonSerializer.Serialize(exif);
             }
+            
+            _logger.LogInformation("Processed image {FileName}", downloadedFile.ResourceName);
 
-            return processedFile;
+            return processedImage;
         }
     }
 }

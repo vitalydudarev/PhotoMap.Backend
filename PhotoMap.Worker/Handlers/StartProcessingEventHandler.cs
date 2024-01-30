@@ -17,19 +17,19 @@ namespace PhotoMap.Worker.Handlers
         private readonly ILogger<StartProcessingEventHandler> _logger;
         private readonly IMessageSender2 _messageSender;
         private readonly IDownloadManager _downloadManager;
-        private readonly IImageProcessingService _imageProcessingService;
+        private readonly IImageProcessingServiceOld _imageProcessingServiceOld;
 
         public StartProcessingEventHandler(
             IServiceScopeFactory serviceScopeFactory,
             IMessageSender2 messageSender,
             IDownloadManager downloadManager,
-            IImageProcessingService imageProcessingService,
+            IImageProcessingServiceOld imageProcessingServiceOld,
             ILogger<StartProcessingEventHandler> logger)
         {
             _serviceScopeFactory = serviceScopeFactory;
             _messageSender = messageSender;
             _downloadManager = downloadManager;
-            _imageProcessingService = imageProcessingService;
+            _imageProcessingServiceOld = imageProcessingServiceOld;
             _logger = logger;
         }
 
@@ -69,7 +69,7 @@ namespace PhotoMap.Worker.Handlers
                 await foreach (var file in yandexDiskDownloadService.DownloadFilesAsync(userIdentifier,
                                    startProcessingCommand.Token, cancellationToken, stoppingAction))
                 {
-                    var processedDownloadedFile = await _imageProcessingService.ProcessImageAsync(file);
+                    var processedDownloadedFile = await _imageProcessingServiceOld.ProcessImageAsync(file);
                     var imageProcessedEvent = CreateImageProcessedEvent(startProcessingCommand.UserIdentifier, processedDownloadedFile);
                     _messageSender.Send(imageProcessedEvent, ApiConstants.PhotoMapApi);
                 }
@@ -100,7 +100,7 @@ namespace PhotoMap.Worker.Handlers
                 UserIdentifier = userIdentifier,
                 FileName = file.FileName,
                 PhotoSourceId = file.PhotoSourceId,
-                FileSource = file.FileSource,
+                // FileSource = file.FileSource,
                 Thumbs = file.Thumbs,
                 Path = file.Path,
                 FileCreatedOn = file.FileCreatedOn,

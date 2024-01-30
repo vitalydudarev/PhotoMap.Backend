@@ -3,6 +3,7 @@ using Dropbox.Api;
 using Dropbox.Api.Auth;
 using Dropbox.Api.Files;
 using Microsoft.Extensions.Logging;
+using PhotoMap.Shared.Models;
 using DropboxException = PhotoMap.Api.Services.Exceptions.DropboxException;
 
 namespace PhotoMap.Api.Services.Services;

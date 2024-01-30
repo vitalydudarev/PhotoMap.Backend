@@ -1,3 +1,5 @@
+using PhotoMap.Shared.Models;
+
 namespace PhotoMap.Api.Services.Services;
 
 public interface IDownloadService : IAsyncDisposable

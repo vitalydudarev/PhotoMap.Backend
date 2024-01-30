@@ -1,4 +1,4 @@
-namespace PhotoMap.Api.Services.Services;
+namespace PhotoMap.Shared.Models;
 
 public class DownloadedFileInfo
 {
