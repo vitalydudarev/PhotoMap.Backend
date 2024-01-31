@@ -28,6 +28,7 @@ using PhotoMap.Api.Services.Interfaces;
 using PhotoMap.Api.Services.Services;
 using PhotoMap.Api.Services.Services.Domain;
 using PhotoMap.Api.Settings;
+using PhotoMap.Shared;
 using PhotoMap.Shared.Messaging;
 using PhotoMap.Shared.Messaging.EventHandler;
 using PhotoMap.Shared.Messaging.EventHandlerManager;
@@ -136,6 +137,8 @@ namespace PhotoMap.Api
             
             // messaging
             services.AddSingleton<IMessagingService, NatsMessagingService>();
+
+            services.AddHostedService<NatsBackgroundService>();
             
             services.AddSwaggerGen(c =>
             {
@@ -146,6 +149,8 @@ namespace PhotoMap.Api
             });
 
             services.AddSignalR();
+
+            services.AddNats(options => options.Url = GetConfigurationProperty("NatsUrl"));
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
@@ -192,7 +197,7 @@ namespace PhotoMap.Api
 
             ApplyDatabaseMigrations(app);
             
-            InitNATS();
+            // InitNATS();
         }
         
         // 127.0.0.1:4222
@@ -229,6 +234,11 @@ namespace PhotoMap.Api
                 // reply
                 // natsConnection.Publish(MessagesConstants.ResetCacheReplySubject, Encoding.UTF8.GetBytes(reply));
             });
+        }
+        
+        private string GetConfigurationProperty(string name)
+        {
+            return Configuration[name] ?? throw new Exception($"Configuration property {name} not specified.");
         }
         
         private static void ApplyDatabaseMigrations(IApplicationBuilder app)
