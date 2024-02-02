@@ -49,29 +49,11 @@ public class UserPhotoSourceService : IUserPhotoSourceService
         throw new NotFoundException($"UserPhotoSource entity for user ID {userId} and photo source ID {photoSourceId} not found.");
     }
     
-    public async Task UpdateAuthResultAsync(long userId, long photoSourceId, UserAuthResult userAuthResult)
-    {
-        var userPhotoSource = await _context.UserPhotoSources
-            .Where(a => a.UserId == userId && a.PhotoSourceId == photoSourceId)
-            .AsNoTracking()
-            .FirstOrDefaultAsync();
-        
-        if (userPhotoSource == null)
-        {
-            throw new NotFoundException($"UserPhotoSource entity for user ID {userId} and photo source ID {photoSourceId} not found.");
-        }
-        
-        userPhotoSource.UserAuthResult = userAuthResult;
-        
-        _context.UserPhotoSources.Update(userPhotoSource);
-
-        await _context.SaveChangesAsync();
-    }
-    
     public async Task<UserPhotoSourceStatus?> GetUserPhotoStatusAsync(long userId, long photoSourceId)
     {
         var entity = await _context.UserPhotoSourcesStatuses
             .Where(a => a.UserId == userId && a.PhotoSourceId == photoSourceId)
+            .AsNoTracking()
             .FirstOrDefaultAsync();
 
         if (entity == null)
@@ -95,6 +77,7 @@ public class UserPhotoSourceService : IUserPhotoSourceService
     {
         var entity = await _context.UserPhotoSources
             .Where(a => a.UserId == userId && a.PhotoSourceId == photoSourceId)
+            .AsNoTracking()
             .FirstOrDefaultAsync();
 
         if (entity == null)
@@ -110,12 +93,39 @@ public class UserPhotoSourceService : IUserPhotoSourceService
         };
     }
     
-    public async Task UpdateUserPhotoStateAsync(long userId, long photoSourceId, string state)
+    public async Task UpdateAuthResultAsync(long userId, long photoSourceId, UserAuthResult userAuthResult)
     {
-        var entity = new UserPhotoSourceEntity { UserId = userId, PhotoSourceId = photoSourceId, ProcessingState = state };
-
-        _context.UserPhotoSources.Update(entity);
+        var userPhotoSource = await _context.UserPhotoSources
+            .Where(a => a.UserId == userId && a.PhotoSourceId == photoSourceId)
+            .AsNoTracking()
+            .FirstOrDefaultAsync();
+        
+        if (userPhotoSource == null)
+        {
+            throw new NotFoundException($"UserPhotoSource entity for user ID {userId} and photo source ID {photoSourceId} not found.");
+        }
+        
+        userPhotoSource.UserAuthResult = userAuthResult;
+        
+        _context.UserPhotoSources.Update(userPhotoSource);
 
         await _context.SaveChangesAsync();
+    }
+    
+    public async Task UpdateUserPhotoStateAsync(long userId, long photoSourceId, string state)
+    {
+        var entity = await _context.UserPhotoSources
+            .Where(a => a.UserId == userId && a.PhotoSourceId == photoSourceId)
+            .AsNoTracking()
+            .FirstOrDefaultAsync();
+        
+        if (entity != null)
+        {
+            entity.ProcessingState = state;
+
+            _context.UserPhotoSources.Update(entity);
+
+            await _context.SaveChangesAsync();
+        }
     }
 }
