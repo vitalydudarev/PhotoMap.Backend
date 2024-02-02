@@ -51,6 +51,8 @@ namespace PhotoMap.Api
         // This method gets called by the runtime. Use this method to add services to the container.
         public void ConfigureServices(IServiceCollection services)
         {
+            var natsUrl = GetConfigurationProperty("NatsUrl");
+            
             services.AddControllers();
             services.Configure<FileStorageSettings>(Configuration.GetSection("FileStorage"));
             services.Configure<RabbitMqSettings>(Configuration.GetSection("RabbitMQ"));
@@ -137,7 +139,6 @@ namespace PhotoMap.Api
             
             // messaging
             services.AddSingleton<IMessagingService, NatsMessagingService>();
-
             services.AddHostedService<NatsBackgroundService>();
             
             services.AddSwaggerGen(c =>
@@ -150,7 +151,16 @@ namespace PhotoMap.Api
 
             services.AddSignalR();
 
-            services.AddNats(options => options.Url = GetConfigurationProperty("NatsUrl"));
+            services.AddNats(options =>
+            {
+                options.Url = natsUrl;
+                options.AsyncErrorEventHandler += AsyncErrorEventHandler;
+            });
+        }
+
+        private void AsyncErrorEventHandler(object? sender, ErrEventArgs e)
+        {
+            int a = 1;
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
@@ -192,48 +202,8 @@ namespace PhotoMap.Api
             {
                 c.SwaggerEndpoint("/swagger/v1/swagger.json", "PhotoMap API V1");
             });
-            
-            // InitNATS(app, "127.0.0.1:4222");
 
             ApplyDatabaseMigrations(app);
-            
-            // InitNATS();
-        }
-        
-        // 127.0.0.1:4222
-        private void InitNATS()
-        {
-            string? natsUrl = Configuration["NatsUrl"];
-            if (string.IsNullOrEmpty(natsUrl))
-            {
-                throw new Exception("NATS Url is not specified in appsettings");
-            }
-                
-            ConnectionFactory cf = new();
-            IConnection natsConnection = cf.CreateConnection($"nats://{natsUrl}");
-
-            ConfigureNats(natsConnection);
-        }
-        
-        // NATS listener
-        private void ConfigureNats(IConnection natsConnection)
-        {
-            natsConnection.SubscribeAsync("Subject1", (sender, args) =>
-            {
-                if (args.Message.Data == null)
-                {
-                    return;
-                }
-
-                string scopesStr = Encoding.UTF8.GetString(args.Message.Data);
-                
-                // deserialize message
-                
-                // do action
-               
-                // reply
-                // natsConnection.Publish(MessagesConstants.ResetCacheReplySubject, Encoding.UTF8.GetBytes(reply));
-            });
         }
         
         private string GetConfigurationProperty(string name)

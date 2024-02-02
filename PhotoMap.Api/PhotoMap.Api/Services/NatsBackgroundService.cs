@@ -29,7 +29,17 @@ public class NatsBackgroundService : BackgroundService
     {
         _logger.LogInformation($"{nameof(NatsBackgroundService)} is running.");
         
-        _natsConnection.SubscribeAsync("pm-ImageDownloaded", (sender, args) =>
+        /*_natsConnection.SubscribeAsync("pm-ImageDownloaded", (sender, args) =>
+        {
+            if (args.Message.Data == null)
+            {
+                return;
+            }
+
+            string message = Encoding.UTF8.GetString(args.Message.Data);
+        });*/
+        
+        _natsConnection.SubscribeAsync("pm-ImageProcessed", (sender, args) =>
         {
             if (args.Message.Data == null)
             {

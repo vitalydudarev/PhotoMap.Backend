@@ -12,7 +12,7 @@ public static class NatsExtensions
         var options = ConnectionFactory.GetDefaultOptions();
         configOptions(options);
 
-        services.AddSingleton<Options>(options);
+        services.AddSingleton(options);
 
         services.AddSingleton<IConnection>(provider =>
         {

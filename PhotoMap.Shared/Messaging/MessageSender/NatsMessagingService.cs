@@ -1,20 +1,19 @@
 using System.Text;
+using System.Text.Json;
+using Microsoft.Extensions.Logging;
 using NATS.Client;
 
 namespace PhotoMap.Shared.Messaging.MessageSender;
 
 public class NatsMessagingService : IMessagingService
 {
-    private readonly string _natsUrl;
+    private readonly ILogger<NatsMessagingService> _logger;
+    private readonly IConnection _connection;
 
-    public NatsMessagingService(string natsUrl)
+    public NatsMessagingService(ILogger<NatsMessagingService> logger, IConnection connection)
     {
-        if (string.IsNullOrEmpty(natsUrl))
-        {
-            throw new Exception("NATS url is not correct.");
-        }
-        
-        _natsUrl = natsUrl;
+        _logger = logger;
+        _connection = connection;
     }
     
     public async Task PublishMessageAsync<T>(string subject, T message, int timeout = 30 * 1000)
@@ -22,20 +21,22 @@ public class NatsMessagingService : IMessagingService
         Msg msg = new()
         {
             Subject = subject,
-            Data = Encoding.UTF8.GetBytes(System.Text.Json.JsonSerializer.Serialize(message))
+            Data = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(message))
         };
 
-        using IConnection connection = new ConnectionFactory().CreateConnection($"nats://{_natsUrl}");
-        
         try
         {
-            connection.Publish(msg);
+            _connection.Publish(msg);
 
-            await connection.DrainAsync();
+            await _connection.DrainAsync();
         }
-        catch (NATSTimeoutException)
+        catch (NATSTimeoutException e)
         {
-            //
+            _logger.LogError(e, "Failed to publish message because of timeout: {ErrorMessage}", e.Message);
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Failed to publish message: {ErrorMessage}", e.Message);
         }
     }
 }

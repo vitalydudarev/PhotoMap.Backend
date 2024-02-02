@@ -42,8 +42,7 @@ public class RequestQueueBackgroundService : BackgroundService
                 {
                     var processedImage = _imageProcessingService.ProcessImage(processImageRequest.DownloadedFileInfo, processImageRequest.Sizes);
                     
-                    await _messagingService.PublishMessageAsync("pm-ProcessedImage", processedImage);
-                    // process it
+                    await _messagingService.PublishMessageAsync("pm-ImageProcessed", processedImage);
                 }
             }
             catch (OperationCanceledException)
