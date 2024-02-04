@@ -4,6 +4,6 @@ namespace PhotoMap.Worker.Services;
 
 public interface IRequestQueueService
 {
-    void Enqueue(ProcessImageRequest request);
-    ProcessImageRequest? Dequeue();
+    Task EnqueueAsync(ProcessImageRequest request);
+    Task<ProcessImageRequest> DequeueAsync(CancellationToken cancellationToken = default);
 }

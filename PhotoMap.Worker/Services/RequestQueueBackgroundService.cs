@@ -29,21 +29,24 @@ public class RequestQueueBackgroundService : BackgroundService
         await base.StopAsync(stoppingToken);
     }
     
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    protected override Task ExecuteAsync(CancellationToken stoppingToken)
     {
         _logger.LogInformation($"{nameof(RequestQueueBackgroundService)} is running.");
-        
+
+        return ProcessQueueAsync(stoppingToken);
+    }
+
+    private async Task ProcessQueueAsync(CancellationToken stoppingToken)
+    {
         while (!stoppingToken.IsCancellationRequested)
         {
             try
             {
-                var processImageRequest = _requestQueueService.Dequeue();
-                if (processImageRequest != null)
-                {
-                    var processedImage = _imageProcessingService.ProcessImage(processImageRequest.DownloadedFileInfo, processImageRequest.Sizes);
+                var processImageRequest = await _requestQueueService.DequeueAsync(stoppingToken);
+
+                var processedImage = _imageProcessingService.ProcessImage(processImageRequest.DownloadedFileInfo, processImageRequest.FileName, processImageRequest.Sizes);
                     
-                    await _messagingService.PublishMessageAsync("pm-ImageProcessed", processedImage);
-                }
+                await _messagingService.PublishMessageAsync("pm-ImageProcessed", processedImage);
             }
             catch (OperationCanceledException)
             {
@@ -54,7 +57,5 @@ public class RequestQueueBackgroundService : BackgroundService
                 _logger.LogError(ex, "Error occurred.");
             }
         }
-
-        await Task.CompletedTask;
     }
 }

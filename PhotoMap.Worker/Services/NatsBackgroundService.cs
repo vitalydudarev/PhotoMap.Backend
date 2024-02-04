@@ -31,7 +31,7 @@ public class NatsBackgroundService : BackgroundService
     {
         _logger.LogInformation($"{nameof(NatsBackgroundService)} is running.");
         
-        _natsConnection.SubscribeAsync("pm-ImageDownloaded", (sender, args) =>
+        _natsConnection.SubscribeAsync("pm-ImageDownloaded", async (sender, args) =>
         {
             if (args.Message.Data == null)
             {
@@ -43,7 +43,7 @@ public class NatsBackgroundService : BackgroundService
             var processImageRequest = System.Text.Json.JsonSerializer.Deserialize<ProcessImageRequest>(message);
             if (processImageRequest != null)
             {
-                _requestQueueService.Enqueue(processImageRequest);
+                await _requestQueueService.EnqueueAsync(processImageRequest);
             }
         });
         
