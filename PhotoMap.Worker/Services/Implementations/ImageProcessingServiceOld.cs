@@ -27,7 +27,8 @@ namespace PhotoMap.Worker.Services.Implementations
 
         public async Task<ProcessedDownloadedFile> ProcessImageAsync(DownloadedFileInfo downloadedFile)
         {
-            using var imageProcessor = new ImageProcessor(downloadedFile.FileContents);
+            byte[] fileContents = [];
+            using var imageProcessor = new ImageProcessor(fileContents);
             imageProcessor.Rotate();
 
             // var sizeFileIdMap = new Dictionary<int, long>();
@@ -56,7 +57,7 @@ namespace PhotoMap.Worker.Services.Implementations
                 FileCreatedOn = downloadedFile.CreatedOn
             };
 
-            var exif = _exifExtractor.GetDataAsync(downloadedFile.FileContents);
+            var exif = _exifExtractor.GetDataAsync(fileContents);
             if (exif != null)
             {
                 processedFile.PhotoTakenOn = ExifHelper.GetDate(exif);

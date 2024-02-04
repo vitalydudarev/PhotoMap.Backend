@@ -4,7 +4,7 @@ namespace PhotoMap.Api.Services.Services;
 
 public interface IDownloadService : IAsyncDisposable
 {
-    IAsyncEnumerable<DownloadedFileInfo> DownloadAsync(CancellationToken cancellationToken);
+    IAsyncEnumerable<DownloadedFile> DownloadAsync(CancellationToken cancellationToken);
 
     Task<int> GetTotalFileCountAsync();
 }

@@ -4,5 +4,5 @@ namespace PhotoMap.Worker.Services.Definitions;
 
 public interface IImageProcessingService
 {
-    ProcessedImage ProcessImage(DownloadedFileInfo downloadedFile, IEnumerable<int> thumbSizes);
+    ProcessedImage ProcessImage(DownloadedFileInfo fileInfo, string fileName, IEnumerable<int> thumbSizes);
 }

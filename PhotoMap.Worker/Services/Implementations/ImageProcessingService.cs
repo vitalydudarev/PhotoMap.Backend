@@ -17,11 +17,13 @@ namespace PhotoMap.Worker.Services.Implementations
             _exifExtractor = exifExtractor;
         }
 
-        public ProcessedImage ProcessImage(DownloadedFileInfo downloadedFile, IEnumerable<int> thumbSizes)
+        public ProcessedImage ProcessImage(DownloadedFileInfo fileInfo, string fileName, IEnumerable<int> thumbSizes)
         {
-            _logger.LogInformation("Processing image {FileName}", downloadedFile.ResourceName);
-            
-            using var imageProcessor = new ImageProcessor(downloadedFile.FileContents);
+            _logger.LogInformation("Processing image {FileName}", fileInfo.ResourceName);
+
+            var fileContents = File.ReadAllBytes(fileName);
+
+            using var imageProcessor = new ImageProcessor(fileContents);
             imageProcessor.Rotate();
             
             var sizeBytesMap = new Dictionary<int, byte[]>();
@@ -36,13 +38,13 @@ namespace PhotoMap.Worker.Services.Implementations
             
             var processedImage = new ProcessedImage
             {
-                FileName = downloadedFile.ResourceName,
+                FileName = fileInfo.ResourceName,
                 Thumbs = sizeBytesMap,
-                Path = downloadedFile.Path,
-                FileCreatedOn = downloadedFile.CreatedOn
+                Path = fileInfo.Path,
+                FileCreatedOn = fileInfo.CreatedOn
             };
 
-            var exif = _exifExtractor.GetDataAsync(downloadedFile.FileContents);
+            var exif = _exifExtractor.GetDataAsync(fileContents);
             if (exif != null)
             {
                 processedImage.PhotoTakenOn = ExifHelper.GetDate(exif);
@@ -51,7 +53,7 @@ namespace PhotoMap.Worker.Services.Implementations
                 processedImage.ExifString = JsonSerializer.Serialize(exif);
             }
             
-            _logger.LogInformation("Processed image {FileName}", downloadedFile.ResourceName);
+            _logger.LogInformation("Processed image {FileName}", fileInfo.ResourceName);
 
             return processedImage;
         }

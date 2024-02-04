@@ -20,6 +20,7 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
     // private readonly IMessagingService _messagingService;
     private readonly IServiceProvider _serviceProvider;
     private readonly PhotoProcessingSettings _photoProcessingSettings;
+    private readonly IFileStorage _fileStorage;
 
     public PhotoSourceProcessingService(
         IPhotoSourceDownloadServiceFactory downloadServiceFactory,
@@ -29,7 +30,8 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
         IBackgroundTaskManager backgroundTaskManager,
         IMessagingService messagingService,
         IServiceProvider serviceProvider,
-        IOptions<PhotoProcessingSettings> photoProcessingSettings)
+        IOptions<PhotoProcessingSettings> photoProcessingSettings,
+        IFileStorage fileStorage)
     {
         _downloadServiceFactory = downloadServiceFactory;
         _userPhotoSourceService = userPhotoSourceService;
@@ -39,6 +41,7 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
         // _messagingService = messagingService;
         _serviceProvider = serviceProvider;
         _photoProcessingSettings = photoProcessingSettings.Value;
+        _fileStorage = fileStorage;
     }
     
     public async Task RunCommandAsync(long userId, long sourceId, PhotoSourceProcessingCommands command)
@@ -67,7 +70,7 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
         var token = await GetAuthTokenAsync(userId, sourceId);
         var downloadService = await CreateDownloadServiceAsync(userId, sourceId, token);
 
-        var totalFileCount = await downloadService.GetTotalFileCountAsync();
+        // var totalFileCount = await downloadService.GetTotalFileCountAsync();
 
         var cancellationTokenSource = new CancellationTokenSource();
 
@@ -87,16 +90,22 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
         CancellationToken cancellationToken)
     {
         var messagingService = serviceProvider.GetRequiredService<IMessagingService>();
+        var fileStorage = serviceProvider.GetRequiredService<IFileStorage>();
         
         try
         {
-            await foreach (var downloadedFileInfo in downloadService.DownloadAsync(cancellationToken))
+            await foreach (var downloadedFile in downloadService.DownloadAsync(cancellationToken))
             {
-                var name = downloadedFileInfo.ResourceName;
+                // var name = downloadedFileInfo.ResourceName;
+                // downloadedFileInfo.FileContents = [];
 
-                var request = new ProcessImageRequest { DownloadedFileInfo = downloadedFileInfo, Sizes = sizes };
+                var fileName = await fileStorage.SaveAsync($"Bin/{downloadedFile.FileInfo.ResourceName}", downloadedFile.FileContents);
+
+                var request = new ProcessImageRequest { DownloadedFileInfo = downloadedFile.FileInfo, FileName = fileName, Sizes = sizes };
 
                 await messagingService.PublishMessageAsync("pm-ImageDownloaded", request);
+                
+                break;
                 // await frontendNotificationService.SendProgressAsync(userId, 111, 49, 33);
                 // send file to photo processing service
             }

@@ -13,7 +13,7 @@ public class YandexDiskDownloadService : IDownloadService
     {
     }
     
-    public IAsyncEnumerable<DownloadedFileInfo> DownloadAsync(CancellationToken cancellationToken)
+    public IAsyncEnumerable<DownloadedFile> DownloadAsync(CancellationToken cancellationToken)
     {
         throw new NotImplementedException();
     }

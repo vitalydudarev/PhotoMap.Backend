@@ -38,7 +38,7 @@ public sealed class DropboxDownloadService : IDownloadService
 
     #region Public Methods
 
-    public async IAsyncEnumerable<DownloadedFileInfo> DownloadAsync([EnumeratorCancellation] CancellationToken cancellationToken)
+    public async IAsyncEnumerable<DownloadedFile> DownloadAsync([EnumeratorCancellation] CancellationToken cancellationToken)
     {
         _state = await GetOrCreateStateAsync();
 
@@ -86,7 +86,7 @@ public sealed class DropboxDownloadService : IDownloadService
 
     #region Private Methods
 
-    private async IAsyncEnumerable<DownloadedFileInfo> DownloadFilesAsync(
+    private async IAsyncEnumerable<DownloadedFile> DownloadFilesAsync(
         List<Metadata> filesMetadata,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
@@ -105,7 +105,7 @@ public sealed class DropboxDownloadService : IDownloadService
             var downloadedFileInfo = await DownloadFileAsync(fileMetadata);
 
             _state.LastProcessedFileIndex++;
-            _state.LastProcessedFileId = downloadedFileInfo.FileId;
+            _state.LastProcessedFileId = downloadedFileInfo.FileInfo.FileId;
 
             // TODO: revert
             // _progressReporter.Report(userIdentifier, _state.LastProcessedFileIndex, _state.TotalFiles);
@@ -136,7 +136,7 @@ public sealed class DropboxDownloadService : IDownloadService
         return filesMetadata;
     }
 
-    private async Task<DownloadedFileInfo> DownloadFileAsync(Metadata metadata)
+    private async Task<DownloadedFile> DownloadFileAsync(Metadata metadata)
     {
         var metadataName = metadata.Name;
 
@@ -151,7 +151,9 @@ public sealed class DropboxDownloadService : IDownloadService
 
             var createdOn = fileMetadata.Response.ClientModified;
 
-            return new DownloadedFileInfo(metadataName, metadata.PathDisplay, createdOn, fileContents, fileMetadata.Response.Id);
+            var fileInfo = new DownloadedFileInfo(metadataName, metadata.PathDisplay, createdOn, fileMetadata.Response.Id);
+
+            return new DownloadedFile(fileInfo, fileContents);
         }
         catch (Exception e)
         {
