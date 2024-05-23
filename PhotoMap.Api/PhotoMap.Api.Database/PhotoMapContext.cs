@@ -33,7 +33,9 @@ namespace PhotoMap.Api.Database
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {
             if (_configuration == null || optionsBuilder.IsConfigured)
+            {
                 return;
+            }
 
             optionsBuilder
                 .UseNpgsql(_configuration["ConnectionString"])
