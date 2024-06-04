@@ -140,6 +140,9 @@ namespace PhotoMap.Api
             // messaging
             services.AddSingleton<IMessagingService, NatsMessagingService>();
             services.AddHostedService<NatsBackgroundService>();
+
+            services.AddScoped<IImageProcessingService, ImageProcessingService>();
+            services.AddScoped<IExifExtractor, ExifExtractor>();
             
             services.AddSwaggerGen(c =>
             {

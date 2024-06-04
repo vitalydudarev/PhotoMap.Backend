@@ -50,6 +50,20 @@ public sealed class DropboxDownloadService : IDownloadService
         await foreach (var downloadedFileInfo in DownloadFilesAsync(filesMetadata, cancellationToken)) yield return downloadedFileInfo;
     }
     
+    public async IAsyncEnumerable<DownloadedFile> DownloadAsync(
+        [EnumeratorCancellation] CancellationToken cancellationToken,
+        DropboxDownloadState? state)
+    {
+        _state = await GetOrCreateStateAsync();
+
+        CreateDropboxClient();
+        var filesMetadata = await GetFileListAsync();
+
+        // _state.TotalFiles = filesMetadata.Count;
+
+        await foreach (var downloadedFileInfo in DownloadFilesAsync(filesMetadata, cancellationToken)) yield return downloadedFileInfo;
+    }
+    
     public async Task<int> GetTotalFileCountAsync()
     {
         CreateDropboxClient();

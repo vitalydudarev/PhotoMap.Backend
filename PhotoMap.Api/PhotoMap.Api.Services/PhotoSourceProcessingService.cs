@@ -75,7 +75,7 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
         var cancellationTokenSource = new CancellationTokenSource();
 
         _backgroundTaskManager.AddTask(taskName,
-            () => DoWork(downloadService, _serviceProvider, _photoProcessingSettings.Sizes, userId, sourceId, token,
+            () => DoWork(downloadService, _serviceProvider, _photoProcessingSettings.Sizes, taskName, userId, sourceId, token,
                 cancellationTokenSource.Token), cancellationTokenSource);
     }
 
@@ -83,6 +83,7 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
         IDownloadService downloadService,
         IServiceProvider serviceProvider,
         int[] sizes,
+        string taskName,
         // IFrontendNotificationService frontendNotificationService,
         long userId,
         long sourceId,
@@ -91,7 +92,8 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
     {
         var messagingService = serviceProvider.GetRequiredService<IMessagingService>();
         var fileStorage = serviceProvider.GetRequiredService<IFileStorage>();
-        
+        var imageProcessingService = serviceProvider.GetRequiredService<IImageProcessingService>();
+
         try
         {
             await foreach (var downloadedFile in downloadService.DownloadAsync(cancellationToken))
@@ -99,16 +101,20 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
                 // var name = downloadedFileInfo.ResourceName;
                 // downloadedFileInfo.FileContents = [];
 
-                var fileName = await fileStorage.SaveAsync($"Bin/{downloadedFile.FileInfo.ResourceName}", downloadedFile.FileContents);
+                var processedImage = imageProcessingService.ProcessImage(downloadedFile.FileInfo, downloadedFile.FileContents, sizes);
 
-                var request = new ProcessImageRequest { DownloadedFileInfo = downloadedFile.FileInfo, FileName = fileName, Sizes = sizes };
+                // var fileName = await fileStorage.SaveAsync($"Bin/{downloadedFile.FileInfo.ResourceName}", downloadedFile.FileContents);
 
-                await messagingService.PublishMessageAsync("pm-ImageDownloaded", request);
+                // var request = new ProcessImageRequest { DownloadedFileInfo = downloadedFile.FileInfo, FileName = fileName, Sizes = sizes };
+
+                // await messagingService.PublishMessageAsync("pm-ImageDownloaded", request);
                 
                 break;
                 // await frontendNotificationService.SendProgressAsync(userId, 111, 49, 33);
                 // send file to photo processing service
             }
+            
+            // TODO: get the last file and save state correctly
         }
         catch (Exception e)
         {
@@ -118,6 +124,9 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
         }
         finally
         {
+            var backgroundTaskManager = serviceProvider.GetRequiredService<IBackgroundTaskManager>();
+            backgroundTaskManager.RemoveTask(taskName);
+            
             await downloadService.DisposeAsync();
         }
     }
@@ -141,12 +150,7 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
     private async Task<IDownloadService> CreateDownloadServiceAsync(long userId, long sourceId, string token)
     {
         var photoSource = await _photoSourceService.GetByIdAsync(sourceId);
-        var parameters = new DownloadServiceParameters
-        {
-            UserId = userId,
-            SourceId = sourceId,
-            Token = token
-        };
+        var parameters = new DownloadServiceParameters { UserId = userId, SourceId = sourceId, Token = token };
 
         return _downloadServiceFactory.GetService(photoSource, parameters);
     }

@@ -20,6 +20,19 @@ public class BackgroundTaskManager : IBackgroundTaskManager
         
         _tasks.TryAdd(taskName, cancellationTokenSource);
     }
+    
+    public bool RemoveTask(string taskName)
+    {
+        if (_tasks.TryGetValue(taskName, out _))
+        {
+            _tasks.TryRemove(taskName, out _);
+            
+            _logger.LogInformation("Task {TaskName} removed", taskName);
+            return true;
+        }
+        
+        return false;
+    }
 
     public bool CancelTask(string taskName)
     {

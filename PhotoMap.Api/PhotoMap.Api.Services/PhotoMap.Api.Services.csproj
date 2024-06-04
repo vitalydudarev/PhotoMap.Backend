@@ -15,7 +15,10 @@
 
     <ItemGroup>
       <PackageReference Include="Dropbox.Api" Version="7.0.0" />
+      <PackageReference Include="Magick.NET-Q16-x64" Version="13.9.0" />
+      <PackageReference Include="MetadataExtractor" Version="2.8.1" />
       <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.1" />
+      <PackageReference Include="SkiaSharp" Version="2.88.8" />
     </ItemGroup>
 
     <ItemGroup>
