@@ -1,27 +1,42 @@
 using System;
-using System.Collections.Generic;
+using System.Collections.Concurrent;
+using System.Threading;
+using System.Threading.Tasks;
 using PhotoMap.Api.Services.Interfaces;
 
 namespace PhotoMap.Api.Services.Implementations
 {
     public class ConvertedImageHolder : IConvertedImageHolder
     {
-        private readonly Dictionary<Guid, byte[]> _holder = new Dictionary<Guid, byte[]>();
+        private readonly ConcurrentDictionary<Guid, TaskCompletionSource<byte[]>> _holder = new();
 
         public void Add(Guid id, byte[] bytes)
         {
-            _holder.Add(id, bytes);
+            GetOrAdd(id).TrySetResult(bytes);
         }
 
-        public byte[] Get(Guid id)
+        public async Task<byte[]?> WaitAsync(Guid id, TimeSpan timeout, CancellationToken cancellationToken = default)
         {
-            if (_holder.TryGetValue(id, out var bytes))
-            {
-                _holder.Remove(id);
-                return bytes;
-            }
+            var completionSource = GetOrAdd(id);
 
-            return null;
+            try
+            {
+                return await completionSource.Task.WaitAsync(timeout, cancellationToken);
+            }
+            catch (TimeoutException)
+            {
+                return null;
+            }
+            finally
+            {
+                // the image is handed over to a single waiter, so it is not kept any longer
+                _holder.TryRemove(id, out _);
+            }
+        }
+
+        private TaskCompletionSource<byte[]> GetOrAdd(Guid id)
+        {
+            return _holder.GetOrAdd(id, _ => new TaskCompletionSource<byte[]>(TaskCreationOptions.RunContinuationsAsynchronously));
         }
     }
 }

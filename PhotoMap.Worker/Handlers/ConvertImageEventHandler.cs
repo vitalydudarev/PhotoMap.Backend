@@ -23,7 +23,7 @@ namespace PhotoMap.Worker.Handlers
         {
             if (@event is ConvertImageEvent convertImageCommand)
             {
-                var imageProcessor = new ImageProcessor(convertImageCommand.FileContents);
+                using var imageProcessor = new ImageProcessor(convertImageCommand.FileContents);
                 var convertImageBytes = imageProcessor.GetImageBytes();
 
                 var imageConverted = new ImageConvertedEvent

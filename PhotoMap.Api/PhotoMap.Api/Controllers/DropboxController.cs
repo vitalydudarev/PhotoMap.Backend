@@ -19,6 +19,8 @@ namespace PhotoMap.Api.Controllers
     [Route("api/dropbox")]
     public class DropboxController : ControllerBase
     {
+        private static readonly TimeSpan ConversionTimeout = TimeSpan.FromSeconds(30);
+
         private readonly IUserService _userService;
         private readonly IPhotoService _photoService;
         private readonly IMessageSender _messageSender;
@@ -101,21 +103,13 @@ namespace PhotoMap.Api.Controllers
 
                 _messageSender.Send(convertImageCommand);
 
-                const int maxTimeout = 5000;
-                int waitTime = 0;
-                byte[] convertedBytes;
-
-                do
+                var convertedBytes = await _convertedImageHolder.WaitAsync(commandId, ConversionTimeout, HttpContext.RequestAborted);
+                if (convertedBytes == null)
                 {
-                    await Task.Delay(1000);
-                    convertedBytes = _convertedImageHolder.Get(commandId);
-                    waitTime += 1000;
-                } while (waitTime <= maxTimeout || convertedBytes == null);
+                    return StatusCode(StatusCodes.Status504GatewayTimeout, "Converting the image timed out.");
+                }
 
-                if (convertedBytes != null)
-                    return new FileContentResult(convertedBytes, "image/jpg");
-
-                return BadRequest();
+                return new FileContentResult(convertedBytes, "image/jpg");
             }
 
             return new FileContentResult(fileContents, "image/jpg");
