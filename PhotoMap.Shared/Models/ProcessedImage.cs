@@ -4,8 +4,9 @@ public class ProcessedImage
 {
     public string FileName { get; set; } = null!;
     public string FileUrl { get; set; }
-    // public long PhotoSourceId { get; set; }
-    // public string FileSource { get; set; }
+    public long UserId { get; set; }
+    public long PhotoSourceId { get; set; }
+    public string PhotoSourceName { get; set; } = null!;
     public string RelativeFilePath { get; set; }
     public string Path { get; set; }
     public DateTime? FileCreatedOn { get; set; }

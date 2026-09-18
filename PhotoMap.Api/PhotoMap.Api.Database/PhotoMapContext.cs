@@ -1,5 +1,7 @@
+using System.Collections.Concurrent;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Npgsql;
 using PhotoMap.Api.Database.Configurations;
 using PhotoMap.Api.Database.Entities;
 
@@ -7,6 +9,8 @@ namespace PhotoMap.Api.Database
 {
     public class PhotoMapContext : DbContext
     {
+        private static readonly ConcurrentDictionary<string, NpgsqlDataSource> DataSources = new();
+
         private readonly IConfiguration? _configuration;
 
         public DbSet<UserEntity> Users { get; set; } = null!;
@@ -37,9 +41,25 @@ namespace PhotoMap.Api.Database
                 return;
             }
 
+            var connectionString = _configuration["ConnectionString"]
+                                   ?? throw new InvalidOperationException("Configuration property ConnectionString not specified.");
+
             optionsBuilder
-                .UseNpgsql(_configuration["ConnectionString"])
+                .UseNpgsql(GetDataSource(connectionString))
                 .UseSnakeCaseNamingConvention();
+        }
+
+        private static NpgsqlDataSource GetDataSource(string connectionString)
+        {
+            return DataSources.GetOrAdd(connectionString, a =>
+            {
+                var dataSourceBuilder = new NpgsqlDataSourceBuilder(a);
+
+                // entities keep objects (e.g. ClientAuthSettings) in jsonb columns
+                dataSourceBuilder.EnableDynamicJson();
+
+                return dataSourceBuilder.Build();
+            });
         }
     }
 }

@@ -17,18 +17,20 @@ namespace PhotoMap.Worker.Services.Implementations
             _exifExtractor = exifExtractor;
         }
 
-        public ProcessedImage ProcessImage(DownloadedFileInfo fileInfo, string fileName, IEnumerable<int> thumbSizes)
+        public ProcessedImage ProcessImage(ProcessImageRequest request)
         {
+            var fileInfo = request.DownloadedFileInfo;
+
             _logger.LogInformation("Processing image {FileName}", fileInfo.ResourceName);
 
-            var fileContents = File.ReadAllBytes(fileName);
+            var fileContents = File.ReadAllBytes(request.FileName);
 
             using var imageProcessor = new ImageProcessor(fileContents);
             imageProcessor.Rotate();
             
             var sizeBytesMap = new Dictionary<int, byte[]>();
 
-            foreach (var size in thumbSizes)
+            foreach (var size in request.Sizes)
             {
                 imageProcessor.Crop(size);
                 var bytes = imageProcessor.GetImageBytes();
@@ -41,7 +43,10 @@ namespace PhotoMap.Worker.Services.Implementations
                 FileName = fileInfo.ResourceName,
                 Thumbs = sizeBytesMap,
                 Path = fileInfo.Path,
-                FileCreatedOn = fileInfo.CreatedOn
+                FileCreatedOn = fileInfo.CreatedOn,
+                UserId = request.UserId,
+                PhotoSourceId = request.PhotoSourceId,
+                PhotoSourceName = request.PhotoSourceName
             };
 
             var exif = _exifExtractor.GetDataAsync(fileContents);
