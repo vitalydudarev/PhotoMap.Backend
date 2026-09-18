@@ -97,7 +97,7 @@ namespace PhotoMap.Api.Services
                 ThumbnailLargeFilePath = thumbnailLargeFilePath,
                 Path = processedImage.Path,
                 AddedOn = DateTimeOffset.UtcNow,
-                DateTimeTaken = processedImage.PhotoTakenOn ?? processedImage.FileCreatedOn ?? DateTimeOffset.UtcNow,
+                DateTimeTaken = ToUtc(processedImage.PhotoTakenOn) ?? ToUtc(processedImage.FileCreatedOn) ?? DateTimeOffset.UtcNow,
                 ExifString = processedImage.ExifString,
                 Latitude = processedImage.Latitude,
                 Longitude = processedImage.Longitude,
@@ -107,6 +107,24 @@ namespace PhotoMap.Api.Services
             await photoService.AddAsync(photo);
 
             _logger.LogInformation("Image {FileName} processed and saved", processedImage.FileName);
+        }
+
+        /// <summary>
+        /// Dates are stored in timestamptz columns, which only accept UTC. Photo sources report
+        /// UTC dates, but not all of them mark the value as such.
+        /// </summary>
+        private static DateTimeOffset? ToUtc(DateTime? value)
+        {
+            if (value == null)
+            {
+                return null;
+            }
+
+            var dateTime = value.Value.Kind == DateTimeKind.Unspecified
+                ? DateTime.SpecifyKind(value.Value, DateTimeKind.Utc)
+                : value.Value.ToUniversalTime();
+
+            return new DateTimeOffset(dateTime);
         }
     }
 }
