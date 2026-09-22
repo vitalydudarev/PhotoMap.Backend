@@ -106,7 +106,8 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
                     Sizes = sizes,
                     UserId = userId,
                     PhotoSourceId = sourceId,
-                    PhotoSourceName = photoSourceName
+                    PhotoSourceName = photoSourceName,
+                    Processed = downloadedFile.Processed
                 };
 
                 await requestQueue.EnqueueAsync(request, cancellationToken);

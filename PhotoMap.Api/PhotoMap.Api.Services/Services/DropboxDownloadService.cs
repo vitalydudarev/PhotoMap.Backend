@@ -46,14 +46,14 @@ public sealed class DropboxDownloadService : IDownloadService
 
         CreateDropboxClient();
 
-        // The cursor saved is always the one the current page was listed with. Files of a finished page can still
-        // sit in the in-memory processing queues, so after a restart the last page is listed again and the files
-        // that were saved in the meantime are skipped by their Dropbox file ID.
-        var pageCursor = _state.Cursor;
-        var listFolderResult = await ListFolderAsync(pageCursor);
+        // The cursor of a page is saved only after all of its files have been processed. After a restart the
+        // unfinished page is listed again and the files saved in the meantime are skipped by their Dropbox file ID.
+        var listFolderResult = await ListFolderAsync(_state.Cursor);
 
         while (true)
         {
+            var pageFiles = new List<DownloadedFile>();
+
             foreach (var fileMetadata in listFolderResult.Entries.OfType<FileMetadata>())
             {
                 if (cancellationToken.IsCancellationRequested)
@@ -67,10 +67,19 @@ public sealed class DropboxDownloadService : IDownloadService
                     continue;
                 }
 
-                yield return await DownloadFileAsync(fileMetadata);
+                var downloadedFile = await DownloadFileAsync(fileMetadata);
+                pageFiles.Add(downloadedFile);
+
+                yield return downloadedFile;
             }
 
-            _state.Cursor = pageCursor;
+            if (!await WaitUntilProcessedAsync(pageFiles, cancellationToken))
+            {
+                _logger.LogInformation("Cancellation requested");
+                yield break;
+            }
+
+            _state.Cursor = listFolderResult.Cursor;
             await SaveStateAsync();
 
             if (!listFolderResult.HasMore)
@@ -78,8 +87,7 @@ public sealed class DropboxDownloadService : IDownloadService
                 break;
             }
 
-            pageCursor = listFolderResult.Cursor;
-            listFolderResult = await ListFolderAsync(pageCursor);
+            listFolderResult = await ListFolderAsync(_state.Cursor);
         }
     }
 
@@ -140,6 +148,26 @@ public sealed class DropboxDownloadService : IDownloadService
                 return await _dropboxClient!.Files.ListFolderAsync(_settings.SourceFolder, limit: (uint?)_settings.DownloadLimit);
             }
         });
+    }
+
+    private async Task<bool> WaitUntilProcessedAsync(List<DownloadedFile> files, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var results = await Task.WhenAll(files.Select(a => a.Processed.Task)).WaitAsync(cancellationToken);
+
+            var failedCount = results.Count(a => !a);
+            if (failedCount > 0)
+            {
+                _logger.LogWarning("{FailedCount} of {FileCount} files of the page failed processing", failedCount, files.Count);
+            }
+
+            return true;
+        }
+        catch (OperationCanceledException)
+        {
+            return false;
+        }
     }
 
     private async Task<DownloadedFile> DownloadFileAsync(FileMetadata metadata)

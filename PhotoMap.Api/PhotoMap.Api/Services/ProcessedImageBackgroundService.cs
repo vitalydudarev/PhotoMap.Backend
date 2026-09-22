@@ -51,10 +51,14 @@ namespace PhotoMap.Api.Services
                     try
                     {
                         await SavePhotoAsync(processedImage);
+
+                        processedImage.Processed?.TrySetResult(true);
                     }
                     catch (Exception e)
                     {
                         _logger.LogError(e, "Failed to save processed image {FileName}.", processedImage.FileName);
+
+                        processedImage.Processed?.TrySetResult(false);
                     }
                 }
             }

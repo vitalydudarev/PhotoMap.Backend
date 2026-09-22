@@ -17,4 +17,5 @@ public class ProcessedImage
     public string? ExifString { get; set; }
     public double? Latitude { get; set; }
     public double? Longitude { get; set; }
+    public TaskCompletionSource<bool>? Processed { get; set; }
 }

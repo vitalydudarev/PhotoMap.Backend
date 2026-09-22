@@ -51,6 +51,8 @@ public class ImageProcessingBackgroundService : BackgroundService
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "Error occurred.");
+
+                    processImageRequest.Processed?.TrySetResult(false);
                 }
             }
         }

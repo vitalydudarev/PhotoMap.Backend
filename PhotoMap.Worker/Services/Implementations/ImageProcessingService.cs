@@ -49,7 +49,8 @@ namespace PhotoMap.Worker.Services.Implementations
                 FileCreatedOn = fileInfo.CreatedOn,
                 UserId = request.UserId,
                 PhotoSourceId = request.PhotoSourceId,
-                PhotoSourceName = request.PhotoSourceName
+                PhotoSourceName = request.PhotoSourceName,
+                Processed = request.Processed
             };
 
             var exif = _exifExtractor.GetDataAsync(fileContents);
