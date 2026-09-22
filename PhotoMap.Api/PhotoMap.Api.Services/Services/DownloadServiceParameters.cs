@@ -5,4 +5,5 @@ public class DownloadServiceParameters
     public long SourceId { get; set; }
     public long UserId { get; set; }
     public string Token { get; set; } = null!;
+    public ProcessingProgress Progress { get; set; } = null!;
 }

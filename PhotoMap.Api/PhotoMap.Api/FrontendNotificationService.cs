@@ -1,25 +1,33 @@
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.SignalR;
+using PhotoMap.Api.Domain.Models;
 using PhotoMap.Api.Domain.Services;
 using PhotoMap.Api.Hubs;
+using PhotoMap.Api.Hubs.Models;
 
 namespace PhotoMap.Api;
 
 public class FrontendNotificationService : IFrontendNotificationService
 {
-    private readonly NotificationHub _hub;
+    private readonly IHubContext<NotificationHub> _hubContext;
 
-    public FrontendNotificationService(NotificationHub hub)
+    public FrontendNotificationService(IHubContext<NotificationHub> hubContext)
     {
-        _hub = hub;
+        _hubContext = hubContext;
     }
 
-    public async Task SendErrorAsync(long userId, long sourceId, string errorText)
+    public Task SendErrorAsync(long userId, long sourceId, string errorText)
     {
-        await _hub.SendErrorAsync(userId, sourceId, errorText);
+        var hubErrorModel = new HubErrorModel(sourceId, errorText);
+
+        return _hubContext.Clients.Group(NotificationHub.GetUserGroupName(userId)).SendAsync("Error", hubErrorModel);
     }
 
-    public async Task SendProgressAsync(long userId, long sourceId, int processed, int total)
+    public Task SendProgressAsync(UserPhotoSourceStatus status)
     {
-        await _hub.SendProgressAsync(userId, sourceId, processed, total);
+        var hubProgressModel = new HubProgressModel(status.PhotoSourceId, status.Status.ToString(), status.ProcessedCount,
+            status.FailedCount, status.TotalCount);
+
+        return _hubContext.Clients.Group(NotificationHub.GetUserGroupName(status.UserId)).SendAsync("Progress", hubProgressModel);
     }
 }

@@ -67,7 +67,19 @@ public sealed class DropboxDownloadService : IDownloadService
                     continue;
                 }
 
-                var downloadedFile = await DownloadFileAsync(fileMetadata);
+                DownloadedFile downloadedFile;
+
+                try
+                {
+                    downloadedFile = await DownloadFileAsync(fileMetadata);
+                }
+                catch (DropboxException e) when (!e.IsAuthError)
+                {
+                    // skip the file, the error has been logged
+                    _parameters.Progress.FileFailed();
+                    continue;
+                }
+
                 pageFiles.Add(downloadedFile);
 
                 yield return downloadedFile;
@@ -94,23 +106,19 @@ public sealed class DropboxDownloadService : IDownloadService
     public async Task<int> GetTotalFileCountAsync()
     {
         CreateDropboxClient();
-        
-        int totalCount = 0;
 
-        bool firstIteration = true;
-        var listFolderResult = await WrapApiCallAsync(() => _dropboxClient.Files.ListFolderAsync(_settings.SourceFolder, limit: (uint?)_settings.DownloadLimit));
-        
+        var totalCount = 0;
+        string? cursor = null;
+
         do
         {
-            if (!firstIteration)
-            {
-                listFolderResult = await WrapApiCallAsync(() => _dropboxClient.Files.ListFolderContinueAsync(listFolderResult.Cursor));
-            }
+            var listFolderResult = cursor == null
+                ? await WrapApiCallAsync(() => _dropboxClient!.Files.ListFolderAsync(_settings.SourceFolder, limit: (uint?)_settings.DownloadLimit))
+                : await WrapApiCallAsync(() => _dropboxClient!.Files.ListFolderContinueAsync(cursor));
 
-            firstIteration = false;
-
-            totalCount += listFolderResult.Entries.Count;
-        } while (listFolderResult.HasMore);
+            totalCount += listFolderResult.Entries.Count(a => a.IsFile);
+            cursor = listFolderResult.HasMore ? listFolderResult.Cursor : null;
+        } while (cursor != null);
 
         return totalCount;
     }
@@ -215,6 +223,11 @@ public sealed class DropboxDownloadService : IDownloadService
 
     private void CreateDropboxClient()
     {
+        if (_dropboxClient != null)
+        {
+            return;
+        }
+
         var config = new DropboxClientConfig("PhotoMap") { HttpClient = _httpClient };
 
         _dropboxClient = new DropboxClient(_parameters.Token, config);
@@ -232,12 +245,12 @@ public sealed class DropboxDownloadService : IDownloadService
             {
                 _logger.LogError("Access token has expired.");
                 
-                throw new DropboxException("Access token has expired.");
+                throw new DropboxException("Access token has expired.", isAuthError: true);
             }
 
             _logger.LogError(e, "An auth error has occurred while calling API");
             
-            throw new DropboxException("An auth error has occurred while calling API: " + e.Message);
+            throw new DropboxException("An auth error has occurred while calling API: " + e.Message, isAuthError: true);
         }
         catch (Exception e)
         {

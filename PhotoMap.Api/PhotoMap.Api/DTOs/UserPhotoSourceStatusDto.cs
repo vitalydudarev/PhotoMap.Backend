@@ -4,5 +4,7 @@ public enum UserPhotoSourceStatusDto
 {
     NotStarted = 1,
     InProgress = 2,
-    Done = 3
+    Done = 3,
+    Stopped = 4,
+    Failed = 5
 }

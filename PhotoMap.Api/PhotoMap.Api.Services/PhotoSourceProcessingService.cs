@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using PhotoMap.Api.Domain.Models;
 using PhotoMap.Api.Domain.Services;
@@ -12,35 +13,31 @@ namespace PhotoMap.Api.Services;
 
 public class PhotoSourceProcessingService : IPhotoSourceProcessingService
 {
+    private static readonly TimeSpan StatusReportInterval = TimeSpan.FromSeconds(2);
+
     private readonly IPhotoSourceDownloadServiceFactory _downloadServiceFactory;
     private readonly IUserPhotoSourceService _userPhotoSourceService;
     private readonly IPhotoSourceService _photoSourceService;
-    private readonly IFrontendNotificationService _frontendNotificationService;
     private readonly IBackgroundTaskManager _backgroundTaskManager;
-    private readonly IServiceProvider _serviceProvider;
+    private readonly IServiceScopeFactory _serviceScopeFactory;
     private readonly PhotoProcessingSettings _photoProcessingSettings;
-    private readonly IFileStorage _fileStorage;
 
     public PhotoSourceProcessingService(
         IPhotoSourceDownloadServiceFactory downloadServiceFactory,
         IUserPhotoSourceService userPhotoSourceService,
         IPhotoSourceService photoSourceService,
-        IFrontendNotificationService frontendNotificationService,
         IBackgroundTaskManager backgroundTaskManager,
-        IServiceProvider serviceProvider,
-        IOptions<PhotoProcessingSettings> photoProcessingSettings,
-        IFileStorage fileStorage)
+        IServiceScopeFactory serviceScopeFactory,
+        IOptions<PhotoProcessingSettings> photoProcessingSettings)
     {
         _downloadServiceFactory = downloadServiceFactory;
         _userPhotoSourceService = userPhotoSourceService;
         _photoSourceService = photoSourceService;
-        _frontendNotificationService = frontendNotificationService;
         _backgroundTaskManager = backgroundTaskManager;
-        _serviceProvider = serviceProvider;
+        _serviceScopeFactory = serviceScopeFactory;
         _photoProcessingSettings = photoProcessingSettings.Value;
-        _fileStorage = fileStorage;
     }
-    
+
     public async Task RunCommandAsync(long userId, long sourceId, PhotoSourceProcessingCommands command)
     {
         if (command == PhotoSourceProcessingCommands.Start)
@@ -50,7 +47,7 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
         else if (command == PhotoSourceProcessingCommands.Stop)
         {
             var taskName = GetTaskName(userId, sourceId);
-            
+
             _backgroundTaskManager.CancelTask(taskName);
             // take job and terminate it
         }
@@ -63,41 +60,75 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
     private async Task StartAsync(long userId, long sourceId)
     {
         var taskName = GetTaskName(userId, sourceId);
-        
+
         var token = await GetAuthTokenAsync(userId, sourceId);
         var photoSource = await _photoSourceService.GetByIdAsync(sourceId);
-        var downloadService = CreateDownloadService(photoSource, userId, sourceId, token);
-
-        // var totalFileCount = await downloadService.GetTotalFileCountAsync();
+        var progress = await CreateProgressAsync(userId, sourceId);
+        var downloadService = CreateDownloadService(photoSource, userId, sourceId, token, progress);
 
         var cancellationTokenSource = new CancellationTokenSource();
 
         _backgroundTaskManager.AddTask(taskName,
-            () => DoWork(downloadService, _serviceProvider, _photoProcessingSettings.Sizes, userId, sourceId,
+            () => DoWork(downloadService, progress, _serviceScopeFactory, _photoProcessingSettings.Sizes, userId, sourceId,
                 photoSource.Name, cancellationTokenSource.Token), cancellationTokenSource);
     }
 
     private static async Task DoWork(
         IDownloadService downloadService,
-        IServiceProvider serviceProvider,
+        ProcessingProgress progress,
+        IServiceScopeFactory serviceScopeFactory,
         int[] sizes,
-        // IFrontendNotificationService frontendNotificationService,
         long userId,
         long sourceId,
         string photoSourceName,
         CancellationToken cancellationToken)
     {
-        var requestQueue = serviceProvider.GetRequiredService<IMessageQueue<ProcessImageRequest>>();
-        var fileStorage = serviceProvider.GetRequiredService<IFileStorage>();
-        
+        using var scope = serviceScopeFactory.CreateScope();
+        var requestQueue = scope.ServiceProvider.GetRequiredService<IMessageQueue<ProcessImageRequest>>();
+        var fileStorage = scope.ServiceProvider.GetRequiredService<IFileStorage>();
+        var frontendNotificationService = scope.ServiceProvider.GetRequiredService<IFrontendNotificationService>();
+        var logger = scope.ServiceProvider.GetRequiredService<ILogger<PhotoSourceProcessingService>>();
+
+        var status = PhotoSourceStatus.Done;
+        using var reportingCancellationTokenSource = new CancellationTokenSource();
+        var reportingTask = Task.CompletedTask;
+
         try
         {
+            await ReportStatusAsync(serviceScopeFactory, logger, userId, sourceId, PhotoSourceStatus.InProgress, progress);
+
+            progress.TotalCount = await downloadService.GetTotalFileCountAsync();
+
+            reportingTask = ReportStatusPeriodicallyAsync(serviceScopeFactory, logger, userId, sourceId, progress,
+                reportingCancellationTokenSource.Token);
+
             await foreach (var downloadedFile in downloadService.DownloadAsync(cancellationToken))
             {
-                // var name = downloadedFileInfo.ResourceName;
-                // downloadedFileInfo.FileContents = [];
+                _ = downloadedFile.Processed.Task.ContinueWith(a =>
+                {
+                    if (a.Result)
+                    {
+                        progress.FileProcessed();
+                    }
+                    else
+                    {
+                        progress.FileFailed();
+                    }
+                }, TaskContinuationOptions.ExecuteSynchronously);
 
-                var fileName = await fileStorage.SaveAsync($"Bin/{downloadedFile.FileInfo.ResourceName}", downloadedFile.FileContents);
+                string fileName;
+
+                try
+                {
+                    fileName = await fileStorage.SaveAsync($"Bin/{downloadedFile.FileInfo.ResourceName}", downloadedFile.FileContents);
+                }
+                catch (Exception e)
+                {
+                    logger.LogError(e, "Failed to store downloaded file {FileName}", downloadedFile.FileInfo.ResourceName);
+
+                    downloadedFile.Processed.TrySetResult(false);
+                    continue;
+                }
 
                 var request = new ProcessImageRequest
                 {
@@ -111,20 +142,111 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
                 };
 
                 await requestQueue.EnqueueAsync(request, cancellationToken);
-
-                // await frontendNotificationService.SendProgressAsync(userId, 111, 49, 33);
             }
+
+            if (cancellationToken.IsCancellationRequested)
+            {
+                status = PhotoSourceStatus.Stopped;
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            status = PhotoSourceStatus.Stopped;
         }
         catch (Exception e)
         {
-            // TODO: handle auth exceptions
-            Console.WriteLine(e);
-            throw;
+            status = PhotoSourceStatus.Failed;
+
+            logger.LogError(e, "Processing of photo source {PhotoSourceName} for user {UserId} failed", photoSourceName, userId);
+
+            await frontendNotificationService.SendErrorAsync(userId, sourceId, e.Message);
         }
         finally
         {
+            await reportingCancellationTokenSource.CancelAsync();
+            await reportingTask;
+
             await downloadService.DisposeAsync();
+
+            await ReportStatusAsync(serviceScopeFactory, logger, userId, sourceId, status, progress);
         }
+    }
+
+    private static async Task ReportStatusPeriodicallyAsync(
+        IServiceScopeFactory serviceScopeFactory,
+        ILogger logger,
+        long userId,
+        long sourceId,
+        ProcessingProgress progress,
+        CancellationToken cancellationToken)
+    {
+        using var timer = new PeriodicTimer(StatusReportInterval);
+
+        try
+        {
+            while (await timer.WaitForNextTickAsync(cancellationToken))
+            {
+                await ReportStatusAsync(serviceScopeFactory, logger, userId, sourceId, PhotoSourceStatus.InProgress, progress);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // processing has finished
+        }
+    }
+
+    /// <summary>
+    /// Saves the status and counters to the database and sends them to the frontend. Failures are only logged,
+    /// they must not stop the processing.
+    /// </summary>
+    private static async Task ReportStatusAsync(
+        IServiceScopeFactory serviceScopeFactory,
+        ILogger logger,
+        long userId,
+        long sourceId,
+        PhotoSourceStatus status,
+        ProcessingProgress progress)
+    {
+        try
+        {
+            using var scope = serviceScopeFactory.CreateScope();
+            var userPhotoSourceService = scope.ServiceProvider.GetRequiredService<IUserPhotoSourceService>();
+            var frontendNotificationService = scope.ServiceProvider.GetRequiredService<IFrontendNotificationService>();
+
+            var userPhotoSourceStatus = new UserPhotoSourceStatus
+            {
+                UserId = userId,
+                PhotoSourceId = sourceId,
+                Status = status,
+                TotalCount = progress.TotalCount,
+                ProcessedCount = progress.ProcessedCount,
+                FailedCount = progress.FailedCount,
+                LastUpdatedAt = DateTimeOffset.UtcNow
+            };
+
+            await userPhotoSourceService.UpdateUserPhotoStatusAsync(userPhotoSourceStatus);
+            await frontendNotificationService.SendProgressAsync(userPhotoSourceStatus);
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "Failed to report the status of photo source {SourceId} for user {UserId}", sourceId, userId);
+        }
+    }
+
+    /// <summary>
+    /// Continues the counters of the previous runs, unless the source is processed from the start.
+    /// </summary>
+    private async Task<ProcessingProgress> CreateProgressAsync(long userId, long sourceId)
+    {
+        var state = await _userPhotoSourceService.GetUserPhotoStateAsync(userId, sourceId);
+        if (state?.State == null)
+        {
+            return new ProcessingProgress(0, 0);
+        }
+
+        var status = await _userPhotoSourceService.GetUserPhotoStatusAsync(userId, sourceId);
+
+        return new ProcessingProgress(status?.ProcessedCount ?? 0, status?.FailedCount ?? 0);
     }
 
     private async Task<string> GetAuthTokenAsync(long userId, long sourceId)
@@ -143,13 +265,15 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
         return $"UserId={userId}-SourceId={sourceId}";
     }
 
-    private IDownloadService CreateDownloadService(PhotoSource photoSource, long userId, long sourceId, string token)
+    private IDownloadService CreateDownloadService(PhotoSource photoSource, long userId, long sourceId, string token,
+        ProcessingProgress progress)
     {
         var parameters = new DownloadServiceParameters
         {
             UserId = userId,
             SourceId = sourceId,
-            Token = token
+            Token = token,
+            Progress = progress
         };
 
         return _downloadServiceFactory.GetService(photoSource, parameters);

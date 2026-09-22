@@ -23,9 +23,15 @@ public class UserPhotoSourceService : IUserPhotoSourceService
             .Include(userPhotoSource => userPhotoSource.PhotoSource!)
             .AsNoTracking()
             .ToListAsync();
+
+        var statuses = await _context.UserPhotoSourcesStatuses
+            .Where(a => a.UserId == userId)
+            .AsNoTracking()
+            .ToDictionaryAsync(a => a.PhotoSourceId, a => a.Status);
             
         return userPhotoSourceEntities.Select(a => new Api.Domain.Models.UserPhotoSource
         {
+            Status = statuses.GetValueOrDefault(a.PhotoSourceId, PhotoSourceStatus.NotStarted),
             UserId = userId,
             PhotoSourceId = a.PhotoSource!.Id,
             PhotoSourceName = a.PhotoSource!.Name,
@@ -127,5 +133,25 @@ public class UserPhotoSourceService : IUserPhotoSourceService
 
             await _context.SaveChangesAsync();
         }
+    }
+
+    public async Task UpdateUserPhotoStatusAsync(UserPhotoSourceStatus status)
+    {
+        var entity = await _context.UserPhotoSourcesStatuses
+            .FirstOrDefaultAsync(a => a.UserId == status.UserId && a.PhotoSourceId == status.PhotoSourceId);
+
+        if (entity == null)
+        {
+            entity = new UserPhotoSourceStatusEntity { UserId = status.UserId, PhotoSourceId = status.PhotoSourceId };
+            _context.UserPhotoSourcesStatuses.Add(entity);
+        }
+
+        entity.Status = status.Status;
+        entity.TotalCount = status.TotalCount;
+        entity.ProcessedCount = status.ProcessedCount;
+        entity.FailedCount = status.FailedCount;
+        entity.LastUpdatedAt = status.LastUpdatedAt;
+
+        await _context.SaveChangesAsync();
     }
 }

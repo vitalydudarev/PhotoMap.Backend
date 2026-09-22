@@ -96,7 +96,6 @@ namespace PhotoMap.Api
             // hubs
             services.AddSingleton<YandexDiskHub>();
             services.AddSingleton<DropboxHub>();
-            services.AddSingleton<NotificationHub>();
 
             // event handlers
             services.AddSingleton<IEventHandler, ProgressMessageHandler>();
