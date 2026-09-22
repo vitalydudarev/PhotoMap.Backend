@@ -18,10 +18,10 @@
     </ItemGroup>
 
     <ItemGroup>
-      <PackageReference Include="Dropbox.Api" Version="7.0.0" />
-      <PackageReference Include="Magick.NET-Q16-AnyCPU" Version="13.8.0" />
-      <PackageReference Include="MetadataExtractor" Version="2.8.1" />
-      <PackageReference Include="SkiaSharp" Version="2.88.8" />
+      <PackageReference Include="Dropbox.Api" Version="7.3.0" />
+      <PackageReference Include="Magick.NET-Q16-AnyCPU" Version="14.17.1" />
+      <PackageReference Include="MetadataExtractor" Version="2.9.3" />
+      <PackageReference Include="SkiaSharp" Version="4.152.1" />
     </ItemGroup>
 
     <ItemGroup>

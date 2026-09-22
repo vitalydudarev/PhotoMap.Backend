@@ -61,7 +61,7 @@ namespace PhotoMap.Worker.Services.Implementations.Core
                 height = _bitmap.Height * size / _bitmap.Width;
             }
 
-            using (var resizedBitmap = _bitmap.Resize(new SKImageInfo(width, height), SKFilterQuality.High))
+            using (var resizedBitmap = _bitmap.Resize(new SKImageInfo(width, height), new SKSamplingOptions(SKCubicResampler.Mitchell)))
             {
                 int x = (width - size) / 2;
                 int y = (height - size) / 2;
