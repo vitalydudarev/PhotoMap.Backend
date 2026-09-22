@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
+using PhotoMap.Api.Domain.Services;
 using PhotoMap.Api.Models;
 using PhotoMap.Api.Services.Services;
 
@@ -13,7 +14,7 @@ public class DropboxDownloadServiceTests
         var stateService = new Mock<IDropboxDownloadStateService>();
         stateService.Setup(a => a.GetStateAsync(It.IsAny<long>(), It.IsAny<long>())).ReturnsAsync((DropboxDownloadState?)null);
 
-        var dropboxDownloadService = new DropboxDownloadService(NullLogger<DropboxDownloadService>.Instance, stateService.Object, null,
+        var dropboxDownloadService = new DropboxDownloadService(NullLogger<DropboxDownloadService>.Instance, stateService.Object, null, new Mock<IPhotoService>().Object,
             new DropboxSettings() { DownloadLimit = 2000, SourceFolder = "/Camera Uploads" }, new DownloadServiceParameters());
 
         // var dropboxUserIdentifier = new DropboxUserIdentifier { UserId = 1 };

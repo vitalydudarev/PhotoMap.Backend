@@ -3,6 +3,7 @@ using Dropbox.Api;
 using Dropbox.Api.Auth;
 using Dropbox.Api.Files;
 using Microsoft.Extensions.Logging;
+using PhotoMap.Api.Domain.Services;
 using PhotoMap.Shared.Models;
 using DropboxException = PhotoMap.Api.Services.Exceptions.DropboxException;
 
@@ -13,24 +14,25 @@ public sealed class DropboxDownloadService : IDownloadService
     private readonly ILogger<DropboxDownloadService> _logger;
     private readonly IDropboxDownloadStateService _stateService;
     private readonly IProgressReporter _progressReporter;
+    private readonly IPhotoService _photoService;
     private readonly DropboxSettings _settings;
     private DropboxClient? _dropboxClient;
     private readonly HttpClient _httpClient;
     private DropboxDownloadState? _state;
-    // private long _userId;
-    // private long _sourceId;
     private readonly DownloadServiceParameters _parameters;
 
     public DropboxDownloadService(
         ILogger<DropboxDownloadService> logger,
         IDropboxDownloadStateService stateService,
         IProgressReporter progressReporter,
+        IPhotoService photoService,
         DropboxSettings settings,
         DownloadServiceParameters parameters)
     {
         _logger = logger;
         _stateService = stateService;
         _progressReporter = progressReporter;
+        _photoService = photoService;
         _settings = settings;
         _parameters = parameters;
         _httpClient = new HttpClient();
@@ -43,13 +45,44 @@ public sealed class DropboxDownloadService : IDownloadService
         _state = await GetOrCreateStateAsync();
 
         CreateDropboxClient();
-        var filesMetadata = await GetFileListAsync();
 
-        // _state.TotalFiles = filesMetadata.Count;
+        // The cursor saved is always the one the current page was listed with. Files of a finished page can still
+        // sit in the in-memory processing queues, so after a restart the last page is listed again and the files
+        // that were saved in the meantime are skipped by their Dropbox file ID.
+        var pageCursor = _state.Cursor;
+        var listFolderResult = await ListFolderAsync(pageCursor);
 
-        await foreach (var downloadedFileInfo in DownloadFilesAsync(filesMetadata, cancellationToken)) yield return downloadedFileInfo;
+        while (true)
+        {
+            foreach (var fileMetadata in listFolderResult.Entries.OfType<FileMetadata>())
+            {
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    _logger.LogInformation("Cancellation requested");
+                    yield break;
+                }
+
+                if (await _photoService.ExistsAsync(_parameters.UserId, _parameters.SourceId, fileMetadata.Id))
+                {
+                    continue;
+                }
+
+                yield return await DownloadFileAsync(fileMetadata);
+            }
+
+            _state.Cursor = pageCursor;
+            await SaveStateAsync();
+
+            if (!listFolderResult.HasMore)
+            {
+                break;
+            }
+
+            pageCursor = listFolderResult.Cursor;
+            listFolderResult = await ListFolderAsync(pageCursor);
+        }
     }
-    
+
     public async Task<int> GetTotalFileCountAsync()
     {
         CreateDropboxClient();
@@ -74,69 +107,42 @@ public sealed class DropboxDownloadService : IDownloadService
         return totalCount;
     }
 
-    public async ValueTask DisposeAsync()
+    public ValueTask DisposeAsync()
     {
-        await SaveStateAsync();
-        
         _dropboxClient?.Dispose();
         _httpClient.Dispose();
+
+        return ValueTask.CompletedTask;
     }
     
     #endregion Public Methods
 
     #region Private Methods
 
-    private async IAsyncEnumerable<DownloadedFile> DownloadFilesAsync(
-        List<Metadata> filesMetadata,
-        [EnumeratorCancellation] CancellationToken cancellationToken)
+    private Task<ListFolderResult> ListFolderAsync(string? cursor)
     {
-        var index = _state?.LastProcessedFileIndex ?? 0;
-
-        for (int i = index; i < filesMetadata.Count; i++)
+        if (cursor == null)
         {
-            if (cancellationToken.IsCancellationRequested)
-            {
-                _logger.LogInformation("Cancellation requested");
-                yield break;
-            }
-
-            var fileMetadata = filesMetadata[i];
-
-            var downloadedFileInfo = await DownloadFileAsync(fileMetadata);
-
-            _state.LastProcessedFileIndex++;
-            _state.LastProcessedFileId = downloadedFileInfo.FileInfo.FileId;
-
-            // TODO: revert
-            // _progressReporter.Report(userIdentifier, _state.LastProcessedFileIndex, _state.TotalFiles);
-
-            yield return downloadedFileInfo;
+            return WrapApiCallAsync(() => _dropboxClient!.Files.ListFolderAsync(_settings.SourceFolder, limit: (uint?)_settings.DownloadLimit));
         }
-    }
-    
-    private async Task<List<Metadata>> GetFileListAsync()
-    {
-        var filesMetadata = new List<Metadata>();
 
-        bool firstIteration = true;
-        var listFolderResult = await WrapApiCallAsync(() => _dropboxClient.Files.ListFolderAsync(_settings.SourceFolder, limit: (uint?)_settings.DownloadLimit));
-        
-        do
+        return WrapApiCallAsync(async () =>
         {
-            if (!firstIteration)
+            try
             {
-                listFolderResult = await WrapApiCallAsync(() => _dropboxClient.Files.ListFolderContinueAsync(listFolderResult.Cursor));
+                return await _dropboxClient!.Files.ListFolderContinueAsync(cursor);
             }
+            catch (ApiException<ListFolderContinueError> e) when (e.ErrorResponse.IsReset)
+            {
+                // Dropbox has invalidated the cursor, list the folder again (saved files are skipped)
+                _logger.LogWarning("Dropbox cursor has been reset, listing the folder from the start");
 
-            firstIteration = false;
-            
-            filesMetadata.AddRange(listFolderResult.Entries.Where(a => a is FileMetadata));
-        } while (listFolderResult.HasMore);
-
-        return filesMetadata;
+                return await _dropboxClient!.Files.ListFolderAsync(_settings.SourceFolder, limit: (uint?)_settings.DownloadLimit);
+            }
+        });
     }
 
-    private async Task<DownloadedFile> DownloadFileAsync(Metadata metadata)
+    private async Task<DownloadedFile> DownloadFileAsync(FileMetadata metadata)
     {
         var metadataName = metadata.Name;
 
@@ -144,7 +150,7 @@ public sealed class DropboxDownloadService : IDownloadService
         {
             _logger.LogInformation("Started downloading {MetadataName}", metadataName);
 
-            var fileMetadata = await WrapApiCallAsync(() => _dropboxClient.Files.DownloadAsync(metadata.PathDisplay));
+            var fileMetadata = await WrapApiCallAsync(() => _dropboxClient!.Files.DownloadAsync(metadata.Id));
             var fileContents = await fileMetadata.GetContentAsByteArrayAsync();
 
             _logger.LogInformation("Finished downloading {MetadataName}", metadataName);

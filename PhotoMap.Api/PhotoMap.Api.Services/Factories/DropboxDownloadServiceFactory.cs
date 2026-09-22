@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using PhotoMap.Api.Domain.Services;
 using PhotoMap.Api.Services.Services;
 
 namespace PhotoMap.Api.Services.Factories;
@@ -27,7 +28,8 @@ public class DropboxDownloadServiceFactory : IDownloadServiceFactory
         var logger = serviceProvider.GetRequiredService<ILogger<DropboxDownloadService>>();
         var downloadStateService = serviceProvider.GetRequiredService<IDropboxDownloadStateService>();
         var progressReporter = serviceProvider.GetRequiredService<IProgressReporter>();
+        var photoService = serviceProvider.GetRequiredService<IPhotoService>();
 
-        return new DropboxDownloadService(logger, downloadStateService, progressReporter, settings, parameters);
+        return new DropboxDownloadService(logger, downloadStateService, progressReporter, photoService, settings, parameters);
     }
 }
