@@ -4,4 +4,5 @@ public class AuthResultInputDto
 {
     public required string Token { get; set; }
     public required long TokenExpiresIn { get; set; }
+    public string? RefreshToken { get; set; }
 }

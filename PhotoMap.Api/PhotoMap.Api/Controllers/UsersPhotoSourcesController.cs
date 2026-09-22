@@ -53,7 +53,8 @@ namespace PhotoMap.Api.Controllers
             var authResult = new UserAuthResult
             {
                 Token = authResultInputDto.Token,
-                TokenExpiresOn = DateTimeOffset.UtcNow.AddSeconds(authResultInputDto.TokenExpiresIn)
+                TokenExpiresOn = DateTimeOffset.UtcNow.AddSeconds(authResultInputDto.TokenExpiresIn),
+                RefreshToken = authResultInputDto.RefreshToken
             };
 
             await _userPhotoSourceService.UpdateAuthResultAsync(userId, sourceId, authResult);

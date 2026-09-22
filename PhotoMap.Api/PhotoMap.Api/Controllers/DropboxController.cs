@@ -1,11 +1,11 @@
 using System;
 using System.Net.Http;
 using System.Threading.Tasks;
-using Dropbox.Api;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using PhotoMap.Api.Domain.Services;
 using PhotoMap.Api.DTOs;
+using PhotoMap.Api.Services;
 using PhotoMap.Api.Services.Interfaces;
 using PhotoMap.Shared.Events;
 using PhotoMap.Shared.Messaging.MessageSender;
@@ -25,17 +25,23 @@ namespace PhotoMap.Api.Controllers
         private readonly IPhotoService _photoService;
         private readonly IMessageSender _messageSender;
         private readonly IConvertedImageHolder _convertedImageHolder;
+        private readonly IUserPhotoSourceService _userPhotoSourceService;
+        private readonly IPhotoSourceService _photoSourceService;
 
         public DropboxController(
             IUserService userService,
             IPhotoService photoService,
             IMessageSender messageSender,
-            IConvertedImageHolder convertedImageHolder)
+            IConvertedImageHolder convertedImageHolder,
+            IUserPhotoSourceService userPhotoSourceService,
+            IPhotoSourceService photoSourceService)
         {
             _userService = userService;
             _photoService = photoService;
             _messageSender = messageSender;
             _convertedImageHolder = convertedImageHolder;
+            _userPhotoSourceService = userPhotoSourceService;
+            _photoSourceService = photoSourceService;
         }
 
         [HttpPost("auth")]
@@ -81,15 +87,24 @@ namespace PhotoMap.Api.Controllers
         public async Task<IActionResult> GetPhotoAsync(int id)
         {
             var photo = await _photoService.GetAsync(id);
-            var user = await _userService.GetAsync(photo.UserId);
+            if (photo == null)
+            {
+                return NotFound();
+            }
 
-            var httpClient = new HttpClient();
+            var authResult = await _userPhotoSourceService.GetAuthResultAsync(photo.UserId, photo.PhotoSourceId);
+            if (authResult == null || !authResult.IsValid)
+            {
+                return Unauthorized("Dropbox authorization has expired.");
+            }
 
-            // Move this code to Worker (add new Controller to handle this request)
-            var config = new DropboxClientConfig("PhotoMap") { HttpClient = httpClient };
-            var dropboxClient = new DropboxClient(user.DropboxAccessToken, config);
+            var photoSource = await _photoSourceService.GetByIdAsync(photo.PhotoSourceId);
 
-            var fileMetadata = await dropboxClient.Files.DownloadAsync(photo.Path);
+            using var httpClient = new HttpClient();
+            using var dropboxClient = DropboxClientFactory.Create(authResult, photoSource.ClientAuthSettings.OAuthConfiguration.ClientId, httpClient);
+
+            // the file ID stays the same when the file is moved or renamed, the path doesn't
+            using var fileMetadata = await dropboxClient.Files.DownloadAsync(photo.ExternalId ?? photo.Path);
             var fileContents = await fileMetadata.GetContentAsByteArrayAsync();
 
             if (photo.FileName.ToUpper().EndsWith("HEIC"))

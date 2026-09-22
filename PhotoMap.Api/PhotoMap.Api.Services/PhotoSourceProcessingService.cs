@@ -61,10 +61,10 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
     {
         var taskName = GetTaskName(userId, sourceId);
 
-        var token = await GetAuthTokenAsync(userId, sourceId);
+        var authResult = await GetAuthResultAsync(userId, sourceId);
         var photoSource = await _photoSourceService.GetByIdAsync(sourceId);
         var progress = await CreateProgressAsync(userId, sourceId);
-        var downloadService = CreateDownloadService(photoSource, userId, sourceId, token, progress);
+        var downloadService = CreateDownloadService(photoSource, userId, sourceId, authResult, progress);
 
         var cancellationTokenSource = new CancellationTokenSource();
 
@@ -249,15 +249,15 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
         return new ProcessingProgress(status?.ProcessedCount ?? 0, status?.FailedCount ?? 0);
     }
 
-    private async Task<string> GetAuthTokenAsync(long userId, long sourceId)
+    private async Task<UserAuthResult> GetAuthResultAsync(long userId, long sourceId)
     {
-        var authSettings = await _userPhotoSourceService.GetAuthResultAsync(userId, sourceId);
-        if (authSettings?.Token == null || authSettings.TokenExpiresOn < DateTimeOffset.UtcNow)
+        var authResult = await _userPhotoSourceService.GetAuthResultAsync(userId, sourceId);
+        if (authResult == null || !authResult.IsValid)
         {
             throw new NotAuthorizedException("User is not authorized.");
         }
 
-        return authSettings.Token;
+        return authResult;
     }
 
     private static string GetTaskName(long userId, long sourceId)
@@ -265,14 +265,15 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
         return $"UserId={userId}-SourceId={sourceId}";
     }
 
-    private IDownloadService CreateDownloadService(PhotoSource photoSource, long userId, long sourceId, string token,
-        ProcessingProgress progress)
+    private IDownloadService CreateDownloadService(PhotoSource photoSource, long userId, long sourceId,
+        UserAuthResult authResult, ProcessingProgress progress)
     {
         var parameters = new DownloadServiceParameters
         {
             UserId = userId,
             SourceId = sourceId,
-            Token = token,
+            AuthResult = authResult,
+            ClientId = photoSource.ClientAuthSettings.OAuthConfiguration.ClientId,
             Progress = progress
         };
 

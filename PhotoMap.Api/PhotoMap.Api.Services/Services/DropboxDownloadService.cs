@@ -233,9 +233,7 @@ public sealed class DropboxDownloadService : IDownloadService
             return;
         }
 
-        var config = new DropboxClientConfig("PhotoMap") { HttpClient = _httpClient };
-
-        _dropboxClient = new DropboxClient(_parameters.Token, config);
+        _dropboxClient = DropboxClientFactory.Create(_parameters.AuthResult, _parameters.ClientId, _httpClient);
     }
 
     private async Task<T> WrapApiCallAsync<T>(Func<Task<T>> apiCall)
