@@ -37,6 +37,12 @@ public class PhotoRepository : IPhotoRepository
         return photoEntity != null ? EntityToModel(photoEntity) : null;
     }
 
+    public Task<bool> ExistsAsync(long userId, long photoSourceId, string externalId)
+    {
+        return _context.Photos.AnyAsync(a =>
+            a.UserId == userId && a.PhotoSourceId == photoSourceId && a.ExternalId == externalId);
+    }
+
     public async Task<IEnumerable<Photo>> GetByUserIdAsync(long userId, int top, int skip)
     {
         var photos = await _context.Photos
@@ -85,7 +91,10 @@ public class PhotoRepository : IPhotoRepository
             HasGps = photoEntity.HasGps,
             ExifString = photoEntity.ExifString,
             Path = photoEntity.Path,
-            AddedOn = photoEntity.AddedOn
+            ExternalId = photoEntity.ExternalId,
+            ContentHash = photoEntity.ContentHash,
+            AddedOn = photoEntity.AddedOn,
+            PhotoSourceId = photoEntity.PhotoSourceId
         };
     }
 
@@ -103,6 +112,8 @@ public class PhotoRepository : IPhotoRepository
             HasGps = photo.HasGps,
             ExifString = photo.ExifString,
             Path = photo.Path,
+            ExternalId = photo.ExternalId,
+            ContentHash = photo.ContentHash,
             AddedOn = photo.AddedOn,
             PhotoSourceId = photo.PhotoSourceId
         };

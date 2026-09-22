@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using System.Text.Json;
 using PhotoMap.Shared.Models;
 using PhotoMap.Worker.Helpers;
@@ -43,6 +44,8 @@ namespace PhotoMap.Worker.Services.Implementations
                 FileName = fileInfo.ResourceName,
                 Thumbs = sizeBytesMap,
                 Path = fileInfo.Path,
+                ExternalId = fileInfo.FileId,
+                ContentHash = Convert.ToHexStringLower(SHA256.HashData(fileContents)),
                 FileCreatedOn = fileInfo.CreatedOn,
                 UserId = request.UserId,
                 PhotoSourceId = request.PhotoSourceId,

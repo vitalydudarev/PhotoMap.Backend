@@ -70,6 +70,13 @@ namespace PhotoMap.Api.Services
             var photoService = scope.ServiceProvider.GetRequiredService<IPhotoService>();
             var imageStore = scope.ServiceProvider.GetRequiredService<IImageStore>();
 
+            if (processedImage.ExternalId != null &&
+                await photoService.ExistsAsync(processedImage.UserId, processedImage.PhotoSourceId, processedImage.ExternalId))
+            {
+                _logger.LogInformation("Image {FileName} already saved, skipping", processedImage.FileName);
+                return;
+            }
+
             var thumbs = processedImage.Thumbs.OrderBy(a => a.Key).ToList();
             var userName = processedImage.UserId.ToString();
 
@@ -96,6 +103,8 @@ namespace PhotoMap.Api.Services
                 ThumbnailSmallFilePath = thumbnailSmallFilePath,
                 ThumbnailLargeFilePath = thumbnailLargeFilePath,
                 Path = processedImage.Path,
+                ExternalId = processedImage.ExternalId,
+                ContentHash = processedImage.ContentHash,
                 AddedOn = DateTimeOffset.UtcNow,
                 DateTimeTaken = ToUtc(processedImage.PhotoTakenOn) ?? ToUtc(processedImage.FileCreatedOn) ?? DateTimeOffset.UtcNow,
                 ExifString = processedImage.ExifString,

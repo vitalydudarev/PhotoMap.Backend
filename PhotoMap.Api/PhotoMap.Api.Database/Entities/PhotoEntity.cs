@@ -16,5 +16,7 @@ public class PhotoEntity
     public bool HasGps { get; set; }
     public string? ExifString { get; set; }
     public string? Path { get; set; }
+    public string? ExternalId { get; set; }
+    public string? ContentHash { get; set; }
     public required DateTimeOffset AddedOn { get; set; }
 }

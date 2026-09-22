@@ -13,6 +13,8 @@ public class Photo
     public bool HasGps { get; set; }
     public string? ExifString { get; set; }
     public string? Path { get; set; }
+    public string? ExternalId { get; set; }
+    public string? ContentHash { get; set; }
     public DateTimeOffset AddedOn { get; set; }
     public long PhotoSourceId { get; set; }
 }

@@ -19,7 +19,7 @@ namespace PhotoMap.Api.Database
         public DbSet<UserPhotoSourceStatusEntity> UserPhotoSourcesStatuses { get; set; } = null!;
         public DbSet<UserPhotoSourceEntity> UserPhotoSources { get; set; } = null!;
 
-        public PhotoMapContext(IConfiguration configuration, DbContextOptions<PhotoMapContext> options)
+        public PhotoMapContext(IConfiguration? configuration, DbContextOptions<PhotoMapContext> options)
             : base(options)
         {
             _configuration = configuration;

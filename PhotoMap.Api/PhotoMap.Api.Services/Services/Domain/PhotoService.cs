@@ -28,6 +28,11 @@ namespace PhotoMap.Api.Services.Services.Domain
             return _photoRepository.GetByFileNameAsync(fileName);
         }
 
+        public Task<bool> ExistsAsync(long userId, long photoSourceId, string externalId)
+        {
+            return _photoRepository.ExistsAsync(userId, photoSourceId, externalId);
+        }
+
         public Task<IEnumerable<Photo>> GetByUserIdAsync(long userId, int top, int skip)
         {
             return _photoRepository.GetByUserIdAsync(userId, top, skip);
