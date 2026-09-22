@@ -54,7 +54,7 @@ public sealed class DropboxDownloadService : IDownloadService
         {
             var pageFiles = new List<DownloadedFile>();
 
-            foreach (var fileMetadata in listFolderResult.Entries.OfType<FileMetadata>())
+            foreach (var fileMetadata in GetSupportedFiles(listFolderResult))
             {
                 if (cancellationToken.IsCancellationRequested)
                 {
@@ -116,7 +116,7 @@ public sealed class DropboxDownloadService : IDownloadService
                 ? await WrapApiCallAsync(() => _dropboxClient!.Files.ListFolderAsync(_settings.SourceFolder, limit: (uint?)_settings.DownloadLimit))
                 : await WrapApiCallAsync(() => _dropboxClient!.Files.ListFolderContinueAsync(cursor));
 
-            totalCount += listFolderResult.Entries.Count(a => a.IsFile);
+            totalCount += GetSupportedFiles(listFolderResult).Count();
             cursor = listFolderResult.HasMore ? listFolderResult.Cursor : null;
         } while (cursor != null);
 
@@ -156,6 +156,11 @@ public sealed class DropboxDownloadService : IDownloadService
                 return await _dropboxClient!.Files.ListFolderAsync(_settings.SourceFolder, limit: (uint?)_settings.DownloadLimit);
             }
         });
+    }
+
+    private static IEnumerable<FileMetadata> GetSupportedFiles(ListFolderResult listFolderResult)
+    {
+        return listFolderResult.Entries.OfType<FileMetadata>().Where(a => SupportedImageFormats.IsSupported(a.Name));
     }
 
     private async Task<bool> WaitUntilProcessedAsync(List<DownloadedFile> files, CancellationToken cancellationToken)
