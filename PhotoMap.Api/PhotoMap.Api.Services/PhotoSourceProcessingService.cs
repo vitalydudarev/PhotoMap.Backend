@@ -15,7 +15,6 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
 {
     private static readonly TimeSpan StatusReportInterval = TimeSpan.FromSeconds(2);
 
-    private readonly IPhotoSourceDownloadServiceFactory _downloadServiceFactory;
     private readonly IUserPhotoSourceService _userPhotoSourceService;
     private readonly IPhotoSourceService _photoSourceService;
     private readonly IBackgroundTaskManager _backgroundTaskManager;
@@ -23,14 +22,12 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
     private readonly PhotoProcessingSettings _photoProcessingSettings;
 
     public PhotoSourceProcessingService(
-        IPhotoSourceDownloadServiceFactory downloadServiceFactory,
         IUserPhotoSourceService userPhotoSourceService,
         IPhotoSourceService photoSourceService,
         IBackgroundTaskManager backgroundTaskManager,
         IServiceScopeFactory serviceScopeFactory,
         IOptions<PhotoProcessingSettings> photoProcessingSettings)
     {
-        _downloadServiceFactory = downloadServiceFactory;
         _userPhotoSourceService = userPhotoSourceService;
         _photoSourceService = photoSourceService;
         _backgroundTaskManager = backgroundTaskManager;
@@ -38,51 +35,58 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
         _photoProcessingSettings = photoProcessingSettings.Value;
     }
 
-    public async Task RunCommandAsync(long userId, long sourceId, PhotoSourceProcessingCommands command)
+    public async Task<bool> RunCommandAsync(long userId, long sourceId, PhotoSourceProcessingCommands command)
     {
         if (command == PhotoSourceProcessingCommands.Start)
         {
-            await StartAsync(userId, sourceId);
+            return await StartAsync(userId, sourceId);
         }
-        else if (command == PhotoSourceProcessingCommands.Stop)
-        {
-            var taskName = GetTaskName(userId, sourceId);
 
-            _backgroundTaskManager.CancelTask(taskName);
-            // take job and terminate it
-        }
-        else
+        if (command == PhotoSourceProcessingCommands.Stop)
         {
-            throw new Exception("Unsupported command.");
+            // the run records the Stopped status when it has finished
+            _backgroundTaskManager.CancelTask(GetTaskName(userId, sourceId));
+            return true;
         }
+
+        throw new Exception("Unsupported command.");
     }
 
-    private async Task StartAsync(long userId, long sourceId)
+    private async Task<bool> StartAsync(long userId, long sourceId)
     {
         var taskName = GetTaskName(userId, sourceId);
+        if (_backgroundTaskManager.IsRunning(taskName))
+        {
+            return false;
+        }
 
         var authResult = await GetAuthResultAsync(userId, sourceId);
         var photoSource = await _photoSourceService.GetByIdAsync(sourceId);
         var progress = await CreateProgressAsync(userId, sourceId);
-        var downloadService = CreateDownloadService(photoSource, userId, sourceId, authResult, progress);
+        var parameters = CreateDownloadServiceParameters(photoSource, userId, sourceId, authResult, progress);
+        var serviceScopeFactory = _serviceScopeFactory;
+        var sizes = _photoProcessingSettings.Sizes;
 
-        var cancellationTokenSource = new CancellationTokenSource();
-
-        _backgroundTaskManager.AddTask(taskName,
-            () => DoWork(downloadService, progress, _serviceScopeFactory, _photoProcessingSettings.Sizes, userId, sourceId,
-                photoSource.Name, cancellationTokenSource.Token), cancellationTokenSource);
+        return _backgroundTaskManager.TryStartTask(taskName,
+            cancellationToken => DoWork(photoSource, parameters, serviceScopeFactory, sizes, cancellationToken));
     }
 
+    /// <summary>
+    /// Runs in the background, with its own service scope: the scope of the request that started it is disposed
+    /// by the time the run proceeds.
+    /// </summary>
     private static async Task DoWork(
-        IDownloadService downloadService,
-        ProcessingProgress progress,
+        PhotoSource photoSource,
+        DownloadServiceParameters parameters,
         IServiceScopeFactory serviceScopeFactory,
         int[] sizes,
-        long userId,
-        long sourceId,
-        string photoSourceName,
         CancellationToken cancellationToken)
     {
+        var userId = parameters.UserId;
+        var sourceId = parameters.SourceId;
+        var photoSourceName = photoSource.Name;
+        var progress = parameters.Progress;
+
         using var scope = serviceScopeFactory.CreateScope();
         var requestQueue = scope.ServiceProvider.GetRequiredService<IMessageQueue<ProcessImageRequest>>();
         var fileStorage = scope.ServiceProvider.GetRequiredService<IFileStorage>();
@@ -92,10 +96,14 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
         var status = PhotoSourceStatus.Done;
         using var reportingCancellationTokenSource = new CancellationTokenSource();
         var reportingTask = Task.CompletedTask;
+        IDownloadService? downloadService = null;
 
         try
         {
             await ReportStatusAsync(serviceScopeFactory, logger, userId, sourceId, PhotoSourceStatus.InProgress, progress);
+
+            downloadService = scope.ServiceProvider.GetRequiredService<IPhotoSourceDownloadServiceFactory>()
+                .GetService(photoSource, parameters);
 
             progress.TotalCount = await downloadService.GetTotalFileCountAsync();
 
@@ -166,7 +174,10 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
             await reportingCancellationTokenSource.CancelAsync();
             await reportingTask;
 
-            await downloadService.DisposeAsync();
+            if (downloadService != null)
+            {
+                await downloadService.DisposeAsync();
+            }
 
             await ReportStatusAsync(serviceScopeFactory, logger, userId, sourceId, status, progress);
         }
@@ -265,10 +276,10 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
         return $"UserId={userId}-SourceId={sourceId}";
     }
 
-    private IDownloadService CreateDownloadService(PhotoSource photoSource, long userId, long sourceId,
-        UserAuthResult authResult, ProcessingProgress progress)
+    private static DownloadServiceParameters CreateDownloadServiceParameters(PhotoSource photoSource, long userId,
+        long sourceId, UserAuthResult authResult, ProcessingProgress progress)
     {
-        var parameters = new DownloadServiceParameters
+        return new DownloadServiceParameters
         {
             UserId = userId,
             SourceId = sourceId,
@@ -276,7 +287,5 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
             ClientId = photoSource.ClientAuthSettings.OAuthConfiguration.ClientId,
             Progress = progress
         };
-
-        return _downloadServiceFactory.GetService(photoSource, parameters);
     }
 }

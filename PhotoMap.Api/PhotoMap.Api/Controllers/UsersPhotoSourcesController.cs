@@ -64,9 +64,14 @@ namespace PhotoMap.Api.Controllers
         
         [HttpPost("{sourceId:long}")]
         [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status409Conflict)]
         public async Task<IActionResult> SourceProcessing(long userId, long sourceId, [FromBody] PhotoSourceProcessingCommands command)
         {
-            await _photoSourceProcessingService.RunCommandAsync(userId, sourceId, command);
+            var accepted = await _photoSourceProcessingService.RunCommandAsync(userId, sourceId, command);
+            if (!accepted)
+            {
+                return Conflict("Processing of the photo source is already running.");
+            }
 
             return Ok();
         }

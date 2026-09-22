@@ -84,7 +84,8 @@ namespace PhotoMap.Api
             
             // common
             services.AddSingleton<IProgressReporter, ProgressReporter>();
-            services.AddSingleton<IBackgroundTaskManager, BackgroundTaskManager>();
+            services.AddSingleton<BackgroundTaskManager>();
+            services.AddSingleton<IBackgroundTaskManager>(provider => provider.GetRequiredService<BackgroundTaskManager>());
             
             services.AddScoped<IFileStorage, FileStorage>(provider =>
             {
@@ -116,6 +117,9 @@ namespace PhotoMap.Api
             // worker, hosted in this application
             services.AddWorker();
             services.AddHostedService<ProcessedImageBackgroundService>();
+            // registered after the image processing services: hosted services stop in reverse order, so processing
+            // runs are cancelled (and record their Stopped status) while the rest of the application is still running
+            services.AddHostedService(provider => provider.GetRequiredService<BackgroundTaskManager>());
             
             services.AddSwaggerGen(c =>
             {

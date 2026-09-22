@@ -1,18 +1,30 @@
 using System.Text.Json;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using PhotoMap.Api.Domain.Services;
 using PhotoMap.Api.Services.Services;
 
 namespace PhotoMap.Api.Services.Factories;
 
+/// <summary>
+/// Resolved from the service scope of a processing run, the created service uses the services of that scope.
+/// </summary>
 public class DropboxDownloadServiceFactory : IDownloadServiceFactory
 {
-    private readonly IServiceScopeFactory _serviceScopeFactory;
-    
-    public DropboxDownloadServiceFactory(IServiceScopeFactory serviceScopeFactory)
+    private readonly ILogger<DropboxDownloadService> _logger;
+    private readonly IDropboxDownloadStateService _downloadStateService;
+    private readonly IProgressReporter _progressReporter;
+    private readonly IPhotoService _photoService;
+
+    public DropboxDownloadServiceFactory(
+        ILogger<DropboxDownloadService> logger,
+        IDropboxDownloadStateService downloadStateService,
+        IProgressReporter progressReporter,
+        IPhotoService photoService)
     {
-        _serviceScopeFactory = serviceScopeFactory;
+        _logger = logger;
+        _downloadStateService = downloadStateService;
+        _progressReporter = progressReporter;
+        _photoService = photoService;
     }
     
     public IDownloadService Create(string settingsSerialized, DownloadServiceParameters parameters)
@@ -23,13 +35,6 @@ public class DropboxDownloadServiceFactory : IDownloadServiceFactory
             throw new Exception("Unable to deserialize settings");
         }
 
-        var serviceProvider = _serviceScopeFactory.CreateScope().ServiceProvider;
-        
-        var logger = serviceProvider.GetRequiredService<ILogger<DropboxDownloadService>>();
-        var downloadStateService = serviceProvider.GetRequiredService<IDropboxDownloadStateService>();
-        var progressReporter = serviceProvider.GetRequiredService<IProgressReporter>();
-        var photoService = serviceProvider.GetRequiredService<IPhotoService>();
-
-        return new DropboxDownloadService(logger, downloadStateService, progressReporter, photoService, settings, parameters);
+        return new DropboxDownloadService(_logger, _downloadStateService, _progressReporter, _photoService, settings, parameters);
     }
 }
