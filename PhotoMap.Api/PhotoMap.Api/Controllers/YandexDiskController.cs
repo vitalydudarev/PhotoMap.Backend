@@ -9,9 +9,6 @@ using PhotoMap.Api.Services.Interfaces;
 using PhotoMap.Shared.Events;
 using PhotoMap.Shared.Messaging.MessageSender;
 using PhotoMap.Shared.Yandex.Disk;
-using PauseProcessingEvent = PhotoMap.Api.Commands.PauseProcessingEvent;
-using StartProcessingEvent = PhotoMap.Api.Commands.StartProcessingEvent;
-using YandexDiskUserIdentifier = PhotoMap.Api.Models.YandexDiskUserIdentifier;
 
 namespace PhotoMap.Api.Controllers
 {
@@ -21,52 +18,21 @@ namespace PhotoMap.Api.Controllers
     {
         private static readonly TimeSpan ConversionTimeout = TimeSpan.FromSeconds(30);
 
-        private readonly IUserService _userService;
         private readonly IPhotoService _photoService;
         private readonly IMessageSender _messageSender;
         private readonly IConvertedImageHolder _convertedImageHolder;
+        private readonly IUserPhotoSourceService _userPhotoSourceService;
 
         public YandexDiskController(
-            IUserService userService,
             IPhotoService photoService,
             IMessageSender messageSender,
-            IConvertedImageHolder convertedImageHolder)
+            IConvertedImageHolder convertedImageHolder,
+            IUserPhotoSourceService userPhotoSourceService)
         {
-            _userService = userService;
             _photoService = photoService;
             _messageSender = messageSender;
             _convertedImageHolder = convertedImageHolder;
-        }
-
-        [HttpPost]
-        [ProducesResponseType(StatusCodes.Status200OK)]
-        public async Task<IActionResult> StartProcessing([FromBody] int userId)
-        {
-            var user = await _userService.GetAsync(userId);
-            var startProcessingCommand = new StartProcessingEvent
-            {
-                UserIdentifier = new YandexDiskUserIdentifier { UserId = user.Id },
-                Token = user.YandexDiskAccessToken
-            };
-
-            _messageSender.Send(startProcessingCommand);
-
-            return Ok();
-        }
-
-        [HttpDelete]
-        [ProducesResponseType(StatusCodes.Status204NoContent)]
-        public async Task<IActionResult> PauseProcessing(int userId)
-        {
-            var user = await _userService.GetAsync(userId);
-            var pauseProcessingCommand = new PauseProcessingEvent
-            {
-                UserIdentifier = new YandexDiskUserIdentifier { UserId = user.Id }
-            };
-
-            _messageSender.Send(pauseProcessingCommand);
-
-            return NoContent();
+            _userPhotoSourceService = userPhotoSourceService;
         }
 
         [HttpGet("photos/{id}")]
@@ -75,10 +41,19 @@ namespace PhotoMap.Api.Controllers
         {
             // TODO: do this as en endpoint of worker
             var photo = await _photoService.GetAsync(id);
-            var user = await _userService.GetAsync(photo.UserId);
+            if (photo == null)
+            {
+                return NotFound();
+            }
 
-            var httpClient = new HttpClient();
-            var yandexDiskApiClient = new ApiClient(user.YandexDiskAccessToken, httpClient);
+            var authResult = await _userPhotoSourceService.GetAuthResultAsync(photo.UserId, photo.PhotoSourceId);
+            if (authResult == null || !authResult.IsValid)
+            {
+                return Unauthorized("Yandex.Disk authorization has expired.");
+            }
+
+            using var httpClient = new HttpClient();
+            var yandexDiskApiClient = new ApiClient(authResult.Token, httpClient);
             var downloadUrl = await yandexDiskApiClient.GetDownloadUrlAsync(photo.Path, new CancellationToken());
 
             var bytes = await httpClient.GetByteArrayAsync(downloadUrl.Href);

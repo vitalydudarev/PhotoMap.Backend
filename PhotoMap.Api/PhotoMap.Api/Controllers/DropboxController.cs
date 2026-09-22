@@ -9,9 +9,6 @@ using PhotoMap.Api.Services;
 using PhotoMap.Api.Services.Interfaces;
 using PhotoMap.Shared.Events;
 using PhotoMap.Shared.Messaging.MessageSender;
-using DropboxUserIdentifier = PhotoMap.Api.Models.DropboxUserIdentifier;
-using PauseProcessingEvent = PhotoMap.Api.Commands.PauseProcessingEvent;
-using StartProcessingEvent = PhotoMap.Api.Commands.StartProcessingEvent;
 
 namespace PhotoMap.Api.Controllers
 {
@@ -21,7 +18,6 @@ namespace PhotoMap.Api.Controllers
     {
         private static readonly TimeSpan ConversionTimeout = TimeSpan.FromSeconds(30);
 
-        private readonly IUserService _userService;
         private readonly IPhotoService _photoService;
         private readonly IMessageSender _messageSender;
         private readonly IConvertedImageHolder _convertedImageHolder;
@@ -29,57 +25,17 @@ namespace PhotoMap.Api.Controllers
         private readonly IPhotoSourceService _photoSourceService;
 
         public DropboxController(
-            IUserService userService,
             IPhotoService photoService,
             IMessageSender messageSender,
             IConvertedImageHolder convertedImageHolder,
             IUserPhotoSourceService userPhotoSourceService,
             IPhotoSourceService photoSourceService)
         {
-            _userService = userService;
             _photoService = photoService;
             _messageSender = messageSender;
             _convertedImageHolder = convertedImageHolder;
             _userPhotoSourceService = userPhotoSourceService;
             _photoSourceService = photoSourceService;
-        }
-
-        [HttpPost("auth")]
-        public async Task<IActionResult> Authorize([FromBody] UserAuthorizedDto userAuthorizedDto)
-        {
-            // save info in DB
-            return Ok();
-        }
-
-        [HttpPost]
-        [ProducesResponseType(StatusCodes.Status200OK)]
-        public async Task<IActionResult> StartProcessing([FromBody] int userId)
-        {
-            var user = await _userService.GetAsync(userId);
-            var startProcessingCommand = new StartProcessingEvent
-            {
-                UserIdentifier = new DropboxUserIdentifier { UserId = user.Id },
-                Token = user.DropboxAccessToken
-            };
-
-            _messageSender.Send(startProcessingCommand);
-
-            return Ok();
-        }
-
-        [HttpDelete]
-        [ProducesResponseType(StatusCodes.Status204NoContent)]
-        public async Task<IActionResult> PauseProcessing(int userId)
-        {
-            var user = await _userService.GetAsync(userId);
-            var pauseProcessingCommand = new PauseProcessingEvent
-            {
-                UserIdentifier = new DropboxUserIdentifier { UserId = user.Id }
-            };
-
-            _messageSender.Send(pauseProcessingCommand);
-
-            return NoContent();
         }
 
         [HttpGet("photos/{id}")]

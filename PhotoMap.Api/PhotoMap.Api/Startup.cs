@@ -50,7 +50,6 @@ namespace PhotoMap.Api
             services.AddControllers();
             services.Configure<FileStorageSettings>(Configuration.GetSection("FileStorage"));
             services.Configure<StorageServiceSettings>(Configuration.GetSection("Storage"));
-            services.Configure<YandexDiskFileProviderSettings>(Configuration.GetSection("YandexDiskFileProvider"));
             services.Configure<PhotoProcessingSettings>(Configuration.GetSection("PhotoProcessing"));
 
             services.AddSingleton(provider => new UserInfo { UserId = 1, Name = "Vitaly" });
@@ -94,14 +93,7 @@ namespace PhotoMap.Api
                 return new FileStorage(settings);
             });
 
-            // hubs
-            services.AddSingleton<YandexDiskHub>();
-            services.AddSingleton<DropboxHub>();
-
             // event handlers
-            services.AddSingleton<IEventHandler, ProgressMessageHandler>();
-            services.AddSingleton<IEventHandler, ImageProcessedEventHandler>();
-            services.AddSingleton<IEventHandler, NotificationHandler>();
             services.AddSingleton<IEventHandler, ImageConvertedHandler>();
 
             services.AddScoped<IStorageService, StorageServiceClient>();
@@ -159,8 +151,6 @@ namespace PhotoMap.Api
 
             app.UseEndpoints(endpoints =>
             {
-                endpoints.MapHub<YandexDiskHub>("/yandex-disk-hub");
-                endpoints.MapHub<DropboxHub>("/dropbox-hub");
                 endpoints.MapHub<NotificationHub>("/notifications");
                 endpoints.MapControllers();
             });
