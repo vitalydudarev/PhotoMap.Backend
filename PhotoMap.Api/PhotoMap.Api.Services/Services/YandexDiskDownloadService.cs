@@ -18,6 +18,11 @@ public class YandexDiskDownloadService : IDownloadService
         throw new NotImplementedException();
     }
 
+    public Task<byte[]> DownloadFileAsync(string fileReference, CancellationToken cancellationToken)
+    {
+        throw new NotImplementedException();
+    }
+
     public Task<int> GetTotalFileCountAsync()
     {
         throw new NotImplementedException();

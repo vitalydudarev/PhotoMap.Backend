@@ -6,13 +6,28 @@ namespace PhotoMap.Api.Services;
 /// </summary>
 public static class SupportedImageFormats
 {
-    private static readonly HashSet<string> Extensions = new(StringComparer.OrdinalIgnoreCase)
+    private static readonly Dictionary<string, string> ContentTypesByExtension = new(StringComparer.OrdinalIgnoreCase)
     {
-        ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".heic", ".heif"
+        [".jpg"] = "image/jpeg",
+        [".jpeg"] = "image/jpeg",
+        [".png"] = "image/png",
+        [".gif"] = "image/gif",
+        [".bmp"] = "image/bmp",
+        [".webp"] = "image/webp",
+        [".heic"] = "image/heic",
+        [".heif"] = "image/heif"
     };
 
     public static bool IsSupported(string fileName)
     {
-        return Extensions.Contains(Path.GetExtension(fileName));
+        return ContentTypesByExtension.ContainsKey(Path.GetExtension(fileName));
+    }
+
+    /// <summary>
+    /// The media type a file of this name is served with, "application/octet-stream" for an unsupported format.
+    /// </summary>
+    public static string GetContentType(string fileName)
+    {
+        return ContentTypesByExtension.GetValueOrDefault(Path.GetExtension(fileName), "application/octet-stream");
     }
 }

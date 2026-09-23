@@ -44,14 +44,6 @@ namespace PhotoMap.Api.Controllers
             var userPhotos = await _photoService.GetByUserIdAsync(id, top, skip);
             var totalPhotosCount = await _photoService.GetTotalCountByUserIdAsync(id);
             
-            static string Source(string s) =>
-                s switch
-                {
-                    "Yandex.Disk" => "yandex-disk",
-                    "Dropbox" => "dropbox",
-                    _ => s
-                };
-            
             var url = _hostInfo.GetUrl() + "api";
 
             var values = userPhotos.Select(a => new PhotoDto
@@ -61,7 +53,7 @@ namespace PhotoMap.Api.Controllers
                 Id = a.Id,
                 Latitude = a.Latitude,
                 Longitude = a.Longitude,
-                PhotoUrl = $"{url}/{Source("a.Source")}/photos/" + a.Id,
+                PhotoUrl = $"{url}/photos/{a.Id}",
                 ThumbnailLargeUrl = $"{url}/photos/{a.Id}/thumb/large",
                 ThumbnailSmallUrl = $"{url}/photos/{a.Id}/thumb/small"
             }).ToArray();

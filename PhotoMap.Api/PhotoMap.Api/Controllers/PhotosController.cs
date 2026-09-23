@@ -1,3 +1,4 @@
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
 using PhotoMap.Api.Services.Interfaces;
@@ -16,12 +17,12 @@ namespace PhotoMap.Api.Controllers
         }
 
         [HttpGet("{id:long}")]
-        public async Task<IActionResult> GetPhotoAsync(long id)
+        public async Task<IActionResult> GetPhotoAsync(long id, CancellationToken cancellationToken)
         {
-            var fileContents = await _photoProvider.GetPhotoAsync(id);
-            if (fileContents != null)
+            var photoFile = await _photoProvider.GetPhotoAsync(id, cancellationToken);
+            if (photoFile != null)
             {
-                return new FileContentResult(fileContents, "image/jpg");
+                return new FileContentResult(photoFile.Contents, photoFile.ContentType);
             }
 
             return BadRequest();

@@ -26,6 +26,7 @@ public sealed class DropboxDownloadService : IDownloadService
         IDropboxDownloadStateService stateService,
         IProgressReporter progressReporter,
         IPhotoService photoService,
+        IHttpClientFactory httpClientFactory,
         DropboxSettings settings,
         DownloadServiceParameters parameters)
     {
@@ -35,7 +36,7 @@ public sealed class DropboxDownloadService : IDownloadService
         _photoService = photoService;
         _settings = settings;
         _parameters = parameters;
-        _httpClient = new HttpClient();
+        _httpClient = httpClientFactory.CreateClient("dropboxClient");
     }
 
     #region Public Methods
@@ -103,6 +104,24 @@ public sealed class DropboxDownloadService : IDownloadService
         }
     }
 
+    public async Task<byte[]> DownloadFileAsync(string fileReference, CancellationToken cancellationToken)
+    {
+        CreateDropboxClient();
+
+        _logger.LogInformation("Started downloading {FileReference}", fileReference);
+
+        using var response = await WrapApiCallAsync(() => _dropboxClient!.Files.DownloadAsync(fileReference));
+
+        await using var contentStream = await response.GetContentAsStreamAsync();
+        using var memoryStream = new MemoryStream();
+
+        await contentStream.CopyToAsync(memoryStream, cancellationToken);
+
+        _logger.LogInformation("Finished downloading {FileReference}", fileReference);
+
+        return memoryStream.ToArray();
+    }
+
     public async Task<int> GetTotalFileCountAsync()
     {
         CreateDropboxClient();
@@ -125,8 +144,8 @@ public sealed class DropboxDownloadService : IDownloadService
 
     public ValueTask DisposeAsync()
     {
+        // the HTTP client is not disposed here, its handler is pooled and reused by IHttpClientFactory
         _dropboxClient?.Dispose();
-        _httpClient.Dispose();
 
         return ValueTask.CompletedTask;
     }
