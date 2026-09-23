@@ -11,6 +11,8 @@ namespace PhotoMap.Api.Services.Services;
 
 public sealed class DropboxDownloadService : IDownloadService
 {
+    private const int MaxRateLimitRetries = 3;
+
     private readonly ILogger<DropboxDownloadService> _logger;
     private readonly IDropboxDownloadStateService _stateService;
     private readonly IProgressReporter _progressReporter;
@@ -49,7 +51,7 @@ public sealed class DropboxDownloadService : IDownloadService
 
         // The cursor of a page is saved only after all of its files have been processed. After a restart the
         // unfinished page is listed again and the files saved in the meantime are skipped by their Dropbox file ID.
-        var listFolderResult = await ListFolderAsync(_state.Cursor);
+        var listFolderResult = await ListFolderAsync(_state.Cursor, cancellationToken);
 
         while (true)
         {
@@ -72,7 +74,7 @@ public sealed class DropboxDownloadService : IDownloadService
 
                 try
                 {
-                    downloadedFile = await DownloadFileAsync(fileMetadata);
+                    downloadedFile = await DownloadFileAsync(fileMetadata, cancellationToken);
                 }
                 catch (DropboxException e) when (!e.IsAuthError)
                 {
@@ -100,7 +102,7 @@ public sealed class DropboxDownloadService : IDownloadService
                 break;
             }
 
-            listFolderResult = await ListFolderAsync(_state.Cursor);
+            listFolderResult = await ListFolderAsync(_state.Cursor, cancellationToken);
         }
     }
 
@@ -110,7 +112,7 @@ public sealed class DropboxDownloadService : IDownloadService
 
         _logger.LogInformation("Started downloading {FileReference}", fileReference);
 
-        using var response = await WrapApiCallAsync(() => _dropboxClient!.Files.DownloadAsync(fileReference));
+        using var response = await WrapApiCallAsync(() => _dropboxClient!.Files.DownloadAsync(fileReference), cancellationToken);
 
         await using var contentStream = await response.GetContentAsStreamAsync();
         using var memoryStream = new MemoryStream();
@@ -154,11 +156,11 @@ public sealed class DropboxDownloadService : IDownloadService
 
     #region Private Methods
 
-    private Task<ListFolderResult> ListFolderAsync(string? cursor)
+    private Task<ListFolderResult> ListFolderAsync(string? cursor, CancellationToken cancellationToken = default)
     {
         if (cursor == null)
         {
-            return WrapApiCallAsync(() => _dropboxClient!.Files.ListFolderAsync(_settings.SourceFolder, limit: (uint?)_settings.DownloadLimit));
+            return WrapApiCallAsync(() => _dropboxClient!.Files.ListFolderAsync(_settings.SourceFolder, limit: (uint?)_settings.DownloadLimit), cancellationToken);
         }
 
         return WrapApiCallAsync(async () =>
@@ -174,7 +176,7 @@ public sealed class DropboxDownloadService : IDownloadService
 
                 return await _dropboxClient!.Files.ListFolderAsync(_settings.SourceFolder, limit: (uint?)_settings.DownloadLimit);
             }
-        });
+        }, cancellationToken);
     }
 
     private static IEnumerable<FileMetadata> GetSupportedFiles(ListFolderResult listFolderResult)
@@ -202,7 +204,7 @@ public sealed class DropboxDownloadService : IDownloadService
         }
     }
 
-    private async Task<DownloadedFile> DownloadFileAsync(FileMetadata metadata)
+    private async Task<DownloadedFile> DownloadFileAsync(FileMetadata metadata, CancellationToken cancellationToken)
     {
         var metadataName = metadata.Name;
 
@@ -210,7 +212,7 @@ public sealed class DropboxDownloadService : IDownloadService
         {
             _logger.LogInformation("Started downloading {MetadataName}", metadataName);
 
-            var fileMetadata = await WrapApiCallAsync(() => _dropboxClient!.Files.DownloadAsync(metadata.Id));
+            var fileMetadata = await WrapApiCallAsync(() => _dropboxClient!.Files.DownloadAsync(metadata.Id), cancellationToken);
             var fileContents = await fileMetadata.GetContentAsByteArrayAsync();
 
             _logger.LogInformation("Finished downloading {MetadataName}", metadataName);
@@ -255,30 +257,45 @@ public sealed class DropboxDownloadService : IDownloadService
         _dropboxClient = DropboxClientFactory.Create(_parameters.AuthResult, _parameters.ClientId, _httpClient);
     }
 
-    private async Task<T> WrapApiCallAsync<T>(Func<Task<T>> apiCall)
+    private async Task<T> WrapApiCallAsync<T>(Func<Task<T>> apiCall, CancellationToken cancellationToken = default)
     {
-        try
+        for (var attempt = 1; ; attempt++)
         {
-            return await apiCall();
-        }
-        catch (AuthException e)
-        {
-            if (e.ErrorResponse == AuthError.ExpiredAccessToken.Instance)
+            try
             {
-                _logger.LogError("Access token has expired.");
-                
-                throw new DropboxException("Access token has expired.", isAuthError: true);
+                return await apiCall();
             }
+            catch (RateLimitException e) when (attempt <= MaxRateLimitRetries)
+            {
+                // Dropbox rate limits per user and per app and says when to come back; without this the file
+                // would be counted as failed and skipped until the next run
+                var retryAfter = TimeSpan.FromSeconds(Math.Max(e.RetryAfter, 1));
 
-            _logger.LogError(e, "An auth error has occurred while calling API");
-            
-            throw new DropboxException("An auth error has occurred while calling API: " + e.Message, isAuthError: true);
-        }
-        catch (Exception e)
-        {
-            _logger.LogError(e, "An error has occurred while calling API");
-            
-            throw new DropboxException("An error has occurred while calling API: " + e.Message);
+                _logger.LogWarning(
+                    "Dropbox rate limit reached, retrying in {RetryAfter} (attempt {Attempt} of {MaxAttempts})",
+                    retryAfter, attempt, MaxRateLimitRetries);
+
+                await Task.Delay(retryAfter, cancellationToken);
+            }
+            catch (AuthException e)
+            {
+                if (e.ErrorResponse == AuthError.ExpiredAccessToken.Instance)
+                {
+                    _logger.LogError("Access token has expired.");
+
+                    throw new DropboxException("Access token has expired.", isAuthError: true);
+                }
+
+                _logger.LogError(e, "An auth error has occurred while calling API");
+
+                throw new DropboxException("An auth error has occurred while calling API: " + e.Message, isAuthError: true);
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e, "An error has occurred while calling API");
+
+                throw new DropboxException("An error has occurred while calling API: " + e.Message);
+            }
         }
     }
 

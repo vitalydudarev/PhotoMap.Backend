@@ -128,7 +128,12 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
 
                 try
                 {
-                    fileName = await fileStorage.SaveAsync($"Bin/{downloadedFile.FileInfo.ResourceName}", downloadedFile.FileContents);
+                    // a path of its own per download: files of the same name, from another folder of the source
+                    // or from the run of another user, would overwrite each other while waiting to be processed
+                    var downloadedFilePath =
+                        $"Bin/{userId}/{sourceId}/{Guid.NewGuid():N}-{downloadedFile.FileInfo.ResourceName}";
+
+                    fileName = await fileStorage.SaveAsync(downloadedFilePath, downloadedFile.FileContents);
                 }
                 catch (Exception e)
                 {

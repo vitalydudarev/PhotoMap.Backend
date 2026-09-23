@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using PhotoMap.Shared.Messaging.EventHandler;
 using PhotoMap.Shared.Models;
@@ -17,8 +18,10 @@ public static class WorkerServiceCollectionExtensions
     /// request queue, processed by <see cref="ImageProcessingBackgroundService"/> and put into the
     /// processed image queue.
     /// </summary>
-    public static IServiceCollection AddWorker(this IServiceCollection services)
+    public static IServiceCollection AddWorker(this IServiceCollection services, IConfiguration configuration)
     {
+        services.Configure<ImageProcessingSettings>(configuration.GetSection("ImageProcessing"));
+
         services.AddMessageQueue<ProcessImageRequest>();
         services.AddMessageQueue<ProcessedImage>();
 

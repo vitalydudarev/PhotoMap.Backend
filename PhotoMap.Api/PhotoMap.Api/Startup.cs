@@ -107,7 +107,7 @@ namespace PhotoMap.Api
             services.AddInProcessMessaging();
 
             // worker, hosted in this application
-            services.AddWorker();
+            services.AddWorker(Configuration);
             services.AddHostedService<ProcessedImageBackgroundService>();
             // registered after the image processing services: hosted services stop in reverse order, so processing
             // runs are cancelled (and record their Stopped status) while the rest of the application is still running
