@@ -118,7 +118,7 @@ public class UserPhotoSourceService : IUserPhotoSourceService
     /// The entity is read tracked and changed in place: a run saves its state after every page, and attaching a
     /// second instance of it to the context of the run would fail on the key the first one is tracked by.
     /// </summary>
-    public async Task UpdateUserPhotoStateAsync(long userId, long photoSourceId, string state)
+    public async Task UpdateUserPhotoStateAsync(long userId, long photoSourceId, string? state)
     {
         var entity = await _context.UserPhotoSources
             .FirstOrDefaultAsync(a => a.UserId == userId && a.PhotoSourceId == photoSourceId);
@@ -126,6 +126,19 @@ public class UserPhotoSourceService : IUserPhotoSourceService
         if (entity != null)
         {
             entity.ProcessingState = state;
+
+            await _context.SaveChangesAsync();
+        }
+    }
+
+    public async Task DeleteUserPhotoStatusAsync(long userId, long photoSourceId)
+    {
+        var entity = await _context.UserPhotoSourcesStatuses
+            .FirstOrDefaultAsync(a => a.UserId == userId && a.PhotoSourceId == photoSourceId);
+
+        if (entity != null)
+        {
+            _context.UserPhotoSourcesStatuses.Remove(entity);
 
             await _context.SaveChangesAsync();
         }

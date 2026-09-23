@@ -12,5 +12,8 @@ public interface IPhotoRepository
     Task<IEnumerable<Photo>> GetByUserIdAsync(long userId, int top, int skip);
     Task<int> GetTotalCountByUserIdAsync(long userId);
     Task DeleteByUserIdAsync(long userId);
+
+    /// <returns>The thumbnail files of the deleted photos.</returns>
+    Task<IReadOnlyCollection<string>> DeleteByPhotoSourceAsync(long userId, long photoSourceId);
     Task DeleteAllAsync();
 }

@@ -9,6 +9,7 @@ public interface IUserPhotoSourceService
     Task<UserPhotoSourceStatus?> GetUserPhotoStatusAsync(long userId, long photoSourceId);
     Task<UserPhotoSourceState?> GetUserPhotoStateAsync(long userId, long photoSourceId);
     Task UpdateAuthResultAsync(long userId, long photoSourceId, UserAuthResult userAuthResult);
-    Task UpdateUserPhotoStateAsync(long userId, long photoSourceId, string state);
+    Task UpdateUserPhotoStateAsync(long userId, long photoSourceId, string? state);
+    Task DeleteUserPhotoStatusAsync(long userId, long photoSourceId);
     Task UpdateUserPhotoStatusAsync(UserPhotoSourceStatus status);
 }

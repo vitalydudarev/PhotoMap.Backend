@@ -18,13 +18,16 @@ namespace PhotoMap.Api.Controllers
     {
         private readonly IUserPhotoSourceService _userPhotoSourceService;
         private readonly IPhotoSourceProcessingService _photoSourceProcessingService;
+        private readonly IPhotoSourceDataService _photoSourceDataService;
 
         public UsersPhotoSourcesController(
             IUserPhotoSourceService userPhotoSourceService,
-            IPhotoSourceProcessingService photoSourceProcessingService)
+            IPhotoSourceProcessingService photoSourceProcessingService,
+            IPhotoSourceDataService photoSourceDataService)
         {
             _userPhotoSourceService = userPhotoSourceService;
             _photoSourceProcessingService = photoSourceProcessingService;
+            _photoSourceDataService = photoSourceDataService;
         }
 
         [HttpGet]
@@ -74,6 +77,24 @@ namespace PhotoMap.Api.Controllers
             }
 
             return Ok();
+        }
+
+        /// <summary>
+        /// Deletes the photos imported from the photo source and the processing status and state of the source.
+        /// The user stays authorized in it.
+        /// </summary>
+        [HttpDelete("{sourceId:long}/data")]
+        [ProducesResponseType(StatusCodes.Status204NoContent)]
+        [ProducesResponseType(StatusCodes.Status409Conflict)]
+        public async Task<IActionResult> DeleteData(long userId, long sourceId)
+        {
+            var deleted = await _photoSourceDataService.DeleteDataAsync(userId, sourceId);
+            if (!deleted)
+            {
+                return Conflict("Processing of the photo source is running.");
+            }
+
+            return NoContent();
         }
     }
 }

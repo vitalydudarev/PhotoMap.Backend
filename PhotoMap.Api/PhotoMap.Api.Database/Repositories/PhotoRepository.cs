@@ -84,6 +84,27 @@ public class PhotoRepository : IPhotoRepository
         await _context.SaveChangesAsync();
     }
 
+    /// <summary>
+    /// Deletes the photos a photo source was the origin of, for one user.
+    /// </summary>
+    /// <returns>The thumbnail files of the deleted photos, which the caller removes from the storage.</returns>
+    public async Task<IReadOnlyCollection<string>> DeleteByPhotoSourceAsync(long userId, long photoSourceId)
+    {
+        var photos = _context.Photos.Where(a => a.UserId == userId && a.PhotoSourceId == photoSourceId);
+
+        var thumbnailPaths = await photos
+            .Select(a => new { a.ThumbnailSmallFilePath, a.ThumbnailLargeFilePath })
+            .ToListAsync();
+
+        await photos.ExecuteDeleteAsync();
+
+        return thumbnailPaths
+            .SelectMany(a => new[] { a.ThumbnailSmallFilePath, a.ThumbnailLargeFilePath })
+            .Where(a => !string.IsNullOrEmpty(a))
+            .Select(a => a!)
+            .ToList();
+    }
+
     public async Task DeleteAllAsync()
     {
         var entities = await _context.Photos.ToListAsync();

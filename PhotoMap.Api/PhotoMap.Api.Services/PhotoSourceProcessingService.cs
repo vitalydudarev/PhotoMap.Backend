@@ -52,6 +52,11 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
         throw new Exception("Unsupported command.");
     }
 
+    public bool IsRunning(long userId, long sourceId)
+    {
+        return _backgroundTaskManager.IsRunning(GetTaskName(userId, sourceId));
+    }
+
     private async Task<bool> StartAsync(long userId, long sourceId)
     {
         var taskName = GetTaskName(userId, sourceId);
