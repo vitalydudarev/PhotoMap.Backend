@@ -102,9 +102,7 @@ public class UserPhotoSourceService : IUserPhotoSourceService
     public async Task UpdateAuthResultAsync(long userId, long photoSourceId, UserAuthResult userAuthResult)
     {
         var userPhotoSource = await _context.UserPhotoSources
-            .Where(a => a.UserId == userId && a.PhotoSourceId == photoSourceId)
-            .AsNoTracking()
-            .FirstOrDefaultAsync();
+            .FirstOrDefaultAsync(a => a.UserId == userId && a.PhotoSourceId == photoSourceId);
         
         if (userPhotoSource == null)
         {
@@ -112,24 +110,22 @@ public class UserPhotoSourceService : IUserPhotoSourceService
         }
         
         userPhotoSource.UserAuthResult = userAuthResult;
-        
-        _context.UserPhotoSources.Update(userPhotoSource);
 
         await _context.SaveChangesAsync();
     }
     
+    /// <summary>
+    /// The entity is read tracked and changed in place: a run saves its state after every page, and attaching a
+    /// second instance of it to the context of the run would fail on the key the first one is tracked by.
+    /// </summary>
     public async Task UpdateUserPhotoStateAsync(long userId, long photoSourceId, string state)
     {
         var entity = await _context.UserPhotoSources
-            .Where(a => a.UserId == userId && a.PhotoSourceId == photoSourceId)
-            .AsNoTracking()
-            .FirstOrDefaultAsync();
+            .FirstOrDefaultAsync(a => a.UserId == userId && a.PhotoSourceId == photoSourceId);
         
         if (entity != null)
         {
             entity.ProcessingState = state;
-
-            _context.UserPhotoSources.Update(entity);
 
             await _context.SaveChangesAsync();
         }
