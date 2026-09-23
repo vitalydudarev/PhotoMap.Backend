@@ -2,7 +2,7 @@ namespace PhotoMap.Api.Domain.Models;
 
 public class Photo
 {
-    public int Id { get; set; }
+    public long Id { get; set; }
     public required long UserId { get; set; }
     public string? ThumbnailSmallFilePath { get; set; }
     public string? ThumbnailLargeFilePath { get; set; }

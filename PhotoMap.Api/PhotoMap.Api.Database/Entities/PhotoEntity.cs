@@ -2,7 +2,7 @@ namespace PhotoMap.Api.Database.Entities;
 
 public class PhotoEntity
 {
-    public int Id { get; set; }
+    public long Id { get; set; }
     public long UserId { get; set; }
     public UserEntity? User { get; set; }
     public long PhotoSourceId { get; set; }

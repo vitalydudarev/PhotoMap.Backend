@@ -27,8 +27,8 @@ namespace PhotoMap.Api.Controllers
             return BadRequest();
         }
         
-        [HttpGet("{id:int}/thumb/{size}")]
-        public async Task<IActionResult> GetThumbAsync(int id, string size)
+        [HttpGet("{id:long}/thumb/{size}")]
+        public async Task<IActionResult> GetThumbAsync(long id, string size)
         {
             var fileContents = await _photoProvider.GetThumbAsync(id, size);
             if (fileContents != null)
