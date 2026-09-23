@@ -54,8 +54,7 @@ public static class SeedDatabaseUtil
             
         var dropboxSettings = new DropboxSettings
         {
-            SourceFolder = "/Camera Uploads",
-            DownloadLimit = 2000
+            SourceFolder = "/Camera Uploads"
         };
 
         return CreatePhotoSource(1, "Dropbox", dropboxSettings, dropboxAuthSettings, typeof(DropboxDownloadServiceFactory));

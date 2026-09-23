@@ -3,8 +3,6 @@ namespace PhotoMap.Api.Services;
 public class DropboxSettings
 {
     public required string SourceFolder { get; set; }
-    public int DownloadLimit { get; set; } = 2000;
-
     /// <summary>
     /// How many files of a page are downloaded at a time. Dropbox rate limits per user and per app rather than
     /// per connection, but it does rate limit: too many at a time ends in waiting for 429s.

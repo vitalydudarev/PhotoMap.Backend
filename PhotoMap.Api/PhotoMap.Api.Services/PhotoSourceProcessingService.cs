@@ -250,16 +250,12 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
     }
 
     /// <summary>
-    /// Continues the counters of the previous runs, unless the source is processed from the start.
+    /// Continues the counters of the previous runs of the source, so that a run resumed after it was stopped
+    /// carries on from the file it had reached instead of appearing to start over. A source that has never been
+    /// processed has no counters to continue.
     /// </summary>
     private async Task<ProcessingProgress> CreateProgressAsync(long userId, long sourceId)
     {
-        var state = await _userPhotoSourceService.GetUserPhotoStateAsync(userId, sourceId);
-        if (state?.State == null)
-        {
-            return new ProcessingProgress(0, 0);
-        }
-
         var status = await _userPhotoSourceService.GetUserPhotoStatusAsync(userId, sourceId);
 
         return new ProcessingProgress(status?.ProcessedCount ?? 0, status?.FailedCount ?? 0);

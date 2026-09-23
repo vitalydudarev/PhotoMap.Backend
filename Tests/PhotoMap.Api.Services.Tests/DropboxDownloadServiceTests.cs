@@ -22,7 +22,7 @@ public class DropboxDownloadServiceTests
 
         var dropboxDownloadService = new DropboxDownloadService(NullLogger<DropboxDownloadService>.Instance, stateService.Object, null, new Mock<IPhotoService>().Object,
             httpClientFactory.Object,
-            new DropboxSettings() { DownloadLimit = 2000, SourceFolder = "/Camera Uploads" }, new DownloadServiceParameters { AuthResult = authResult, ClientId = "8pakfnac86x0iad", Progress = new ProcessingProgress(0, 0) });
+            new DropboxSettings { SourceFolder = "/Camera Uploads" }, new DownloadServiceParameters { AuthResult = authResult, ClientId = "8pakfnac86x0iad", Progress = new ProcessingProgress(0, 0) });
 
         await foreach (var downloadedFileInfo in dropboxDownloadService.DownloadAsync(new CancellationToken()))
         {

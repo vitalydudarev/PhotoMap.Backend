@@ -13,6 +13,13 @@ public sealed class DropboxDownloadService : IDownloadService
 {
     private const int MaxRateLimitRetries = 3;
 
+    /// <summary>
+    /// How many files are listed at a time. The cursor of a page is saved once the page has been processed, so
+    /// this is how much of a stopped run is listed again when it resumes. Dropbox allows up to 2000, but a page
+    /// that large is only finished at the end of a long run, which leaves nothing to resume from.
+    /// </summary>
+    private const int PageSize = 100;
+
     private readonly ILogger<DropboxDownloadService> _logger;
     private readonly IDropboxDownloadStateService _stateService;
     private readonly IProgressReporter _progressReporter;
@@ -112,7 +119,7 @@ public sealed class DropboxDownloadService : IDownloadService
         do
         {
             var listFolderResult = cursor == null
-                ? await WrapApiCallAsync(() => _dropboxClient!.Files.ListFolderAsync(_settings.SourceFolder, limit: (uint?)_settings.DownloadLimit))
+                ? await WrapApiCallAsync(() => _dropboxClient!.Files.ListFolderAsync(_settings.SourceFolder, limit: PageSize))
                 : await WrapApiCallAsync(() => _dropboxClient!.Files.ListFolderContinueAsync(cursor));
 
             totalCount += GetSupportedFiles(listFolderResult).Count();
@@ -138,7 +145,7 @@ public sealed class DropboxDownloadService : IDownloadService
     {
         if (cursor == null)
         {
-            return WrapApiCallAsync(() => _dropboxClient!.Files.ListFolderAsync(_settings.SourceFolder, limit: (uint?)_settings.DownloadLimit), cancellationToken);
+            return WrapApiCallAsync(() => _dropboxClient!.Files.ListFolderAsync(_settings.SourceFolder, limit: PageSize), cancellationToken);
         }
 
         return WrapApiCallAsync(async () =>
@@ -152,7 +159,7 @@ public sealed class DropboxDownloadService : IDownloadService
                 // Dropbox has invalidated the cursor, list the folder again (saved files are skipped)
                 _logger.LogWarning("Dropbox cursor has been reset, listing the folder from the start");
 
-                return await _dropboxClient!.Files.ListFolderAsync(_settings.SourceFolder, limit: (uint?)_settings.DownloadLimit);
+                return await _dropboxClient!.Files.ListFolderAsync(_settings.SourceFolder, limit: PageSize);
             }
         }, cancellationToken);
     }
