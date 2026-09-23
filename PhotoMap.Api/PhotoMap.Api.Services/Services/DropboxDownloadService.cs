@@ -57,32 +57,10 @@ public sealed class DropboxDownloadService : IDownloadService
         {
             var pageFiles = new List<DownloadedFile>();
 
-            foreach (var fileMetadata in GetSupportedFiles(listFolderResult))
+            var filesToDownload = await GetFilesToDownloadAsync(listFolderResult);
+
+            await foreach (var downloadedFile in DownloadPageAsync(filesToDownload, cancellationToken))
             {
-                if (cancellationToken.IsCancellationRequested)
-                {
-                    _logger.LogInformation("Cancellation requested");
-                    yield break;
-                }
-
-                if (await _photoService.ExistsAsync(_parameters.UserId, _parameters.SourceId, fileMetadata.Id))
-                {
-                    continue;
-                }
-
-                DownloadedFile downloadedFile;
-
-                try
-                {
-                    downloadedFile = await DownloadFileAsync(fileMetadata, cancellationToken);
-                }
-                catch (DropboxException e) when (!e.IsAuthError)
-                {
-                    // skip the file, the error has been logged
-                    _parameters.Progress.FileFailed();
-                    continue;
-                }
-
                 pageFiles.Add(downloadedFile);
 
                 yield return downloadedFile;
@@ -182,6 +160,52 @@ public sealed class DropboxDownloadService : IDownloadService
     private static IEnumerable<FileMetadata> GetSupportedFiles(ListFolderResult listFolderResult)
     {
         return listFolderResult.Entries.OfType<FileMetadata>().Where(a => SupportedImageFormats.IsSupported(a.Name));
+    }
+
+    /// <summary>
+    /// The files of the page still to download. Saved files are looked up before the downloads start, in one
+    /// query: the database context of the run is not thread safe, so the check cannot run alongside them.
+    /// </summary>
+    private async Task<IReadOnlyCollection<FileMetadata>> GetFilesToDownloadAsync(ListFolderResult listFolderResult)
+    {
+        var files = GetSupportedFiles(listFolderResult).ToList();
+
+        var savedExternalIds = await _photoService.GetSavedExternalIdsAsync(_parameters.UserId, _parameters.SourceId,
+            files.Select(a => a.Id));
+
+        return files.Where(a => !savedExternalIds.Contains(a.Id)).ToList();
+    }
+
+    /// <summary>
+    /// Downloads the files of one page, several at a time. They are handed over in the order they finish
+    /// downloading, which nothing depends on: the cursor of the page is saved once all of them have been
+    /// processed, however they were ordered.
+    /// </summary>
+    private IAsyncEnumerable<DownloadedFile> DownloadPageAsync(
+        IReadOnlyCollection<FileMetadata> files,
+        CancellationToken cancellationToken)
+    {
+        return ParallelDownloads.RunAsync(files, GetMaxParallelDownloads(), DownloadFileOrSkipAsync, cancellationToken);
+    }
+
+    private async Task<DownloadedFile?> DownloadFileOrSkipAsync(FileMetadata fileMetadata, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await DownloadFileAsync(fileMetadata, cancellationToken);
+        }
+        catch (DropboxException e) when (!e.IsAuthError)
+        {
+            // skip the file, the error has been logged
+            _parameters.Progress.FileFailed();
+
+            return null;
+        }
+    }
+
+    private int GetMaxParallelDownloads()
+    {
+        return Math.Max(_settings.MaxParallelDownloads, 1);
     }
 
     private async Task<bool> WaitUntilProcessedAsync(List<DownloadedFile> files, CancellationToken cancellationToken)

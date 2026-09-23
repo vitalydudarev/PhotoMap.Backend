@@ -43,6 +43,22 @@ public class PhotoRepository : IPhotoRepository
             a.UserId == userId && a.PhotoSourceId == photoSourceId && a.ExternalId == externalId);
     }
 
+    /// <summary>
+    /// Of the given files of a photo source, the ones already saved for the user.
+    /// </summary>
+    public async Task<IReadOnlySet<string>> GetSavedExternalIdsAsync(long userId, long photoSourceId, IEnumerable<string> externalIds)
+    {
+        var ids = externalIds.ToArray();
+
+        var savedExternalIds = await _context.Photos
+            .Where(a => a.UserId == userId && a.PhotoSourceId == photoSourceId && a.ExternalId != null &&
+                        ids.Contains(a.ExternalId))
+            .Select(a => a.ExternalId!)
+            .ToListAsync();
+
+        return savedExternalIds.ToHashSet();
+    }
+
     public async Task<IEnumerable<Photo>> GetByUserIdAsync(long userId, int top, int skip)
     {
         var photos = await _context.Photos

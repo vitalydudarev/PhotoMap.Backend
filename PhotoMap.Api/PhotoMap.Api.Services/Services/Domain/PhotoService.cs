@@ -33,6 +33,11 @@ namespace PhotoMap.Api.Services.Services.Domain
             return _photoRepository.ExistsAsync(userId, photoSourceId, externalId);
         }
 
+        public Task<IReadOnlySet<string>> GetSavedExternalIdsAsync(long userId, long photoSourceId, IEnumerable<string> externalIds)
+        {
+            return _photoRepository.GetSavedExternalIdsAsync(userId, photoSourceId, externalIds);
+        }
+
         public Task<IEnumerable<Photo>> GetByUserIdAsync(long userId, int top, int skip)
         {
             return _photoRepository.GetByUserIdAsync(userId, top, skip);

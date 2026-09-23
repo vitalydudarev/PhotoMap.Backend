@@ -12,6 +12,8 @@ namespace PhotoMap.Api.Domain.Services
 
         Task<bool> ExistsAsync(long userId, long photoSourceId, string externalId);
 
+        Task<IReadOnlySet<string>> GetSavedExternalIdsAsync(long userId, long photoSourceId, IEnumerable<string> externalIds);
+
         Task<IEnumerable<Photo>> GetByUserIdAsync(long userId, int top, int skip);
         
         Task<int> GetTotalCountByUserIdAsync(long userId);
