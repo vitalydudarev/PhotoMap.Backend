@@ -34,7 +34,7 @@ namespace PhotoMap.Api.Controllers
             var fileContents = await _photoProvider.GetThumbAsync(id, size);
             if (fileContents != null)
             {
-                return new FileContentResult(fileContents, "image/jpg");
+                return new FileContentResult(fileContents, "image/jpeg");
             }
 
             return BadRequest();
