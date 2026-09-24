@@ -1,3 +1,5 @@
+using System;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using PhotoMap.Api.Domain.Models;
@@ -70,6 +72,7 @@ public class PhotoProvider : IPhotoProvider
         return new PhotoFile(fileContents, photo.FileName, SupportedImageFormats.GetContentType(photo.FileName));
     }
         
+    /// <returns>Null when the photo or its thumbnail is not found, also when the thumbnail file is missing.</returns>
     public async Task<byte[]?> GetThumbAsync(long id, string size)
     {
         var photo = await _photoService.GetAsync(id);
@@ -78,7 +81,14 @@ public class PhotoProvider : IPhotoProvider
             var filePath = size == "small" ? photo.ThumbnailSmallFilePath : photo.ThumbnailLargeFilePath;
             if (filePath != null)
             {
-                return await _fileStorage.GetAsync(filePath);
+                try
+                {
+                    return await _fileStorage.GetAsync(filePath);
+                }
+                catch (Exception e) when (e is FileNotFoundException or DirectoryNotFoundException)
+                {
+                    return null;
+                }
             }
         }
 

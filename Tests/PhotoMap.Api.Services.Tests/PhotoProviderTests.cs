@@ -132,12 +132,63 @@ public class PhotoProviderTests
             () => photoProvider.GetPhotoAsync(PhotoId, CancellationToken.None));
     }
 
+    [Theory]
+    [InlineData("small", "thumbs/photo_256.jpg")]
+    [InlineData("large", "thumbs/photo_640.jpg")]
+    public async Task GetThumbAsync_ShouldReadThumbnailOfSize(string size, string filePath)
+    {
+        // Arrange
+        var fileStorage = new Mock<IFileStorage>();
+        fileStorage.Setup(a => a.GetAsync(filePath)).ReturnsAsync(FileContents);
+
+        var photoProvider = CreatePhotoProvider(CreatePhoto("id:abc123", "/photo.png"), CreatePhotoSource(),
+            CreateAuthResult(), new Mock<IPhotoSourceDownloadServiceFactory>().Object, fileStorage: fileStorage.Object);
+
+        // Act
+        var thumbnail = await photoProvider.GetThumbAsync(PhotoId, size);
+
+        // Assert
+        Assert.Equal(FileContents, thumbnail);
+    }
+
+    [Fact]
+    public async Task GetThumbAsync_ShouldReturnNull_WhenThumbnailFileIsMissing()
+    {
+        // Arrange
+        var fileStorage = new Mock<IFileStorage>();
+        fileStorage.Setup(a => a.GetAsync(It.IsAny<string>())).ThrowsAsync(new FileNotFoundException());
+
+        var photoProvider = CreatePhotoProvider(CreatePhoto("id:abc123", "/photo.png"), CreatePhotoSource(),
+            CreateAuthResult(), new Mock<IPhotoSourceDownloadServiceFactory>().Object, fileStorage: fileStorage.Object);
+
+        // Act
+        var thumbnail = await photoProvider.GetThumbAsync(PhotoId, "small");
+
+        // Assert
+        Assert.Null(thumbnail);
+    }
+
+    [Fact]
+    public async Task GetThumbAsync_ShouldReturnNull_WhenPhotoNotFound()
+    {
+        // Arrange
+        var photoProvider = CreatePhotoProvider(null, CreatePhotoSource(), CreateAuthResult(),
+            new Mock<IPhotoSourceDownloadServiceFactory>().Object);
+
+        // Act
+        var thumbnail = await photoProvider.GetThumbAsync(PhotoId, "small");
+
+        // Assert
+        Assert.Null(thumbnail);
+    }
+
     private static PhotoProvider CreatePhotoProvider(
         Photo? photo,
         PhotoSource photoSource,
         UserAuthResult authResult,
         IPhotoSourceDownloadServiceFactory downloadServiceFactory,
-        IImageConverter? imageConverter = null)
+        IImageConverter? imageConverter = null,
+        IFileStorage? fileStorage = null)
     {
         var photoService = new Mock<IPhotoService>();
         photoService.Setup(a => a.GetAsync(PhotoId)).ReturnsAsync(photo);
@@ -149,7 +200,7 @@ public class PhotoProviderTests
         userPhotoSourceService.Setup(a => a.GetAuthResultAsync(UserId, PhotoSourceId)).ReturnsAsync(authResult);
 
         return new PhotoProvider(photoService.Object, photoSourceService.Object, userPhotoSourceService.Object,
-            downloadServiceFactory, new Mock<IFileStorage>().Object,
+            downloadServiceFactory, fileStorage ?? new Mock<IFileStorage>().Object,
             imageConverter ?? new Mock<IImageConverter>().Object);
     }
 
@@ -173,6 +224,8 @@ public class PhotoProviderTests
             FileName = fileName,
             ExternalId = externalId,
             Path = path,
+            ThumbnailSmallFilePath = "thumbs/photo_256.jpg",
+            ThumbnailLargeFilePath = "thumbs/photo_640.jpg",
             AddedOn = DateTimeOffset.UtcNow
         };
     }

@@ -1,5 +1,6 @@
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using PhotoMap.Api.Services.Interfaces;
 
@@ -17,6 +18,8 @@ namespace PhotoMap.Api.Controllers
         }
 
         [HttpGet("{id:long}")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> GetPhotoAsync(long id, CancellationToken cancellationToken)
         {
             var photoFile = await _photoProvider.GetPhotoAsync(id, cancellationToken);
@@ -25,10 +28,12 @@ namespace PhotoMap.Api.Controllers
                 return new FileContentResult(photoFile.Contents, photoFile.ContentType);
             }
 
-            return BadRequest();
+            return NotFound();
         }
         
-        [HttpGet("{id:long}/thumb/{size}")]
+        [HttpGet("{id:long}/thumb/{size:regex(^(small|large)$)}")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> GetThumbAsync(long id, string size)
         {
             var fileContents = await _photoProvider.GetThumbAsync(id, size);
@@ -37,9 +42,7 @@ namespace PhotoMap.Api.Controllers
                 return new FileContentResult(fileContents, "image/jpeg");
             }
 
-            return BadRequest();
+            return NotFound();
         }
     }
-
-    
 }
