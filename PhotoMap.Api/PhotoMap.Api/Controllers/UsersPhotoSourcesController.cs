@@ -83,6 +83,29 @@ namespace PhotoMap.Api.Controllers
         }
 
         /// <summary>
+        /// The status of the processing of the photo source with the number of files processed, failed and in total.
+        /// A running source saves them periodically, the notification hub sends them live.
+        /// </summary>
+        [HttpGet("{sourceId:long}/status")]
+        [ProducesResponseType(typeof(PhotoSourceProgressDto), StatusCodes.Status200OK)]
+        public async Task<IActionResult> GetStatus(long userId, long sourceId)
+        {
+            var status = await _userPhotoSourceService.GetUserPhotoStatusAsync(userId, sourceId);
+
+            // a source that has never been processed has no status saved
+            var dto = new PhotoSourceProgressDto
+            {
+                Status = Enum.Parse<UserPhotoSourceStatusDto>((status?.Status ?? PhotoSourceStatus.NotStarted).ToString()),
+                TotalCount = status?.TotalCount ?? 0,
+                ProcessedCount = status?.ProcessedCount ?? 0,
+                FailedCount = status?.FailedCount ?? 0,
+                LastUpdatedAt = status?.LastUpdatedAt?.UtcDateTime.ToString("o")
+            };
+
+            return Ok(dto);
+        }
+
+        /// <summary>
         /// The files of the photo source that could not be downloaded or processed, in the order they first failed.
         /// The RetryFailed command downloads them again.
         /// </summary>
