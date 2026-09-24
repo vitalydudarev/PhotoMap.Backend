@@ -4,6 +4,6 @@ namespace PhotoMap.Api
     {
         public int UserId { get; set; }
 
-        public string Name { get; set; }
+        public string Name { get; set; } = null!;
     }
 }

@@ -66,8 +66,10 @@ public class PhotoProvider : IPhotoProvider
         if (photo != null)
         {
             var filePath = size == "small" ? photo.ThumbnailSmallFilePath : photo.ThumbnailLargeFilePath;
-
-            return await _fileStorage.GetAsync(filePath);
+            if (filePath != null)
+            {
+                return await _fileStorage.GetAsync(filePath);
+            }
         }
 
         return null;

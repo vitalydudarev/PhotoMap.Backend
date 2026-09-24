@@ -6,5 +6,5 @@ public class ImageConvertedEvent : EventBase
 {
     public Guid Id { get; set; }
 
-    public byte[] FileContents { get; set; }
+    public byte[] FileContents { get; set; } = null!;
 }

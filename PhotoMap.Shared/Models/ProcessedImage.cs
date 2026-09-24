@@ -3,12 +3,12 @@ namespace PhotoMap.Shared.Models;
 public class ProcessedImage
 {
     public string FileName { get; set; } = null!;
-    public string FileUrl { get; set; }
+    public string FileUrl { get; set; } = null!;
     public long UserId { get; set; }
     public long PhotoSourceId { get; set; }
     public string PhotoSourceName { get; set; } = null!;
-    public string RelativeFilePath { get; set; }
-    public string Path { get; set; }
+    public string RelativeFilePath { get; set; } = null!;
+    public string Path { get; set; } = null!;
     public string? ExternalId { get; set; }
     public string ContentHash { get; set; } = null!;
     public DateTime? FileCreatedOn { get; set; }

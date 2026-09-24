@@ -33,7 +33,7 @@ namespace PhotoMap.Shared.Yandex.Disk
         public async Task<Resource> GetResourceAsync(string path, CancellationToken cancellationToken, int offset = 0, int limit = 20,
             string? sort = null)
         {
-            var parameters = new Dictionary<string, string>
+            var parameters = new Dictionary<string, string?>
             {
                 { nameof(path), path },
                 { nameof(offset), offset.ToString() },
@@ -48,7 +48,7 @@ namespace PhotoMap.Shared.Yandex.Disk
 
         public async Task<DownloadUrl> GetDownloadUrlAsync(string path, CancellationToken cancellationToken)
         {
-            var parameters = new Dictionary<string, string>
+            var parameters = new Dictionary<string, string?>
             {
                 { nameof(path), path }
             };
@@ -70,9 +70,9 @@ namespace PhotoMap.Shared.Yandex.Disk
             return await responseMessage.Content.ReadAsByteArrayAsync(cancellationToken);
         }
 
-        public async Task<FilesResourceList> GetFlatFilesListAsync(CancellationToken cancellationToken, string mediaType = null, int limit = 20)
+        public async Task<FilesResourceList> GetFlatFilesListAsync(CancellationToken cancellationToken, string? mediaType = null, int limit = 20)
         {
-            var parameters = new Dictionary<string, string>
+            var parameters = new Dictionary<string, string?>
             {
                 { nameof(mediaType), mediaType },
                 { nameof(limit), limit.ToString() }
@@ -105,7 +105,8 @@ namespace PhotoMap.Shared.Yandex.Disk
 
             await using var responseStream = await responseMessage.Content.ReadAsStreamAsync(cancellationToken);
 
-            return await JsonSerializer.DeserializeAsync<T>(responseStream, _jsonSerializerOptions, cancellationToken);
+            return await JsonSerializer.DeserializeAsync<T>(responseStream, _jsonSerializerOptions, cancellationToken)
+                   ?? throw new JsonException($"The response of {url} is empty.");
         }
 
         private async Task<ApiException> CreateApiExceptionAsync(HttpResponseMessage responseMessage, CancellationToken cancellationToken)

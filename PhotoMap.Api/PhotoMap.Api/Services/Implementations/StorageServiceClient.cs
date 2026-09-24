@@ -34,7 +34,8 @@ namespace PhotoMap.Api.Services.Implementations
             var responseMessage = await _httpClient.GetAsync(url);
             var serialized = await responseMessage.Content.ReadAsStringAsync();
 
-            return JsonConvert.DeserializeObject<FileInfo>(serialized);
+            return JsonConvert.DeserializeObject<FileInfo>(serialized)
+                   ?? throw new JsonSerializationException($"The response of {url} is empty.");
         }
 
         public async Task DeleteFileAsync(long fileId)

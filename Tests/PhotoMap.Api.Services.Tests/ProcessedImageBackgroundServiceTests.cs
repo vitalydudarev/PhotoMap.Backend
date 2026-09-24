@@ -97,10 +97,10 @@ public class ProcessedImageBackgroundServiceTests
 
         // Assert
         Assert.Equal(["id:0", "id:2"], _savedBatches.Select(a => Assert.Single(a).ExternalId));
-        Assert.True(images[0].Processed!.Task.Result.Succeeded);
-        Assert.False(images[1].Processed!.Task.Result.Succeeded);
-        Assert.Contains("Duplicate key", images[1].Processed!.Task.Result.Error);
-        Assert.True(images[2].Processed!.Task.Result.Succeeded);
+        Assert.True((await images[0].Processed!.Task).Succeeded);
+        Assert.False((await images[1].Processed!.Task).Succeeded);
+        Assert.Contains("Duplicate key", (await images[1].Processed!.Task).Error);
+        Assert.True((await images[2].Processed!.Task).Succeeded);
     }
 
     /// <summary>

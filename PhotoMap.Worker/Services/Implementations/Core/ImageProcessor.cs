@@ -74,7 +74,12 @@ namespace PhotoMap.Worker.Services.Implementations.Core
 
         public void Rotate()
         {
-            _bitmap = RotateBitmap();
+            if (_bitmap == null)
+            {
+                return;
+            }
+
+            _bitmap = RotateBitmap(_bitmap);
             _image = SKImage.FromBitmap(_bitmap).Subset(SKRectI.Create(0, 0, _bitmap.Width, _bitmap.Height));
         }
 
@@ -104,14 +109,14 @@ namespace PhotoMap.Worker.Services.Implementations.Core
             }
         }
 
-        private SKBitmap? RotateBitmap()
+        private SKBitmap RotateBitmap(SKBitmap bitmap)
         {
             var orientation = _codec.EncodedOrigin;
 
-            var bitmapOptions = GetBitmapOptions(orientation);
+            var bitmapOptions = GetBitmapOptions(bitmap, orientation);
             if (bitmapOptions == null)
             {
-                return _bitmap;
+                return bitmap;
             }
 
             var rotated = new SKBitmap(bitmapOptions.Width, bitmapOptions.Height);
@@ -120,15 +125,15 @@ namespace PhotoMap.Worker.Services.Implementations.Core
             
             canvas.Translate(bitmapOptions.Dx, bitmapOptions.Dy);
             canvas.RotateDegrees(bitmapOptions.Degrees);
-            canvas.DrawBitmap(_bitmap, 0, 0);
+            canvas.DrawBitmap(bitmap, 0, 0, SKSamplingOptions.Default);
 
             return rotated;
         }
 
-        private BitmapOptions? GetBitmapOptions(SKEncodedOrigin orientation)
+        private static BitmapOptions? GetBitmapOptions(SKBitmap bitmap, SKEncodedOrigin orientation)
         {
-            var width = _bitmap.Width;
-            var height = _bitmap.Height;
+            var width = bitmap.Width;
+            var height = bitmap.Height;
             
             return orientation switch
             {

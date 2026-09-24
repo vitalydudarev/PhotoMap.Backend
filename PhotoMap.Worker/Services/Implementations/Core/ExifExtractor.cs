@@ -166,7 +166,7 @@ namespace PhotoMap.Worker.Services.Implementations.Core
             return ParseDateTime(dateTimeStr, dateTimeStyles);
         }
 
-        private static DateTime? ParseDateTime(string dateTimeStr, DateTimeStyles dateTimeStyles)
+        private static DateTime? ParseDateTime(string? dateTimeStr, DateTimeStyles dateTimeStyles)
         {
             const string dateTimeFormat1 = "yyyy:MM:dd HH:mm:ssZ";
             const string dateTimeFormat2 = "yyyy:MM:dd HH:mm:ss";

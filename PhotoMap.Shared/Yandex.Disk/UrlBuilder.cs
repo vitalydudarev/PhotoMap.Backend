@@ -12,7 +12,7 @@ namespace PhotoMap.Shared.Yandex.Disk
             _namingConvention = namingConvention;
         }
             
-        public string Build(string baseUrl, string path, Dictionary<string, string> parameters)
+        public string Build(string baseUrl, string path, Dictionary<string, string?> parameters)
         {
             string query = "";
 

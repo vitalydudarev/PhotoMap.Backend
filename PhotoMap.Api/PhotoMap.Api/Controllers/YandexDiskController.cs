@@ -41,7 +41,7 @@ namespace PhotoMap.Api.Controllers
         {
             // TODO: do this as en endpoint of worker
             var photo = await _photoService.GetAsync(id);
-            if (photo == null)
+            if (photo?.Path == null)
             {
                 return NotFound();
             }
