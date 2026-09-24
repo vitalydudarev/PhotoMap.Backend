@@ -1,7 +1,9 @@
+using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
 using PhotoMap.Api.Domain.Models;
 using PhotoMap.Api.Domain.Services;
 using PhotoMap.Api.DTOs;
@@ -12,6 +14,11 @@ namespace PhotoMap.Api.Controllers
     [Route("api/users")]
     public class UsersController : ControllerBase
     {
+        /// <summary>
+        /// The most photos a page holds: the largest page the gallery offers, and the page the map loads by.
+        /// </summary>
+        private const int MaxPageSize = 1000;
+
         private readonly IPhotoService _photoService;
         private readonly IUserService _dbUserService;
         private readonly HostInfo _hostInfo;
@@ -39,10 +46,16 @@ namespace PhotoMap.Api.Controllers
         /// <summary>
         /// The photos of the user, by the date they were taken, oldest first unless asked for the other way round.
         /// </summary>
-        [HttpGet("{id}/photos")]
+        /// <param name="id">The ID of the user.</param>
+        /// <param name="top">How many photos to return, 1 to 1000. Required.</param>
+        /// <param name="skip">How many photos to skip, 0 or more, 0 when not given.</param>
+        /// <param name="sort">The order of the photos by the date they were taken.</param>
+        [HttpGet("{id:long}/photos")]
         [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(PagedResponse<PhotoDto>))]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
-        public async Task<IActionResult> GetUserPhotos([FromRoute] int id, [FromQuery] int top, [FromQuery] int skip,
+        public async Task<IActionResult> GetUserPhotos([FromRoute] long id,
+            [FromQuery, BindRequired, Range(1, MaxPageSize)] int top,
+            [FromQuery, Range(0, int.MaxValue)] int skip,
             [FromQuery] PhotoSortOrder sort = PhotoSortOrder.Asc)
         {
             var userPhotos = await _photoService.GetByUserIdAsync(id, top, skip, sort);
