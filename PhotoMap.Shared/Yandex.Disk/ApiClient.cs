@@ -28,13 +28,17 @@ namespace PhotoMap.Shared.Yandex.Disk
             return await GetAsync<Models.Disk>(Url, cancellationToken);
         }
 
-        public async Task<Resource> GetResourceAsync(string path, CancellationToken cancellationToken, int offset = 0, int limit = 20)
+        /// <param name="sort">The field the embedded resources of a folder are sorted by (name, path, created,
+        /// modified or size, "-" before it for descending order), by name when null.</param>
+        public async Task<Resource> GetResourceAsync(string path, CancellationToken cancellationToken, int offset = 0, int limit = 20,
+            string? sort = null)
         {
             var parameters = new Dictionary<string, string>
             {
                 { nameof(path), path },
                 { nameof(offset), offset.ToString() },
-                { nameof(limit), limit.ToString() }
+                { nameof(limit), limit.ToString() },
+                { nameof(sort), sort }
             };
 
             var url = _urlBuilder.Build(Url, "resources", parameters);
@@ -52,6 +56,18 @@ namespace PhotoMap.Shared.Yandex.Disk
             var url = _urlBuilder.Build(Url, "resources/download", parameters);
 
             return await GetAsync<DownloadUrl>(url, cancellationToken);
+        }
+
+        public async Task<byte[]> DownloadFileAsync(string path, CancellationToken cancellationToken)
+        {
+            var downloadUrl = await GetDownloadUrlAsync(path, cancellationToken);
+
+            using var responseMessage = await _httpClient.GetAsync(downloadUrl.Href, cancellationToken);
+
+            if (!responseMessage.IsSuccessStatusCode)
+                throw await CreateApiExceptionAsync(responseMessage, cancellationToken);
+
+            return await responseMessage.Content.ReadAsByteArrayAsync(cancellationToken);
         }
 
         public async Task<FilesResourceList> GetFlatFilesListAsync(CancellationToken cancellationToken, string mediaType = null, int limit = 20)
@@ -82,15 +98,35 @@ namespace PhotoMap.Shared.Yandex.Disk
 
         private async Task<T> GetAsync<T>(string url, CancellationToken cancellationToken)
         {
-            var responseMessage = await _httpClient.GetAsync(url, cancellationToken);
-            var responseStream = await responseMessage.Content.ReadAsStreamAsync();
+            using var responseMessage = await _httpClient.GetAsync(url, cancellationToken);
 
-            if (responseMessage.StatusCode == HttpStatusCode.OK)
-                return await JsonSerializer.DeserializeAsync<T>(responseStream, _jsonSerializerOptions, cancellationToken);
+            if (responseMessage.StatusCode != HttpStatusCode.OK)
+                throw await CreateApiExceptionAsync(responseMessage, cancellationToken);
 
-            var error = await JsonSerializer.DeserializeAsync<ApiError>(responseStream, _jsonSerializerOptions, cancellationToken);
+            await using var responseStream = await responseMessage.Content.ReadAsStreamAsync(cancellationToken);
 
-            throw new ApiException(error);
+            return await JsonSerializer.DeserializeAsync<T>(responseStream, _jsonSerializerOptions, cancellationToken);
+        }
+
+        private async Task<ApiException> CreateApiExceptionAsync(HttpResponseMessage responseMessage, CancellationToken cancellationToken)
+        {
+            var retryAfter = responseMessage.Headers.RetryAfter?.Delta;
+            var content = await responseMessage.Content.ReadAsStringAsync(cancellationToken);
+
+            ApiError? error = null;
+
+            try
+            {
+                error = JsonSerializer.Deserialize<ApiError>(content, _jsonSerializerOptions);
+            }
+            catch (JsonException)
+            {
+                // not every error comes with a JSON body, e.g. the ones of the download server
+            }
+
+            error ??= new ApiError { Error = responseMessage.StatusCode.ToString(), Description = responseMessage.ReasonPhrase };
+
+            return new ApiException(error, responseMessage.StatusCode, retryAfter);
         }
     }
 }

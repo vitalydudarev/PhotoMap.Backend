@@ -39,13 +39,13 @@ public class PhotoProviderTests
         Assert.Equal("photo.png", photoFile.FileName);
         Assert.Equal("image/png", photoFile.ContentType);
 
-        downloadService.Verify(a => a.DownloadFileAsync(photo.ExternalId!, It.IsAny<CancellationToken>()));
+        downloadService.Verify(a => a.DownloadFileAsync(photo.ExternalId, photo.Path, It.IsAny<CancellationToken>()));
         downloadServiceFactory.Verify(a => a.GetService(photoSource,
             It.Is<DownloadServiceParameters>(b => b.UserId == UserId && b.SourceId == PhotoSourceId)));
     }
 
     [Fact]
-    public async Task GetPhotoAsync_ShouldUsePath_WhenPhotoHasNoExternalId()
+    public async Task GetPhotoAsync_ShouldPassPath_WhenPhotoHasNoExternalId()
     {
         // Arrange
         var photo = CreatePhoto(externalId: null, path: "/Camera Uploads/photo.png");
@@ -61,7 +61,7 @@ public class PhotoProviderTests
         await photoProvider.GetPhotoAsync(PhotoId, CancellationToken.None);
 
         // Assert
-        downloadService.Verify(a => a.DownloadFileAsync(photo.Path!, It.IsAny<CancellationToken>()));
+        downloadService.Verify(a => a.DownloadFileAsync(null, photo.Path, It.IsAny<CancellationToken>()));
     }
 
     [Fact]
@@ -126,7 +126,7 @@ public class PhotoProviderTests
     {
         var downloadService = new Mock<IDownloadService>();
         downloadService
-            .Setup(a => a.DownloadFileAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Setup(a => a.DownloadFileAsync(It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(FileContents);
 
         return downloadService;

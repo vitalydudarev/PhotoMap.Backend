@@ -81,6 +81,9 @@ namespace PhotoMap.Api
             
             // dropbox services
             services.AddScoped<IDropboxDownloadStateService, DropboxDownloadStateService>();
+
+            // yandex disk services
+            services.AddScoped<IYandexDiskDownloadStateService, YandexDiskDownloadStateService>();
             
             // common
             services.AddSingleton<IProgressReporter, ProgressReporter>();

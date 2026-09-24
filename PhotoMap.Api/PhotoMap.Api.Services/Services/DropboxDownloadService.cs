@@ -91,8 +91,12 @@ public sealed class DropboxDownloadService : IDownloadService
         }
     }
 
-    public async Task<byte[]> DownloadFileAsync(string fileReference, CancellationToken cancellationToken)
+    public async Task<byte[]> DownloadFileAsync(string? externalId, string? path, CancellationToken cancellationToken)
     {
+        // the file ID stays the same when the file is moved or renamed, the path doesn't
+        var fileReference = externalId ?? path
+            ?? throw new ArgumentException("Either the file ID or the path of the file must be given.", nameof(path));
+
         CreateDropboxClient();
 
         _logger.LogInformation("Started downloading {FileReference}", fileReference);

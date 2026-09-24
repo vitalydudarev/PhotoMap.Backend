@@ -44,8 +44,7 @@ public class PhotoProvider : IPhotoProvider
         }
 
         // photos saved before the sources started reporting file IDs are only identified by their path
-        var fileReference = photo.ExternalId ?? photo.Path;
-        if (string.IsNullOrEmpty(fileReference))
+        if (string.IsNullOrEmpty(photo.ExternalId) && string.IsNullOrEmpty(photo.Path))
         {
             throw new NotFoundException($"Photo with ID {id} has no reference to the file in its photo source.");
         }
@@ -56,7 +55,7 @@ public class PhotoProvider : IPhotoProvider
         await using var downloadService = _downloadServiceFactory.GetService(photoSource,
             CreateDownloadServiceParameters(photo, photoSource, authResult));
 
-        var fileContents = await downloadService.DownloadFileAsync(fileReference, cancellationToken);
+        var fileContents = await downloadService.DownloadFileAsync(photo.ExternalId, photo.Path, cancellationToken);
 
         return new PhotoFile(fileContents, photo.FileName, SupportedImageFormats.GetContentType(photo.FileName));
     }
