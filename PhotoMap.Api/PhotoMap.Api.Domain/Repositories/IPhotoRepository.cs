@@ -12,5 +12,4 @@ public interface IPhotoRepository
 
     /// <returns>The thumbnail files of the deleted photos.</returns>
     Task<IReadOnlyCollection<string>> DeleteByPhotoSourceAsync(long userId, long photoSourceId);
-    Task DeleteAllAsync();
 }

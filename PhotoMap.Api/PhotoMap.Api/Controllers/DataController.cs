@@ -1,6 +1,7 @@
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using PhotoMap.Api.Domain.Services;
+using PhotoMap.Api.Services;
 
 namespace PhotoMap.Api.Controllers
 {
@@ -8,17 +9,27 @@ namespace PhotoMap.Api.Controllers
     [Route("api/data")]
     public class DataController : ControllerBase
     {
-        private readonly IPhotoService _photoService;
+        private readonly IPhotoSourceDataService _photoSourceDataService;
 
-        public DataController(IPhotoService photoService)
+        public DataController(IPhotoSourceDataService photoSourceDataService)
         {
-            _photoService = photoService;
+            _photoSourceDataService = photoSourceDataService;
         }
 
+        /// <summary>
+        /// Deletes the data of every photo source of every user: the photos, their thumbnails and the processing
+        /// status and state of the sources. The users stay authorized in them.
+        /// </summary>
         [HttpDelete]
+        [ProducesResponseType(StatusCodes.Status204NoContent)]
+        [ProducesResponseType(StatusCodes.Status409Conflict)]
         public async Task<IActionResult> DeleteAllDataAsync()
         {
-            await _photoService.DeleteAllAsync();
+            var deleted = await _photoSourceDataService.DeleteAllDataAsync();
+            if (!deleted)
+            {
+                return Conflict("Processing of a photo source is running.");
+            }
 
             return NoContent();
         }

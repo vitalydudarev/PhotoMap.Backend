@@ -40,6 +40,15 @@ public class UserPhotoSourceService : IUserPhotoSourceService
         });
     }
     
+    public async Task<IReadOnlyCollection<(long UserId, long PhotoSourceId)>> GetAllUserPhotoSourceIdsAsync()
+    {
+        var ids = await _context.UserPhotoSources
+            .Select(a => new { a.UserId, a.PhotoSourceId })
+            .ToListAsync();
+
+        return ids.Select(a => (a.UserId, a.PhotoSourceId)).ToList();
+    }
+
     public async Task<UserAuthResult?> GetAuthResultAsync(long userId, long photoSourceId)
     {
         var userPhotoSource = await _context.UserPhotoSources

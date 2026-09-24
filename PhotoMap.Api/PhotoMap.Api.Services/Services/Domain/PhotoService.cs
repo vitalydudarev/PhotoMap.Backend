@@ -42,10 +42,5 @@ namespace PhotoMap.Api.Services.Services.Domain
         {
             return _photoRepository.DeleteByPhotoSourceAsync(userId, photoSourceId);
         }
-
-        public async Task DeleteAllAsync()
-        {
-            await _photoRepository.DeleteAllAsync();
-        }
     }
 }

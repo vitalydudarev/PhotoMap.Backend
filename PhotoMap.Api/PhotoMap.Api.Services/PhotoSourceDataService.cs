@@ -46,6 +46,31 @@ public class PhotoSourceDataService : IPhotoSourceDataService
             return false;
         }
 
+        await DeleteSourceDataAsync(userId, sourceId);
+
+        return true;
+    }
+
+    public async Task<bool> DeleteAllDataAsync()
+    {
+        var userPhotoSources = await _userPhotoSourceService.GetAllUserPhotoSourceIdsAsync();
+
+        // checked for all of them first, so that the data is deleted all or not at all
+        if (userPhotoSources.Any(a => _photoSourceProcessingService.IsRunning(a.UserId, a.PhotoSourceId)))
+        {
+            return false;
+        }
+
+        foreach (var (userId, sourceId) in userPhotoSources)
+        {
+            await DeleteSourceDataAsync(userId, sourceId);
+        }
+
+        return true;
+    }
+
+    private async Task DeleteSourceDataAsync(long userId, long sourceId)
+    {
         var thumbnailPaths = await _photoService.DeleteByPhotoSourceAsync(userId, sourceId);
 
         foreach (var thumbnailPath in thumbnailPaths)
@@ -60,8 +85,6 @@ public class PhotoSourceDataService : IPhotoSourceDataService
         _logger.LogInformation("Deleted the data of photo source {SourceId} of user {UserId}", sourceId, userId);
 
         await NotifyDataDeletedAsync(userId, sourceId);
-
-        return true;
     }
 
     /// <summary>

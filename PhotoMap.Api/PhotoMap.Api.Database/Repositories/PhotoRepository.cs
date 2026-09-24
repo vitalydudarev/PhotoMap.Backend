@@ -91,14 +91,6 @@ public class PhotoRepository : IPhotoRepository
             .ToList();
     }
 
-    public async Task DeleteAllAsync()
-    {
-        var entities = await _context.Photos.ToListAsync();
-        _context.Photos.RemoveRange(entities);
-
-        await _context.SaveChangesAsync();
-    }
-
     private static Photo EntityToModel(PhotoEntity photoEntity)
     {
         return new Photo

@@ -9,6 +9,7 @@ public class PhotoSourceDataServiceTests
 {
     private const long UserId = 1;
     private const long SourceId = 1;
+    private const long OtherSourceId = 2;
 
     private readonly Mock<IPhotoService> _photoService = new();
     private readonly Mock<IUserPhotoSourceService> _userPhotoSourceService = new();
@@ -22,6 +23,9 @@ public class PhotoSourceDataServiceTests
         _photoService
             .Setup(a => a.DeleteByPhotoSourceAsync(UserId, SourceId))
             .ReturnsAsync(["Dropbox/1/thumbs/photo_256.jpg", "Dropbox/1/thumbs/photo_640.jpg"]);
+        _photoService
+            .Setup(a => a.DeleteByPhotoSourceAsync(UserId, OtherSourceId))
+            .ReturnsAsync(["Yandex.Disk/1/thumbs/photo_256.jpg"]);
     }
 
     [Fact]
@@ -99,6 +103,56 @@ public class PhotoSourceDataServiceTests
 
         _fileStorage.Verify(a => a.Delete("Dropbox/1/thumbs/photo_640.jpg"));
         _userPhotoSourceService.Verify(a => a.DeleteUserPhotoStatusAsync(UserId, SourceId));
+    }
+
+    [Fact]
+    public async Task DeleteAllDataAsync_ShouldDeleteTheDataOfEverySource()
+    {
+        // Arrange
+        _userPhotoSourceService
+            .Setup(a => a.GetAllUserPhotoSourceIdsAsync())
+            .ReturnsAsync([(UserId, SourceId), (UserId, OtherSourceId)]);
+
+        var service = CreateService();
+
+        // Act
+        var deleted = await service.DeleteAllDataAsync();
+
+        // Assert
+        Assert.True(deleted);
+
+        foreach (var sourceId in new[] { SourceId, OtherSourceId })
+        {
+            _photoService.Verify(a => a.DeleteByPhotoSourceAsync(UserId, sourceId));
+            _userPhotoSourceService.Verify(a => a.DeleteUserPhotoStatusAsync(UserId, sourceId));
+            _userPhotoSourceService.Verify(a => a.UpdateUserPhotoStateAsync(UserId, sourceId, null));
+            _failedFileService.Verify(a => a.DeleteByPhotoSourceAsync(UserId, sourceId));
+        }
+
+        _fileStorage.Verify(a => a.Delete("Dropbox/1/thumbs/photo_256.jpg"));
+        _fileStorage.Verify(a => a.Delete("Yandex.Disk/1/thumbs/photo_256.jpg"));
+    }
+
+    [Fact]
+    public async Task DeleteAllDataAsync_ShouldDeleteNothing_WhileAnySourceIsBeingProcessed()
+    {
+        // Arrange
+        _userPhotoSourceService
+            .Setup(a => a.GetAllUserPhotoSourceIdsAsync())
+            .ReturnsAsync([(UserId, SourceId), (UserId, OtherSourceId)]);
+        _processingService.Setup(a => a.IsRunning(UserId, OtherSourceId)).Returns(true);
+
+        var service = CreateService();
+
+        // Act
+        var deleted = await service.DeleteAllDataAsync();
+
+        // Assert: not even the source listed before the running one
+        Assert.False(deleted);
+
+        _photoService.VerifyNoOtherCalls();
+        _failedFileService.VerifyNoOtherCalls();
+        _fileStorage.VerifyNoOtherCalls();
     }
 
     private PhotoSourceDataService CreateService()
