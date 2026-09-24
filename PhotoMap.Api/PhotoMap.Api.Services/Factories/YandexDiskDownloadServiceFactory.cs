@@ -11,14 +11,14 @@ namespace PhotoMap.Api.Services.Factories;
 public class YandexDiskDownloadServiceFactory : IDownloadServiceFactory
 {
     private readonly ILogger<YandexDiskDownloadService> _logger;
-    private readonly IYandexDiskDownloadStateService _downloadStateService;
+    private readonly IDownloadStateService<YandexDiskDownloadState> _downloadStateService;
     private readonly IPhotoService _photoService;
     private readonly IFailedFileService _failedFileService;
     private readonly IHttpClientFactory _httpClientFactory;
 
     public YandexDiskDownloadServiceFactory(
         ILogger<YandexDiskDownloadService> logger,
-        IYandexDiskDownloadStateService downloadStateService,
+        IDownloadStateService<YandexDiskDownloadState> downloadStateService,
         IPhotoService photoService,
         IFailedFileService failedFileService,
         IHttpClientFactory httpClientFactory)

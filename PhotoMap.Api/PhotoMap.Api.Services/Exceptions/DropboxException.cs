@@ -1,15 +1,8 @@
-namespace PhotoMap.Api.Services.Exceptions
-{
-    public class DropboxException : Exception
-    {
-        public DropboxException(string message, bool isAuthError = false) : base(message)
-        {
-            IsAuthError = isAuthError;
-        }
+namespace PhotoMap.Api.Services.Exceptions;
 
-        /// <summary>
-        /// The access token is expired or invalid, every further API call fails as well.
-        /// </summary>
-        public bool IsAuthError { get; }
+public class DropboxException : PhotoSourceException
+{
+    public DropboxException(string message, bool isAuthError = false) : base(message, isAuthError)
+    {
     }
 }

@@ -51,10 +51,9 @@ namespace PhotoMap.Api.Middlewares
             {
                 NotFoundException => (StatusCodes.Status404NotFound, exception.Message),
                 NotAuthorizedException => (StatusCodes.Status401Unauthorized, exception.Message),
-                DropboxException { IsAuthError: true } or YandexDiskException { IsAuthError: true } =>
-                    (StatusCodes.Status401Unauthorized, exception.Message),
+                PhotoSourceException { IsAuthError: true } => (StatusCodes.Status401Unauthorized, exception.Message),
                 // the photo source failed to answer, not this application
-                DropboxException or YandexDiskException => (StatusCodes.Status502BadGateway, exception.Message),
+                PhotoSourceException => (StatusCodes.Status502BadGateway, exception.Message),
                 _ => (StatusCodes.Status500InternalServerError, "An unexpected error has occurred.")
             };
 

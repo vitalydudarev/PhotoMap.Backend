@@ -3,16 +3,19 @@ using PhotoMap.Api.Domain.Services;
 
 namespace PhotoMap.Api.Services.Services;
 
-public class DropboxDownloadStateService : IDropboxDownloadStateService
+/// <summary>
+/// Keeps the state serialized to JSON with the photo source of the user.
+/// </summary>
+public class DownloadStateService<TState> : IDownloadStateService<TState> where TState : class
 {
     private readonly IUserPhotoSourceService _userPhotoSourceService;
 
-    public DropboxDownloadStateService(IUserPhotoSourceService userPhotoSourceService)
+    public DownloadStateService(IUserPhotoSourceService userPhotoSourceService)
     {
         _userPhotoSourceService = userPhotoSourceService;
     }
 
-    public async Task<DropboxDownloadState?> GetStateAsync(long userId, long sourceId)
+    public async Task<TState?> GetStateAsync(long userId, long sourceId)
     {
         var sourceState = await _userPhotoSourceService.GetUserPhotoStateAsync(userId, sourceId);
         if (sourceState?.State == null)
@@ -20,10 +23,10 @@ public class DropboxDownloadStateService : IDropboxDownloadStateService
             return null;
         }
 
-        return JsonSerializer.Deserialize<DropboxDownloadState>(sourceState.State);
+        return JsonSerializer.Deserialize<TState>(sourceState.State);
     }
 
-    public Task SaveStateAsync(long userId, long sourceId, DropboxDownloadState state)
+    public Task SaveStateAsync(long userId, long sourceId, TState state)
     {
         var stateString = JsonSerializer.Serialize(state);
 

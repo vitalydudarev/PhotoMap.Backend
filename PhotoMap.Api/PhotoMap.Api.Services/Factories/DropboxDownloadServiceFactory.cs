@@ -11,14 +11,14 @@ namespace PhotoMap.Api.Services.Factories;
 public class DropboxDownloadServiceFactory : IDownloadServiceFactory
 {
     private readonly ILogger<DropboxDownloadService> _logger;
-    private readonly IDropboxDownloadStateService _downloadStateService;
+    private readonly IDownloadStateService<DropboxDownloadState> _downloadStateService;
     private readonly IPhotoService _photoService;
     private readonly IFailedFileService _failedFileService;
     private readonly IHttpClientFactory _httpClientFactory;
 
     public DropboxDownloadServiceFactory(
         ILogger<DropboxDownloadService> logger,
-        IDropboxDownloadStateService downloadStateService,
+        IDownloadStateService<DropboxDownloadState> downloadStateService,
         IPhotoService photoService,
         IFailedFileService failedFileService,
         IHttpClientFactory httpClientFactory)

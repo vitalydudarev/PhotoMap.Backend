@@ -17,7 +17,7 @@ public class YandexDiskDownloadServiceTests
     private const long SourceId = 2;
     private const int FileCount = 5;
 
-    private readonly Mock<IYandexDiskDownloadStateService> _stateService = new();
+    private readonly Mock<IDownloadStateService<YandexDiskDownloadState>> _stateService = new();
     private readonly List<int> _savedOffsets = [];
 
     public YandexDiskDownloadServiceTests()

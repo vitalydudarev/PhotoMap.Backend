@@ -84,11 +84,8 @@ namespace PhotoMap.Api
             // database context
             services.AddDbContext<PhotoMapContext>();
             
-            // dropbox services
-            services.AddScoped<IDropboxDownloadStateService, DropboxDownloadStateService>();
-
-            // yandex disk services
-            services.AddScoped<IYandexDiskDownloadStateService, YandexDiskDownloadStateService>();
+            // the state photo source runs resume from
+            services.AddScoped(typeof(IDownloadStateService<>), typeof(DownloadStateService<>));
             
             // common
             services.AddSingleton<BackgroundTaskManager>();

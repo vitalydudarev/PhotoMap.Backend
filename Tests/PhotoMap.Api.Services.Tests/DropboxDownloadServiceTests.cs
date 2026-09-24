@@ -14,7 +14,7 @@ public class DropboxDownloadServiceTests
         var apiToken = "sl.BfTz67hm63XYPQFMxPWCX4mKwu63hq_XWQa52aFcT3lgGIf1Fp-RQ96qX8juHRrsL7sON5K6DuOvAqZTAdy1sx16Q2GbrKUJQjCupS-R3p5Ph96dybY3fAutNSgE7Aj4w7wbLvg";
         var authResult = new UserAuthResult { Token = apiToken, TokenExpiresOn = DateTimeOffset.UtcNow.AddHours(1) };
 
-        var stateService = new Mock<IDropboxDownloadStateService>();
+        var stateService = new Mock<IDownloadStateService<DropboxDownloadState>>();
         stateService.Setup(a => a.GetStateAsync(It.IsAny<long>(), It.IsAny<long>())).ReturnsAsync((DropboxDownloadState?)null);
 
         var httpClientFactory = new Mock<IHttpClientFactory>();

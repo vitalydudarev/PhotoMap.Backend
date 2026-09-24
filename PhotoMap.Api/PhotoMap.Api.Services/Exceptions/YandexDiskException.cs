@@ -1,14 +1,8 @@
 namespace PhotoMap.Api.Services.Exceptions;
 
-public class YandexDiskException : Exception
+public class YandexDiskException : PhotoSourceException
 {
-    public YandexDiskException(string message, bool isAuthError = false) : base(message)
+    public YandexDiskException(string message, bool isAuthError = false) : base(message, isAuthError)
     {
-        IsAuthError = isAuthError;
     }
-
-    /// <summary>
-    /// The access token is expired or invalid, every further API call fails as well.
-    /// </summary>
-    public bool IsAuthError { get; }
 }
