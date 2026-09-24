@@ -182,10 +182,10 @@ namespace PhotoMap.Api.Services
                 var thumbLarge = thumbs.Last();
 
                 thumbnailSmallFilePath = await imageStore.SaveThumbnailAsync(thumbSmall.Value, processedImage.FileName,
-                    userName, processedImage.PhotoSourceName, thumbSmall.Key);
+                    processedImage.ExternalId, userName, processedImage.PhotoSourceName, thumbSmall.Key);
 
                 thumbnailLargeFilePath = await imageStore.SaveThumbnailAsync(thumbLarge.Value, processedImage.FileName,
-                    userName, processedImage.PhotoSourceName, thumbLarge.Key);
+                    processedImage.ExternalId, userName, processedImage.PhotoSourceName, thumbLarge.Key);
             }
 
             return new Photo

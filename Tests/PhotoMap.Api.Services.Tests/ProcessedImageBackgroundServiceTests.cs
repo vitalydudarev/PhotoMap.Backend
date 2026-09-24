@@ -132,8 +132,8 @@ public class ProcessedImageBackgroundServiceTests
     {
         var imageStore = new Mock<IImageStore>();
         imageStore
-            .Setup(a => a.SaveThumbnailAsync(It.IsAny<byte[]>(), It.IsAny<string>(), It.IsAny<string>(),
-                It.IsAny<string>(), It.IsAny<int>()))
+            .Setup(a => a.SaveThumbnailAsync(It.IsAny<byte[]>(), It.IsAny<string>(), It.IsAny<string?>(),
+                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>()))
             .ReturnsAsync("thumb.jpg");
 
         var serviceProvider = new Mock<IServiceProvider>();
