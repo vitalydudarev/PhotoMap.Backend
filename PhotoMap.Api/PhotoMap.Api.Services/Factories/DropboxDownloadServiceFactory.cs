@@ -12,7 +12,6 @@ public class DropboxDownloadServiceFactory : IDownloadServiceFactory
 {
     private readonly ILogger<DropboxDownloadService> _logger;
     private readonly IDropboxDownloadStateService _downloadStateService;
-    private readonly IProgressReporter _progressReporter;
     private readonly IPhotoService _photoService;
     private readonly IFailedFileService _failedFileService;
     private readonly IHttpClientFactory _httpClientFactory;
@@ -20,14 +19,12 @@ public class DropboxDownloadServiceFactory : IDownloadServiceFactory
     public DropboxDownloadServiceFactory(
         ILogger<DropboxDownloadService> logger,
         IDropboxDownloadStateService downloadStateService,
-        IProgressReporter progressReporter,
         IPhotoService photoService,
         IFailedFileService failedFileService,
         IHttpClientFactory httpClientFactory)
     {
         _logger = logger;
         _downloadStateService = downloadStateService;
-        _progressReporter = progressReporter;
         _photoService = photoService;
         _failedFileService = failedFileService;
         _httpClientFactory = httpClientFactory;
@@ -41,7 +38,7 @@ public class DropboxDownloadServiceFactory : IDownloadServiceFactory
             throw new Exception("Unable to deserialize settings");
         }
 
-        return new DropboxDownloadService(_logger, _downloadStateService, _progressReporter, _photoService,
+        return new DropboxDownloadService(_logger, _downloadStateService, _photoService,
             _failedFileService, _httpClientFactory, settings, parameters);
     }
 }

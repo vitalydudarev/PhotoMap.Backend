@@ -13,11 +13,6 @@ namespace PhotoMap.Api.Services.Services.Domain
             _photoRepository = photoRepository;
         }
 
-        public async Task AddAsync(Photo photo)
-        {
-            await _photoRepository.AddAsync(photo);
-        }
-
         public Task AddRangeAsync(IReadOnlyCollection<Photo> photos)
         {
             return _photoRepository.AddRangeAsync(photos);
@@ -26,16 +21,6 @@ namespace PhotoMap.Api.Services.Services.Domain
         public Task<Photo?> GetAsync(long id)
         {
             return _photoRepository.GetAsync(id);
-        }
-
-        public Task<Photo?> GetByFileNameAsync(string fileName)
-        {
-            return _photoRepository.GetByFileNameAsync(fileName);
-        }
-
-        public Task<bool> ExistsAsync(long userId, long photoSourceId, string externalId)
-        {
-            return _photoRepository.ExistsAsync(userId, photoSourceId, externalId);
         }
 
         public Task<IReadOnlySet<string>> GetSavedExternalIdsAsync(long userId, long photoSourceId, IEnumerable<string> externalIds)
@@ -51,11 +36,6 @@ namespace PhotoMap.Api.Services.Services.Domain
         public Task<int> GetTotalCountByUserIdAsync(long userId)
         {
             return _photoRepository.GetTotalCountByUserIdAsync(userId);
-        }
-
-        public async Task DeleteByUserId(long userId)
-        {
-            await _photoRepository.DeleteByUserIdAsync(userId);
         }
 
         public Task<IReadOnlyCollection<string>> DeleteByPhotoSourceAsync(long userId, long photoSourceId)

@@ -20,7 +20,7 @@ public class DropboxDownloadServiceTests
         var httpClientFactory = new Mock<IHttpClientFactory>();
         httpClientFactory.Setup(a => a.CreateClient(It.IsAny<string>())).Returns(() => new HttpClient());
 
-        var dropboxDownloadService = new DropboxDownloadService(NullLogger<DropboxDownloadService>.Instance, stateService.Object, new Mock<IProgressReporter>().Object, new Mock<IPhotoService>().Object,
+        var dropboxDownloadService = new DropboxDownloadService(NullLogger<DropboxDownloadService>.Instance, stateService.Object, new Mock<IPhotoService>().Object,
             new Mock<IFailedFileService>().Object,
             httpClientFactory.Object,
             new DropboxSettings { SourceFolder = "/Camera Uploads" }, new DownloadServiceParameters { AuthResult = authResult, ClientId = "8pakfnac86x0iad", Progress = new ProcessingProgress(0, 0) });

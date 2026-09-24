@@ -15,11 +15,6 @@ public class PhotoSourceService : IPhotoSourceService
         _photoSourceRepository = photoSourceRepository;
     }
 
-    public Task<IEnumerable<PhotoSource>> GetAsync()
-    {
-        return _photoSourceRepository.GetAsync();
-    }
-    
     public async Task<PhotoSource> GetByIdAsync(long id)
     {
         var photoSource = await _photoSourceRepository.GetByIdAsync(id);

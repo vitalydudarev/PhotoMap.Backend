@@ -1,7 +1,6 @@
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
 using PhotoMap.Api.Domain.Services;
-using PhotoMap.Api.Services.Interfaces;
 
 namespace PhotoMap.Api.Controllers
 {
@@ -10,19 +9,16 @@ namespace PhotoMap.Api.Controllers
     public class DataController : ControllerBase
     {
         private readonly IPhotoService _photoService;
-        private readonly IStorageService _storageService;
 
-        public DataController(IPhotoService photoService, IStorageService storageService)
+        public DataController(IPhotoService photoService)
         {
             _photoService = photoService;
-            _storageService = storageService;
         }
 
         [HttpDelete]
         public async Task<IActionResult> DeleteAllDataAsync()
         {
             await _photoService.DeleteAllAsync();
-            await _storageService.DeleteAllFilesAsync();
 
             return NoContent();
         }

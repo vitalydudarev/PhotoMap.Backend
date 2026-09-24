@@ -29,7 +29,6 @@ using PhotoMap.Api.Services.Implementations;
 using PhotoMap.Api.Services.Interfaces;
 using PhotoMap.Api.Services.Services;
 using PhotoMap.Api.Services.Services.Domain;
-using PhotoMap.Api.Settings;
 using PhotoMap.Shared.Messaging.EventHandler;
 using PhotoMap.Shared.Messaging.InProcess;
 using PhotoMap.Worker;
@@ -60,10 +59,7 @@ namespace PhotoMap.Api
             services.Configure<BrotliCompressionProviderOptions>(options => options.Level = CompressionLevel.Optimal);
             services.Configure<GzipCompressionProviderOptions>(options => options.Level = CompressionLevel.Optimal);
             services.Configure<FileStorageSettings>(Configuration.GetSection("FileStorage"));
-            services.Configure<StorageServiceSettings>(Configuration.GetSection("Storage"));
             services.Configure<PhotoProcessingSettings>(Configuration.GetSection("PhotoProcessing"));
-
-            services.AddSingleton(provider => new UserInfo { UserId = 1, Name = "Vitaly" });
 
             services.AddHttpClient();
 
@@ -98,7 +94,6 @@ namespace PhotoMap.Api
             services.AddScoped<IYandexDiskDownloadStateService, YandexDiskDownloadStateService>();
             
             // common
-            services.AddSingleton<IProgressReporter, ProgressReporter>();
             services.AddSingleton<BackgroundTaskManager>();
             services.AddSingleton<IBackgroundTaskManager>(provider => provider.GetRequiredService<BackgroundTaskManager>());
             
@@ -112,9 +107,7 @@ namespace PhotoMap.Api
             // event handlers
             services.AddSingleton<IEventHandler, ImageConvertedHandler>();
 
-            services.AddScoped<IStorageService, StorageServiceClient>();
             services.AddScoped<HostInfo>();
-            services.AddScoped<IFileProvider, LocalFileProvider>();
             services.AddSingleton<IConvertedImageHolder, ConvertedImageHolder>();
 
             services.AddSingleton<IFrontendNotificationService, FrontendNotificationService>();

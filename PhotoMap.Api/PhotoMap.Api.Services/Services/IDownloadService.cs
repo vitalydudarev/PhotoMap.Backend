@@ -20,7 +20,3 @@ public interface IDownloadService : IAsyncDisposable
 
     Task<int> GetTotalFileCountAsync();
 }
-
-public interface IProgressReporter
-{
-}

@@ -23,7 +23,6 @@ public sealed class DropboxDownloadService : IDownloadService
 
     private readonly ILogger<DropboxDownloadService> _logger;
     private readonly IDropboxDownloadStateService _stateService;
-    private readonly IProgressReporter _progressReporter;
     private readonly IPhotoService _photoService;
     private readonly IFailedFileService _failedFileService;
     private readonly DropboxSettings _settings;
@@ -36,7 +35,6 @@ public sealed class DropboxDownloadService : IDownloadService
     public DropboxDownloadService(
         ILogger<DropboxDownloadService> logger,
         IDropboxDownloadStateService stateService,
-        IProgressReporter progressReporter,
         IPhotoService photoService,
         IFailedFileService failedFileService,
         IHttpClientFactory httpClientFactory,
@@ -45,7 +43,6 @@ public sealed class DropboxDownloadService : IDownloadService
     {
         _logger = logger;
         _stateService = stateService;
-        _progressReporter = progressReporter;
         _photoService = photoService;
         _failedFileService = failedFileService;
         _settings = settings;
@@ -308,19 +305,23 @@ public sealed class DropboxDownloadService : IDownloadService
         {
             _logger.LogInformation("Started downloading {MetadataName}", metadataName);
 
-            var fileMetadata = await WrapApiCallAsync(() => _dropboxClient!.Files.DownloadAsync(fileId), cancellationToken);
-            var fileContents = await fileMetadata.GetContentAsByteArrayAsync();
+            // the contents are read within the wrapped call: a failure reading them skips the file like any other
+            // API error, rather than ending the run
+            var (fileMetadata, fileContents) = await WrapApiCallAsync(async () =>
+            {
+                using var response = await _dropboxClient!.Files.DownloadAsync(fileId);
+
+                return (response.Response, await response.GetContentAsByteArrayAsync());
+            }, cancellationToken);
 
             _logger.LogInformation("Finished downloading {MetadataName}", metadataName);
 
-            var createdOn = fileMetadata.Response.ClientModified;
-
-            var fileInfo = new DownloadedFileInfo(fileMetadata.Response.Name, fileMetadata.Response.PathDisplay, createdOn,
-                fileMetadata.Response.Id);
+            var fileInfo = new DownloadedFileInfo(fileMetadata.Name, fileMetadata.PathDisplay, fileMetadata.ClientModified,
+                fileMetadata.Id);
 
             return new DownloadedFile(fileInfo, fileContents);
         }
-        catch (Exception e)
+        catch (Exception e) when (e is not OperationCanceledException)
         {
             _logger.LogError("Failed downloading/saving {MetadataName}: {ErrorMessage}.", metadataName, e.Message);
             throw;

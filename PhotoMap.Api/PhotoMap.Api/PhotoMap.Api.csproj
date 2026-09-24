@@ -22,8 +22,4 @@
       <ProjectReference Include="..\..\PhotoMap.Worker\PhotoMap.Worker.csproj" />
     </ItemGroup>
 
-    <ItemGroup>
-      <Compile Remove="DTOs\UpdateUserDto.cs" />
-    </ItemGroup>
-
 </Project>

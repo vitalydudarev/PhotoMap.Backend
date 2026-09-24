@@ -14,13 +14,6 @@ public class PhotoSourceRepository : IPhotoSourceRepository
         _context = context;
     }
     
-    public async Task<IEnumerable<PhotoSource>> GetAsync()
-    {
-        var fileSources = await _context.PhotoSources.ToListAsync();
-
-        return fileSources.Select(EntityToModel);
-    }
-
     public async Task<PhotoSource?> GetByIdAsync(long id)
     {
         var fileSource = await _context.PhotoSources.FindAsync(id);
