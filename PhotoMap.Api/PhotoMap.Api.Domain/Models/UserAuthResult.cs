@@ -7,7 +7,8 @@ public class UserAuthResult
     public string? RefreshToken { get; set; }
 
     /// <summary>
-    /// Access tokens are short-lived, with a refresh token a new one is obtained whenever it expires.
+    /// The user is authorized while the access token has not expired. A refresh token does not extend that: the
+    /// tokens it obtains during a run are not saved, so once the access token has expired the user authorizes again.
     /// </summary>
-    public bool IsValid => RefreshToken != null || TokenExpiresOn > DateTimeOffset.UtcNow;
+    public bool IsValid => !string.IsNullOrEmpty(Token) && TokenExpiresOn > DateTimeOffset.UtcNow;
 }

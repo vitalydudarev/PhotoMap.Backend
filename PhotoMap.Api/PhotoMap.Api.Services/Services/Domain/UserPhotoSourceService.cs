@@ -35,7 +35,7 @@ public class UserPhotoSourceService : IUserPhotoSourceService
             UserId = userId,
             PhotoSourceId = a.PhotoSource!.Id,
             PhotoSourceName = a.PhotoSource!.Name,
-            IsUserAuthorized = a.UserAuthResult?.IsValid == true,
+            IsUserAuthorized = a.UserAuthResult is { IsValid: true },
             TokenExpiresOn = a.UserAuthResult?.TokenExpiresOn.UtcDateTime
         });
     }
