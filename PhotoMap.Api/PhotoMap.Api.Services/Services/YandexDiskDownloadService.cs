@@ -60,37 +60,42 @@ public sealed class YandexDiskDownloadService : IDownloadService
 
         var sourceFolder = await GetSourceFolderAsync(cancellationToken);
 
-        // The offset of a page is saved only after all of its files have been processed. After a restart the
-        // unfinished page is listed again and the files saved in the meantime are skipped by their resource ID.
-        // Files deleted from the folder before the saved offset shift the ones after it back by as many, a resumed
-        // run misses that many files at the offset; deleting the data of the source lists the folder from the start.
+        // A page is processed SaveStateEvery files at a time, the offset saved after each of them. The files of a
+        // chunk finish in any order, so the offset is only saved once all of them have been processed: every file
+        // before it is done. After a restart the unfinished chunk is listed again and the files saved in the
+        // meantime are skipped by their resource ID. Files deleted from the folder before the saved offset shift the
+        // ones after it back by as many, a resumed run misses that many files at the offset; deleting the data of
+        // the source lists the folder from the start.
         while (true)
         {
             var page = await ListFolderAsync(sourceFolder, _state.Offset, cancellationToken);
             var items = page.Items ?? [];
 
-            var pageFiles = new List<DownloadedFile>();
-            _pageFailures = new PageFailures();
-
-            var filesToDownload = await GetFilesToDownloadAsync(items);
-
-            await foreach (var downloadedFile in DownloadPageAsync(filesToDownload, cancellationToken))
+            foreach (var chunk in items.Chunk(GetSaveStateEvery()))
             {
-                pageFiles.Add(downloadedFile);
+                var chunkFiles = new List<DownloadedFile>();
+                _pageFailures = new PageFailures();
 
-                yield return downloadedFile;
+                var filesToDownload = await GetFilesToDownloadAsync(chunk);
+
+                await foreach (var downloadedFile in DownloadPageAsync(filesToDownload, cancellationToken))
+                {
+                    chunkFiles.Add(downloadedFile);
+
+                    yield return downloadedFile;
+                }
+
+                if (!await WaitUntilProcessedAsync(chunkFiles, cancellationToken))
+                {
+                    _logger.LogInformation("Cancellation requested");
+                    yield break;
+                }
+
+                await RecordPageFailuresAsync(chunkFiles);
+
+                _state.Offset += chunk.Length;
+                await SaveStateAsync();
             }
-
-            if (!await WaitUntilProcessedAsync(pageFiles, cancellationToken))
-            {
-                _logger.LogInformation("Cancellation requested");
-                yield break;
-            }
-
-            await RecordPageFailuresAsync(pageFiles);
-
-            _state.Offset += items.Length;
-            await SaveStateAsync();
 
             if (items.Length < GetPageSize() || _state.Offset >= page.Total)
             {
@@ -307,6 +312,11 @@ public sealed class YandexDiskDownloadService : IDownloadService
         return Math.Max(_settings.DownloadLimit, 1);
     }
 
+    private int GetSaveStateEvery()
+    {
+        return Math.Max(_settings.SaveStateEvery, 1);
+    }
+
     private int GetMaxParallelDownloads()
     {
         return Math.Max(_settings.MaxParallelDownloads, 1);
@@ -368,10 +378,10 @@ public sealed class YandexDiskDownloadService : IDownloadService
 
     private async Task SaveStateAsync()
     {
-        _logger.LogInformation("Saving state");
-
         if (_state != null)
         {
+            _logger.LogInformation("Saving state, offset {Offset}", _state.Offset);
+
             await _stateService.SaveStateAsync(_parameters.UserId, _parameters.SourceId, _state);
         }
     }
