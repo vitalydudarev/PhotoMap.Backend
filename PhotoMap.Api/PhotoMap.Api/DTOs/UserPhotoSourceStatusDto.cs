@@ -6,5 +6,6 @@ public enum UserPhotoSourceStatusDto
     InProgress = 2,
     Done = 3,
     Stopped = 4,
-    Failed = 5
+    Failed = 5,
+    Paused = 6
 }

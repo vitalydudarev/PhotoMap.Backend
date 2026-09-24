@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -55,6 +56,41 @@ public class PhotoSourceProcessingServiceTests
         Assert.All(_reportedStatuses, a => Assert.Equal(0, a.ProcessedCount));
     }
 
+    [Fact]
+    public async Task RunCommandAsync_ShouldRecordPaused_WhenTheApplicationStops()
+    {
+        // Arrange
+        SetUpUserPhotoSource(processedCount: 0, failedCount: 0, state: null);
+
+        using var applicationStopping = new CancellationTokenSource();
+        await applicationStopping.CancelAsync();
+
+        var service = CreateService(out var runTask, cancelled: true, applicationStopping.Token);
+
+        // Act
+        await service.RunCommandAsync(UserId, SourceId, PhotoSourceProcessingCommands.Start);
+        await runTask();
+
+        // Assert
+        Assert.Equal(PhotoSourceStatus.Paused, _reportedStatuses.Last().Status);
+    }
+
+    [Fact]
+    public async Task RunCommandAsync_ShouldRecordStopped_WhenTheUserStopsTheRun()
+    {
+        // Arrange
+        SetUpUserPhotoSource(processedCount: 0, failedCount: 0, state: null);
+
+        var service = CreateService(out var runTask, cancelled: true, CancellationToken.None);
+
+        // Act
+        await service.RunCommandAsync(UserId, SourceId, PhotoSourceProcessingCommands.Start);
+        await runTask();
+
+        // Assert
+        Assert.Equal(PhotoSourceStatus.Stopped, _reportedStatuses.Last().Status);
+    }
+
     private void SetUpUserPhotoSource(int processedCount, int failedCount, string? state)
     {
         _userPhotoSourceService
@@ -87,7 +123,10 @@ public class PhotoSourceProcessingServiceTests
     /// <summary>
     /// The service started by the returned function downloads nothing, the run only reports its counters.
     /// </summary>
-    private PhotoSourceProcessingService CreateService(out Func<Task> runTask)
+    /// <param name="cancelled">Whether the run is cancelled, as when it is stopped.</param>
+    /// <param name="applicationStopping">Cancelled when the application is stopping.</param>
+    private PhotoSourceProcessingService CreateService(out Func<Task> runTask, bool cancelled = false,
+        CancellationToken applicationStopping = default)
     {
         var photoSource = CreatePhotoSource();
 
@@ -108,18 +147,22 @@ public class PhotoSourceProcessingServiceTests
         var backgroundTaskManager = new Mock<IBackgroundTaskManager>();
         backgroundTaskManager
             .Setup(a => a.TryStartTask(It.IsAny<string>(), It.IsAny<Func<CancellationToken, Task>>()))
-            .Callback<string, Func<CancellationToken, Task>>((_, task) => run = task(CancellationToken.None))
+            .Callback<string, Func<CancellationToken, Task>>((_, task) => run = task(new CancellationToken(cancelled)))
             .Returns(true);
 
         runTask = () => run ?? Task.CompletedTask;
 
         return new PhotoSourceProcessingService(_userPhotoSourceService.Object, photoSourceService.Object,
-            backgroundTaskManager.Object, CreateServiceScopeFactory(downloadServiceFactory.Object),
+            backgroundTaskManager.Object, CreateServiceScopeFactory(downloadServiceFactory.Object, applicationStopping),
             Options.Create(new PhotoProcessingSettings { Sizes = [256] }));
     }
 
-    private IServiceScopeFactory CreateServiceScopeFactory(IPhotoSourceDownloadServiceFactory downloadServiceFactory)
+    private IServiceScopeFactory CreateServiceScopeFactory(IPhotoSourceDownloadServiceFactory downloadServiceFactory,
+        CancellationToken applicationStopping)
     {
+        var applicationLifetime = new Mock<IHostApplicationLifetime>();
+        applicationLifetime.Setup(a => a.ApplicationStopping).Returns(applicationStopping);
+
         var serviceProvider = new Mock<IServiceProvider>();
         serviceProvider.Setup(a => a.GetService(typeof(IMessageQueue<ProcessImageRequest>)))
             .Returns(new ChannelMessageQueue<ProcessImageRequest>());
@@ -130,6 +173,7 @@ public class PhotoSourceProcessingServiceTests
             .Returns(NullLogger<PhotoSourceProcessingService>.Instance);
         serviceProvider.Setup(a => a.GetService(typeof(IPhotoSourceDownloadServiceFactory))).Returns(downloadServiceFactory);
         serviceProvider.Setup(a => a.GetService(typeof(IUserPhotoSourceService))).Returns(_userPhotoSourceService.Object);
+        serviceProvider.Setup(a => a.GetService(typeof(IHostApplicationLifetime))).Returns(applicationLifetime.Object);
 
         var serviceScope = new Mock<IServiceScope>();
         serviceScope.Setup(a => a.ServiceProvider).Returns(serviceProvider.Object);

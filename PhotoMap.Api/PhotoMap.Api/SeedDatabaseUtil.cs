@@ -77,7 +77,7 @@ public static class SeedDatabaseUtil
         var yandexDiskSettings = new YandexDiskSettings
         {
             UsePhotoStreamFolder = true,
-            DownloadLimit = 100
+            DownloadLimit = 10000
         };
 
         return CreatePhotoSource(2, "Yandex.Disk", yandexDiskSettings, yandexDiskAuthSettings, typeof(YandexDiskDownloadServiceFactory));

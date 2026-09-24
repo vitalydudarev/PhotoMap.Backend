@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using PhotoMap.Api.Domain.Models;
@@ -97,6 +98,7 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
         var fileStorage = scope.ServiceProvider.GetRequiredService<IFileStorage>();
         var frontendNotificationService = scope.ServiceProvider.GetRequiredService<IFrontendNotificationService>();
         var logger = scope.ServiceProvider.GetRequiredService<ILogger<PhotoSourceProcessingService>>();
+        var applicationLifetime = scope.ServiceProvider.GetService<IHostApplicationLifetime>();
 
         var status = PhotoSourceStatus.Done;
         using var reportingCancellationTokenSource = new CancellationTokenSource();
@@ -164,12 +166,12 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
 
             if (cancellationToken.IsCancellationRequested)
             {
-                status = PhotoSourceStatus.Stopped;
+                status = GetCancelledStatus(applicationLifetime);
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            status = PhotoSourceStatus.Stopped;
+            status = GetCancelledStatus(applicationLifetime);
         }
         catch (Exception e)
         {
@@ -191,6 +193,16 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
 
             await ReportStatusAsync(serviceScopeFactory, logger, userId, sourceId, status, progress);
         }
+    }
+
+    /// <summary>
+    /// A run is cancelled by the user stopping it or by the application stopping, which cancels every run.
+    /// </summary>
+    private static PhotoSourceStatus GetCancelledStatus(IHostApplicationLifetime? applicationLifetime)
+    {
+        return applicationLifetime?.ApplicationStopping.IsCancellationRequested == true
+            ? PhotoSourceStatus.Paused
+            : PhotoSourceStatus.Stopped;
     }
 
     private static async Task ReportStatusPeriodicallyAsync(

@@ -10,6 +10,7 @@ using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.OpenApi;
 using PhotoMap.Api.Database;
@@ -167,6 +168,7 @@ namespace PhotoMap.Api
             });
 
             ApplyDatabaseMigrations(app);
+            PauseInterruptedRuns(app);
         }
         
         private static void ApplyDatabaseMigrations(IApplicationBuilder app)
@@ -184,6 +186,24 @@ namespace PhotoMap.Api
             if (!dbExists)
             {
                 SeedDatabaseUtil.SeedDatabase(context);
+            }
+        }
+
+        /// <summary>
+        /// A run records its final status when it finishes, also when the application stops gracefully. When the
+        /// application is killed or crashes, the run is left recorded as in progress while nothing runs it.
+        /// Called before the server starts, so no run can have been started yet.
+        /// </summary>
+        private static void PauseInterruptedRuns(IApplicationBuilder app)
+        {
+            using var scope = app.ApplicationServices.CreateScope();
+            var userPhotoSourceService = scope.ServiceProvider.GetRequiredService<IUserPhotoSourceService>();
+            var logger = scope.ServiceProvider.GetRequiredService<ILogger<Startup>>();
+
+            var pausedCount = userPhotoSourceService.PauseInProgressAsync().GetAwaiter().GetResult();
+            if (pausedCount > 0)
+            {
+                logger.LogInformation("Paused {PausedCount} photo source runs interrupted by the application stopping", pausedCount);
             }
         }
     }

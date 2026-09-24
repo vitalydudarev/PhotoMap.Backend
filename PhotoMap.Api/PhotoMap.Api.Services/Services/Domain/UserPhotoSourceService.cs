@@ -163,4 +163,21 @@ public class UserPhotoSourceService : IUserPhotoSourceService
 
         await _context.SaveChangesAsync();
     }
+
+    public async Task<int> PauseInProgressAsync()
+    {
+        var entities = await _context.UserPhotoSourcesStatuses
+            .Where(a => a.Status == PhotoSourceStatus.InProgress)
+            .ToListAsync();
+
+        foreach (var entity in entities)
+        {
+            entity.Status = PhotoSourceStatus.Paused;
+            entity.LastUpdatedAt = DateTimeOffset.UtcNow;
+        }
+
+        await _context.SaveChangesAsync();
+
+        return entities.Count;
+    }
 }

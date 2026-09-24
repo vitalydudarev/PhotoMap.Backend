@@ -12,4 +12,9 @@ public interface IUserPhotoSourceService
     Task UpdateUserPhotoStateAsync(long userId, long photoSourceId, string? state);
     Task DeleteUserPhotoStatusAsync(long userId, long photoSourceId);
     Task UpdateUserPhotoStatusAsync(UserPhotoSourceStatus status);
+
+    /// <summary>
+    /// Marks the runs recorded as in progress as paused, returns how many there were.
+    /// </summary>
+    Task<int> PauseInProgressAsync();
 }
