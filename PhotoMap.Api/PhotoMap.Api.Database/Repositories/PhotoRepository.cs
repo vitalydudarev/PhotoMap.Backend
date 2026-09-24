@@ -22,6 +22,15 @@ public class PhotoRepository : IPhotoRepository
         await _context.Photos.AddAsync(photoEntity);
         await _context.SaveChangesAsync();
     }
+
+    /// <summary>
+    /// Saves the photos in one go: they are all saved, or none of them is.
+    /// </summary>
+    public async Task AddRangeAsync(IReadOnlyCollection<Photo> photos)
+    {
+        await _context.Photos.AddRangeAsync(photos.Select(ModelToEntity));
+        await _context.SaveChangesAsync();
+    }
     
     public async Task<Photo?> GetAsync(long id)
     {

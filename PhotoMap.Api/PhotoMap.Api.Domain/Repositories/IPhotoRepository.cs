@@ -5,6 +5,7 @@ namespace PhotoMap.Api.Domain.Repositories;
 public interface IPhotoRepository
 {
     Task AddAsync(Photo photo);
+    Task AddRangeAsync(IReadOnlyCollection<Photo> photos);
     Task<Photo?> GetAsync(long id);
     Task<Photo?> GetByFileNameAsync(string fileName);
     Task<bool> ExistsAsync(long userId, long photoSourceId, string externalId);

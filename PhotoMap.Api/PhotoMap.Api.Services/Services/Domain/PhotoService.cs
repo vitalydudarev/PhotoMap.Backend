@@ -18,6 +18,11 @@ namespace PhotoMap.Api.Services.Services.Domain
             await _photoRepository.AddAsync(photo);
         }
 
+        public Task AddRangeAsync(IReadOnlyCollection<Photo> photos)
+        {
+            return _photoRepository.AddRangeAsync(photos);
+        }
+
         public Task<Photo?> GetAsync(long id)
         {
             return _photoRepository.GetAsync(id);

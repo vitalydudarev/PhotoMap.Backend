@@ -6,6 +6,11 @@ namespace PhotoMap.Api.Domain.Services
     {
         Task AddAsync(Photo photo);
 
+        /// <summary>
+        /// Saves the photos in one go: they are all saved, or none of them is.
+        /// </summary>
+        Task AddRangeAsync(IReadOnlyCollection<Photo> photos);
+
         Task<Photo?> GetAsync(long id);
 
         Task<Photo?> GetByFileNameAsync(string fileName);
