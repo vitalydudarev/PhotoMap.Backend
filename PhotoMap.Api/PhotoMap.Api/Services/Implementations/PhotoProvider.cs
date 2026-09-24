@@ -6,6 +6,7 @@ using PhotoMap.Api.Services.Exceptions;
 using PhotoMap.Api.Services.Factories;
 using PhotoMap.Api.Services.Interfaces;
 using PhotoMap.Api.Services.Services;
+using PhotoMap.Worker.Services.Definitions;
 
 namespace PhotoMap.Api.Services.Implementations;
 
@@ -16,24 +17,28 @@ public class PhotoProvider : IPhotoProvider
     private readonly IUserPhotoSourceService _userPhotoSourceService;
     private readonly IPhotoSourceDownloadServiceFactory _downloadServiceFactory;
     private readonly IFileStorage _fileStorage;
+    private readonly IImageConverter _imageConverter;
 
     public PhotoProvider(
         IPhotoService photoService,
         IPhotoSourceService photoSourceService,
         IUserPhotoSourceService userPhotoSourceService,
         IPhotoSourceDownloadServiceFactory downloadServiceFactory,
-        IFileStorage fileStorage)
+        IFileStorage fileStorage,
+        IImageConverter imageConverter)
     {
         _photoService = photoService;
         _photoSourceService = photoSourceService;
         _userPhotoSourceService = userPhotoSourceService;
         _downloadServiceFactory = downloadServiceFactory;
         _fileStorage = fileStorage;
+        _imageConverter = imageConverter;
     }
 
     /// <summary>
     /// Only thumbnails are stored by the application, the photo itself is downloaded from the source it came from,
-    /// with the credentials of the user it belongs to.
+    /// with the credentials of the user it belongs to. A photo in a format not all browsers can show is served
+    /// converted to JPEG.
     /// </summary>
     public async Task<PhotoFile?> GetPhotoAsync(long id, CancellationToken cancellationToken)
     {
@@ -56,6 +61,11 @@ public class PhotoProvider : IPhotoProvider
             CreateDownloadServiceParameters(photo, photoSource, authResult));
 
         var fileContents = await downloadService.DownloadFileAsync(photo.ExternalId, photo.Path, cancellationToken);
+
+        if (_imageConverter.NeedsConversion(photo.FileName))
+        {
+            return new PhotoFile(_imageConverter.ConvertToJpeg(fileContents), photo.FileName, "image/jpeg");
+        }
 
         return new PhotoFile(fileContents, photo.FileName, SupportedImageFormats.GetContentType(photo.FileName));
     }

@@ -1,9 +1,7 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using PhotoMap.Shared.Messaging.EventHandler;
 using PhotoMap.Shared.Models;
 using PhotoMap.Shared.Queues;
-using PhotoMap.Worker.Handlers;
 using PhotoMap.Worker.Services;
 using PhotoMap.Worker.Services.Definitions;
 using PhotoMap.Worker.Services.Implementations;
@@ -27,10 +25,9 @@ public static class WorkerServiceCollectionExtensions
 
         services.AddSingleton<IImageProcessingService, ImageProcessingService>();
         services.AddSingleton<IExifExtractor, ExifExtractor>();
+        services.AddSingleton<IImageConverter, ImageConverter>();
 
         services.AddHostedService<ImageProcessingBackgroundService>();
-
-        services.AddSingleton<IEventHandler, ConvertImageEventHandler>();
 
         return services;
     }

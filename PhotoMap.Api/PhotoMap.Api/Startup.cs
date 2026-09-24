@@ -20,7 +20,6 @@ using PhotoMap.Api.Database.Repositories;
 using PhotoMap.Api.Domain.Models;
 using PhotoMap.Api.Domain.Repositories;
 using PhotoMap.Api.Domain.Services;
-using PhotoMap.Api.Handlers;
 using PhotoMap.Api.Hubs;
 using PhotoMap.Api.Middlewares;
 using PhotoMap.Api.Services;
@@ -29,8 +28,6 @@ using PhotoMap.Api.Services.Implementations;
 using PhotoMap.Api.Services.Interfaces;
 using PhotoMap.Api.Services.Services;
 using PhotoMap.Api.Services.Services.Domain;
-using PhotoMap.Shared.Messaging.EventHandler;
-using PhotoMap.Shared.Messaging.InProcess;
 using PhotoMap.Worker;
 using Serilog;
 using Swashbuckle.AspNetCore.SwaggerGen;
@@ -104,17 +101,10 @@ namespace PhotoMap.Api
                 return new FileStorage(settings);
             });
 
-            // event handlers
-            services.AddSingleton<IEventHandler, ImageConvertedHandler>();
-
             services.AddScoped<HostInfo>();
-            services.AddSingleton<IConvertedImageHolder, ConvertedImageHolder>();
 
             services.AddSingleton<IFrontendNotificationService, FrontendNotificationService>();
             
-            // in-process messaging
-            services.AddInProcessMessaging();
-
             // worker, hosted in this application
             services.AddWorker(Configuration);
             services.AddHostedService<ProcessedImageBackgroundService>();

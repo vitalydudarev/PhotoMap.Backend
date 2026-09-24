@@ -5,6 +5,7 @@ using PhotoMap.Api.Services.Exceptions;
 using PhotoMap.Api.Services.Factories;
 using PhotoMap.Api.Services.Implementations;
 using PhotoMap.Api.Services.Services;
+using PhotoMap.Worker.Services.Definitions;
 
 namespace PhotoMap.Api.Services.Tests;
 
@@ -65,6 +66,34 @@ public class PhotoProviderTests
     }
 
     [Fact]
+    public async Task GetPhotoAsync_ShouldConvertToJpeg_WhenFormatNeedsConversion()
+    {
+        // Arrange
+        byte[] jpegContents = [4, 5, 6];
+        var photo = CreatePhoto(externalId: "id:abc123", path: "/Camera Uploads/photo.heic", fileName: "photo.heic");
+        var downloadService = CreateDownloadService();
+        var downloadServiceFactory = new Mock<IPhotoSourceDownloadServiceFactory>();
+        downloadServiceFactory
+            .Setup(a => a.GetService(It.IsAny<PhotoSource>(), It.IsAny<DownloadServiceParameters>()))
+            .Returns(downloadService.Object);
+
+        var imageConverter = new Mock<IImageConverter>();
+        imageConverter.Setup(a => a.NeedsConversion("photo.heic")).Returns(true);
+        imageConverter.Setup(a => a.ConvertToJpeg(FileContents)).Returns(jpegContents);
+
+        var photoProvider = CreatePhotoProvider(photo, CreatePhotoSource(), CreateAuthResult(), downloadServiceFactory.Object,
+            imageConverter.Object);
+
+        // Act
+        var photoFile = await photoProvider.GetPhotoAsync(PhotoId, CancellationToken.None);
+
+        // Assert
+        Assert.NotNull(photoFile);
+        Assert.Equal(jpegContents, photoFile.Contents);
+        Assert.Equal("image/jpeg", photoFile.ContentType);
+    }
+
+    [Fact]
     public async Task GetPhotoAsync_ShouldReturnNull_WhenPhotoNotFound()
     {
         // Arrange
@@ -107,7 +136,8 @@ public class PhotoProviderTests
         Photo? photo,
         PhotoSource photoSource,
         UserAuthResult authResult,
-        IPhotoSourceDownloadServiceFactory downloadServiceFactory)
+        IPhotoSourceDownloadServiceFactory downloadServiceFactory,
+        IImageConverter? imageConverter = null)
     {
         var photoService = new Mock<IPhotoService>();
         photoService.Setup(a => a.GetAsync(PhotoId)).ReturnsAsync(photo);
@@ -119,7 +149,8 @@ public class PhotoProviderTests
         userPhotoSourceService.Setup(a => a.GetAuthResultAsync(UserId, PhotoSourceId)).ReturnsAsync(authResult);
 
         return new PhotoProvider(photoService.Object, photoSourceService.Object, userPhotoSourceService.Object,
-            downloadServiceFactory, new Mock<IFileStorage>().Object);
+            downloadServiceFactory, new Mock<IFileStorage>().Object,
+            imageConverter ?? new Mock<IImageConverter>().Object);
     }
 
     private static Mock<IDownloadService> CreateDownloadService()
@@ -132,14 +163,14 @@ public class PhotoProviderTests
         return downloadService;
     }
 
-    private static Photo CreatePhoto(string? externalId, string? path)
+    private static Photo CreatePhoto(string? externalId, string? path, string fileName = "photo.png")
     {
         return new Photo
         {
             Id = PhotoId,
             UserId = UserId,
             PhotoSourceId = PhotoSourceId,
-            FileName = "photo.png",
+            FileName = fileName,
             ExternalId = externalId,
             Path = path,
             AddedOn = DateTimeOffset.UtcNow
