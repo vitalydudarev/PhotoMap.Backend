@@ -49,6 +49,10 @@ namespace PhotoMap.Api
         public void ConfigureServices(IServiceCollection services)
         {
             services.AddControllers();
+
+            // Brotli, else gzip, for the JSON and text responses. The responses carry no secrets that a request
+            // could reflect alongside, so compressing over HTTPS is safe from BREACH.
+            services.AddResponseCompression(options => options.EnableForHttps = true);
             services.Configure<FileStorageSettings>(Configuration.GetSection("FileStorage"));
             services.Configure<StorageServiceSettings>(Configuration.GetSection("Storage"));
             services.Configure<PhotoProcessingSettings>(Configuration.GetSection("PhotoProcessing"));
@@ -137,6 +141,9 @@ namespace PhotoMap.Api
             {
                 app.UseDeveloperExceptionPage();
             }
+
+            // first, so that every response, error responses included, is compressed
+            app.UseResponseCompression();
 
             app.UseMiddleware<HostInfoMiddleware>();
             app.UseMiddleware<ExceptionHandlingMiddleware>();
