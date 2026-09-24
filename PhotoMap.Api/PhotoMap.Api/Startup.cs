@@ -1,9 +1,11 @@
 using System;
+using System.IO.Compression;
 using System.Linq;
 using System.Reflection;
 using System.Text;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.ResponseCompression;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage;
@@ -53,6 +55,10 @@ namespace PhotoMap.Api
             // Brotli, else gzip, for the JSON and text responses. The responses carry no secrets that a request
             // could reflect alongside, so compressing over HTTPS is safe from BREACH.
             services.AddResponseCompression(options => options.EnableForHttps = true);
+            // Optimal over the default Fastest: a response is compressed once, the extra time is small next to its
+            // download
+            services.Configure<BrotliCompressionProviderOptions>(options => options.Level = CompressionLevel.Optimal);
+            services.Configure<GzipCompressionProviderOptions>(options => options.Level = CompressionLevel.Optimal);
             services.Configure<FileStorageSettings>(Configuration.GetSection("FileStorage"));
             services.Configure<StorageServiceSettings>(Configuration.GetSection("Storage"));
             services.Configure<PhotoProcessingSettings>(Configuration.GetSection("PhotoProcessing"));
