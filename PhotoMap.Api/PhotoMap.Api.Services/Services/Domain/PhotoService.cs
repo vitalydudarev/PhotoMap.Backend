@@ -38,9 +38,9 @@ namespace PhotoMap.Api.Services.Services.Domain
             return _photoRepository.GetSavedExternalIdsAsync(userId, photoSourceId, externalIds);
         }
 
-        public Task<IEnumerable<Photo>> GetByUserIdAsync(long userId, int top, int skip)
+        public Task<IEnumerable<Photo>> GetByUserIdAsync(long userId, int top, int skip, PhotoSortOrder sortOrder)
         {
-            return _photoRepository.GetByUserIdAsync(userId, top, skip);
+            return _photoRepository.GetByUserIdAsync(userId, top, skip, sortOrder);
         }
 
         public Task<int> GetTotalCountByUserIdAsync(long userId)

@@ -36,12 +36,16 @@ namespace PhotoMap.Api.Controllers
             return NotFound();
         }
 
+        /// <summary>
+        /// The photos of the user, by the date they were taken, oldest first unless asked for the other way round.
+        /// </summary>
         [HttpGet("{id}/photos")]
         [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(PagedResponse<PhotoDto>))]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
-        public async Task<IActionResult> GetUserPhotos([FromRoute] int id, [FromQuery] int top, [FromQuery] int skip)
+        public async Task<IActionResult> GetUserPhotos([FromRoute] int id, [FromQuery] int top, [FromQuery] int skip,
+            [FromQuery] PhotoSortOrder sort = PhotoSortOrder.Asc)
         {
-            var userPhotos = await _photoService.GetByUserIdAsync(id, top, skip);
+            var userPhotos = await _photoService.GetByUserIdAsync(id, top, skip, sort);
             var totalPhotosCount = await _photoService.GetTotalCountByUserIdAsync(id);
             
             var url = _hostInfo.GetUrl() + "api";

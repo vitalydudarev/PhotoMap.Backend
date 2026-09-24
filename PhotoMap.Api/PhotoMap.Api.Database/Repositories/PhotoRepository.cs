@@ -59,16 +59,22 @@ public class PhotoRepository : IPhotoRepository
         return savedExternalIds.ToHashSet();
     }
 
-    public async Task<IEnumerable<Photo>> GetByUserIdAsync(long userId, int top, int skip)
+    public async Task<IEnumerable<Photo>> GetByUserIdAsync(long userId, int top, int skip, PhotoSortOrder sortOrder)
     {
-        var photos = await _context.Photos
-            .Where(a => a.UserId == userId)
-            .OrderBy(a => a.DateTimeTaken)
+        var photos = _context.Photos.Where(a => a.UserId == userId);
+
+        // the ID orders photos taken within the same second, which would otherwise be free to swap places
+        // between one page and the next
+        var sortedPhotos = sortOrder == PhotoSortOrder.Desc
+            ? photos.OrderByDescending(a => a.DateTimeTaken).ThenByDescending(a => a.Id)
+            : photos.OrderBy(a => a.DateTimeTaken).ThenBy(a => a.Id);
+
+        var page = await sortedPhotos
             .Skip(skip)
             .Take(top)
             .ToListAsync();
 
-        return photos.Select(EntityToModel);
+        return page.Select(EntityToModel);
     }
 
     public async Task<int> GetTotalCountByUserIdAsync(long userId)
