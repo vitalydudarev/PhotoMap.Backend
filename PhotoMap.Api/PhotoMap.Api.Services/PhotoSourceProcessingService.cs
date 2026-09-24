@@ -40,7 +40,12 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
     {
         if (command == PhotoSourceProcessingCommands.Start)
         {
-            return await StartAsync(userId, sourceId);
+            return await StartAsync(userId, sourceId, retryFailed: false);
+        }
+
+        if (command == PhotoSourceProcessingCommands.RetryFailed)
+        {
+            return await StartAsync(userId, sourceId, retryFailed: true);
         }
 
         if (command == PhotoSourceProcessingCommands.Stop)
@@ -58,7 +63,9 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
         return _backgroundTaskManager.IsRunning(GetTaskName(userId, sourceId));
     }
 
-    private async Task<bool> StartAsync(long userId, long sourceId)
+    /// <param name="retryFailed">Download the files that failed in earlier runs rather than list the source. The
+    /// run is the same task as a regular one, so that the two do not run at the same time.</param>
+    private async Task<bool> StartAsync(long userId, long sourceId, bool retryFailed)
     {
         var taskName = GetTaskName(userId, sourceId);
         if (_backgroundTaskManager.IsRunning(taskName))
@@ -74,7 +81,7 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
         var sizes = _photoProcessingSettings.Sizes;
 
         return _backgroundTaskManager.TryStartTask(taskName,
-            cancellationToken => DoWork(photoSource, parameters, serviceScopeFactory, sizes, cancellationToken));
+            cancellationToken => DoWork(photoSource, parameters, serviceScopeFactory, sizes, retryFailed, cancellationToken));
     }
 
     /// <summary>
@@ -86,6 +93,7 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
         DownloadServiceParameters parameters,
         IServiceScopeFactory serviceScopeFactory,
         int[] sizes,
+        bool retryFailed,
         CancellationToken cancellationToken)
     {
         var userId = parameters.UserId;
@@ -112,24 +120,23 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
             downloadService = scope.ServiceProvider.GetRequiredService<IPhotoSourceDownloadServiceFactory>()
                 .GetService(photoSource, parameters);
 
-            progress.TotalCount = await downloadService.GetTotalFileCountAsync();
+            // a retry downloads files the total already counts, the total of the previous run stays
+            if (!retryFailed)
+            {
+                progress.TotalCount = await downloadService.GetTotalFileCountAsync();
+            }
 
             reportingTask = ReportStatusPeriodicallyAsync(serviceScopeFactory, logger, userId, sourceId, progress,
                 reportingCancellationTokenSource.Token);
 
-            await foreach (var downloadedFile in downloadService.DownloadAsync(cancellationToken))
+            var downloadedFiles = retryFailed
+                ? downloadService.RetryFailedAsync(cancellationToken)
+                : downloadService.DownloadAsync(cancellationToken);
+
+            await foreach (var downloadedFile in downloadedFiles)
             {
-                _ = downloadedFile.Processed.Task.ContinueWith(a =>
-                {
-                    if (a.Result)
-                    {
-                        progress.FileProcessed();
-                    }
-                    else
-                    {
-                        progress.FileFailed();
-                    }
-                }, TaskContinuationOptions.ExecuteSynchronously);
+                _ = downloadedFile.Processed.Task.ContinueWith(
+                    a => CountProcessedFile(progress, a.Result, retryFailed), TaskContinuationOptions.ExecuteSynchronously);
 
                 string fileName;
 
@@ -146,7 +153,7 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
                 {
                     logger.LogError(e, "Failed to store downloaded file {FileName}", downloadedFile.FileInfo.ResourceName);
 
-                    downloadedFile.Processed.TrySetResult(false);
+                    downloadedFile.Processed.TrySetResult(ProcessingResult.Failed("Failed to store the downloaded file: " + e.Message));
                     continue;
                 }
 
@@ -192,6 +199,28 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
             }
 
             await ReportStatusAsync(serviceScopeFactory, logger, userId, sourceId, status, progress);
+        }
+    }
+
+    /// <summary>
+    /// A file retried had been counted as failed, it is only counted again when it is saved this time.
+    /// </summary>
+    private static void CountProcessedFile(ProcessingProgress progress, ProcessingResult result, bool retryFailed)
+    {
+        if (result.Succeeded)
+        {
+            if (retryFailed)
+            {
+                progress.FileRecovered();
+            }
+            else
+            {
+                progress.FileProcessed();
+            }
+        }
+        else if (!retryFailed)
+        {
+            progress.FileFailed();
         }
     }
 
@@ -275,7 +304,10 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
     {
         var status = await _userPhotoSourceService.GetUserPhotoStatusAsync(userId, sourceId);
 
-        return new ProcessingProgress(status?.ProcessedCount ?? 0, status?.FailedCount ?? 0);
+        return new ProcessingProgress(status?.ProcessedCount ?? 0, status?.FailedCount ?? 0)
+        {
+            TotalCount = status?.TotalCount ?? 0
+        };
     }
 
     private async Task<UserAuthResult> GetAuthResultAsync(long userId, long sourceId)

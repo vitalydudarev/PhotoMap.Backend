@@ -71,6 +71,7 @@ namespace PhotoMap.Api
             services.AddScoped<IUserService, UserService>();
             services.AddScoped<IPhotoSourceService, PhotoSourceService>();
             services.AddScoped<IUserPhotoSourceService, UserPhotoSourceService>();
+            services.AddScoped<IFailedFileService, FailedFileService>();
             
             // repositories
             services.AddScoped<IPhotoRepository, PhotoRepository>();

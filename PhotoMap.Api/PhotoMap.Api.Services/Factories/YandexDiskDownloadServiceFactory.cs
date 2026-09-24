@@ -13,17 +13,20 @@ public class YandexDiskDownloadServiceFactory : IDownloadServiceFactory
     private readonly ILogger<YandexDiskDownloadService> _logger;
     private readonly IYandexDiskDownloadStateService _downloadStateService;
     private readonly IPhotoService _photoService;
+    private readonly IFailedFileService _failedFileService;
     private readonly IHttpClientFactory _httpClientFactory;
 
     public YandexDiskDownloadServiceFactory(
         ILogger<YandexDiskDownloadService> logger,
         IYandexDiskDownloadStateService downloadStateService,
         IPhotoService photoService,
+        IFailedFileService failedFileService,
         IHttpClientFactory httpClientFactory)
     {
         _logger = logger;
         _downloadStateService = downloadStateService;
         _photoService = photoService;
+        _failedFileService = failedFileService;
         _httpClientFactory = httpClientFactory;
     }
 
@@ -35,7 +38,7 @@ public class YandexDiskDownloadServiceFactory : IDownloadServiceFactory
             throw new Exception("Unable to deserialize settings");
         }
 
-        return new YandexDiskDownloadService(_logger, _downloadStateService, _photoService, _httpClientFactory,
-            settings, parameters);
+        return new YandexDiskDownloadService(_logger, _downloadStateService, _photoService, _failedFileService,
+            _httpClientFactory, settings, parameters);
     }
 }

@@ -21,4 +21,13 @@ public sealed class ProcessingProgress
 
     public void FileProcessed() => Interlocked.Increment(ref _processedCount);
     public void FileFailed() => Interlocked.Increment(ref _failedCount);
+
+    /// <summary>
+    /// A file counted as failed by an earlier run has been saved on a retry.
+    /// </summary>
+    public void FileRecovered()
+    {
+        Interlocked.Increment(ref _processedCount);
+        Interlocked.Decrement(ref _failedCount);
+    }
 }

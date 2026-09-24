@@ -14,6 +14,7 @@ public class DropboxDownloadServiceFactory : IDownloadServiceFactory
     private readonly IDropboxDownloadStateService _downloadStateService;
     private readonly IProgressReporter _progressReporter;
     private readonly IPhotoService _photoService;
+    private readonly IFailedFileService _failedFileService;
     private readonly IHttpClientFactory _httpClientFactory;
 
     public DropboxDownloadServiceFactory(
@@ -21,12 +22,14 @@ public class DropboxDownloadServiceFactory : IDownloadServiceFactory
         IDropboxDownloadStateService downloadStateService,
         IProgressReporter progressReporter,
         IPhotoService photoService,
+        IFailedFileService failedFileService,
         IHttpClientFactory httpClientFactory)
     {
         _logger = logger;
         _downloadStateService = downloadStateService;
         _progressReporter = progressReporter;
         _photoService = photoService;
+        _failedFileService = failedFileService;
         _httpClientFactory = httpClientFactory;
     }
     
@@ -39,6 +42,6 @@ public class DropboxDownloadServiceFactory : IDownloadServiceFactory
         }
 
         return new DropboxDownloadService(_logger, _downloadStateService, _progressReporter, _photoService,
-            _httpClientFactory, settings, parameters);
+            _failedFileService, _httpClientFactory, settings, parameters);
     }
 }

@@ -8,5 +8,5 @@ public class ProcessImageRequest
     public long UserId { get; set; }
     public long PhotoSourceId { get; set; }
     public string PhotoSourceName { get; set; } = null!;
-    public TaskCompletionSource<bool>? Processed { get; set; }
+    public TaskCompletionSource<ProcessingResult>? Processed { get; set; }
 }

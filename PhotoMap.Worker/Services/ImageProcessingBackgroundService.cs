@@ -77,7 +77,7 @@ public class ImageProcessingBackgroundService : BackgroundService
         {
             _logger.LogError(ex, "Failed to process image {FileName}", processImageRequest.DownloadedFileInfo.ResourceName);
 
-            processImageRequest.Processed?.TrySetResult(false);
+            processImageRequest.Processed?.TrySetResult(ProcessingResult.Failed("Failed to process the image: " + ex.Message));
         }
         finally
         {

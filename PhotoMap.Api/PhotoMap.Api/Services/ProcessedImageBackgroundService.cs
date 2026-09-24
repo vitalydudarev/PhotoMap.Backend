@@ -52,13 +52,13 @@ namespace PhotoMap.Api.Services
                     {
                         await SavePhotoAsync(processedImage);
 
-                        processedImage.Processed?.TrySetResult(true);
+                        processedImage.Processed?.TrySetResult(ProcessingResult.Success);
                     }
                     catch (Exception e)
                     {
                         _logger.LogError(e, "Failed to save processed image {FileName}.", processedImage.FileName);
 
-                        processedImage.Processed?.TrySetResult(false);
+                        processedImage.Processed?.TrySetResult(ProcessingResult.Failed("Failed to save the photo: " + e.Message));
                     }
                 }
             }

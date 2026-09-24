@@ -64,7 +64,7 @@ public class ImageProcessingBackgroundServiceTests : IDisposable
         await requestQueue.EnqueueAsync(failedRequest);
 
         await ReadAsync(processedImageQueue, 1);
-        Assert.False(await failedRequest.Processed!.Task.WaitAsync(Timeout));
+        Assert.False((await failedRequest.Processed!.Task.WaitAsync(Timeout)).Succeeded);
 
         await service.StopAsync(CancellationToken.None);
 
@@ -102,7 +102,7 @@ public class ImageProcessingBackgroundServiceTests : IDisposable
             UserId = 1,
             PhotoSourceId = 1,
             PhotoSourceName = "Dropbox",
-            Processed = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously)
+            Processed = new TaskCompletionSource<ProcessingResult>(TaskCreationOptions.RunContinuationsAsynchronously)
         };
     }
 

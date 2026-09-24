@@ -1,6 +1,7 @@
 using System.Net;
 using System.Runtime.CompilerServices;
 using Microsoft.Extensions.Logging;
+using PhotoMap.Api.Domain.Models;
 using PhotoMap.Api.Domain.Services;
 using PhotoMap.Api.Services.Exceptions;
 using PhotoMap.Shared.Models;
@@ -22,17 +23,20 @@ public sealed class YandexDiskDownloadService : IDownloadService
     private readonly ILogger<YandexDiskDownloadService> _logger;
     private readonly IYandexDiskDownloadStateService _stateService;
     private readonly IPhotoService _photoService;
+    private readonly IFailedFileService _failedFileService;
     private readonly YandexDiskSettings _settings;
     private readonly HttpClient _httpClient;
     private readonly DownloadServiceParameters _parameters;
     private ApiClient? _apiClient;
     private string? _sourceFolder;
     private YandexDiskDownloadState? _state;
+    private PageFailures _pageFailures = new();
 
     public YandexDiskDownloadService(
         ILogger<YandexDiskDownloadService> logger,
         IYandexDiskDownloadStateService stateService,
         IPhotoService photoService,
+        IFailedFileService failedFileService,
         IHttpClientFactory httpClientFactory,
         YandexDiskSettings settings,
         DownloadServiceParameters parameters)
@@ -40,6 +44,7 @@ public sealed class YandexDiskDownloadService : IDownloadService
         _logger = logger;
         _stateService = stateService;
         _photoService = photoService;
+        _failedFileService = failedFileService;
         _settings = settings;
         _parameters = parameters;
         _httpClient = httpClientFactory.CreateClient("yandexDiskClient");
@@ -65,6 +70,7 @@ public sealed class YandexDiskDownloadService : IDownloadService
             var items = page.Items ?? [];
 
             var pageFiles = new List<DownloadedFile>();
+            _pageFailures = new PageFailures();
 
             var filesToDownload = await GetFilesToDownloadAsync(items);
 
@@ -81,6 +87,8 @@ public sealed class YandexDiskDownloadService : IDownloadService
                 yield break;
             }
 
+            await RecordPageFailuresAsync(pageFiles);
+
             _state.Offset += items.Length;
             await SaveStateAsync();
 
@@ -88,6 +96,35 @@ public sealed class YandexDiskDownloadService : IDownloadService
             {
                 break;
             }
+        }
+    }
+
+    public async IAsyncEnumerable<DownloadedFile> RetryFailedAsync([EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        CreateApiClient();
+
+        var failedFiles = await _failedFileService.GetAsync(_parameters.UserId, _parameters.SourceId);
+
+        foreach (var page in failedFiles.Chunk(GetPageSize()))
+        {
+            var pageFiles = new List<DownloadedFile>();
+            _pageFailures = new PageFailures();
+
+            await foreach (var downloadedFile in ParallelDownloads.RunAsync(page, GetMaxParallelDownloads(),
+                               RetryFileOrSkipAsync, cancellationToken))
+            {
+                pageFiles.Add(downloadedFile);
+
+                yield return downloadedFile;
+            }
+
+            if (!await WaitUntilProcessedAsync(pageFiles, cancellationToken))
+            {
+                _logger.LogInformation("Cancellation requested");
+                yield break;
+            }
+
+            await RecordPageFailuresAsync(pageFiles);
         }
     }
 
@@ -228,9 +265,41 @@ public sealed class YandexDiskDownloadService : IDownloadService
         {
             // skip the file, the error has been logged
             _parameters.Progress.FileFailed();
+            _pageFailures.DownloadFailed(resource.ResourceId, resource.Path, resource.Name, e.Message);
 
             return null;
         }
+    }
+
+    /// <summary>
+    /// The file is looked up by its path again, for the details the listing gave. It has been counted as failed by
+    /// the run it failed in, so failing again leaves the counters as they are.
+    /// </summary>
+    private async Task<DownloadedFile?> RetryFileOrSkipAsync(FailedFile failedFile, CancellationToken cancellationToken)
+    {
+        try
+        {
+            if (string.IsNullOrEmpty(failedFile.Path))
+            {
+                throw new YandexDiskException("Yandex.Disk files are downloaded by path, the path is missing.");
+            }
+
+            var resource = await WrapApiCallAsync(
+                () => _apiClient!.GetResourceAsync(failedFile.Path, cancellationToken, limit: 1), cancellationToken);
+
+            return await DownloadFileAsync(resource, cancellationToken);
+        }
+        catch (YandexDiskException e) when (!e.IsAuthError)
+        {
+            _pageFailures.DownloadFailed(failedFile.ExternalId, failedFile.Path, failedFile.FileName, e.Message);
+
+            return null;
+        }
+    }
+
+    private Task RecordPageFailuresAsync(IReadOnlyCollection<DownloadedFile> pageFiles)
+    {
+        return _pageFailures.RecordAsync(_failedFileService, _parameters.UserId, _parameters.SourceId, pageFiles);
     }
 
     private int GetPageSize()
@@ -249,7 +318,7 @@ public sealed class YandexDiskDownloadService : IDownloadService
         {
             var results = await Task.WhenAll(files.Select(a => a.Processed.Task)).WaitAsync(cancellationToken);
 
-            var failedCount = results.Count(a => !a);
+            var failedCount = results.Count(a => !a.Succeeded);
             if (failedCount > 0)
             {
                 _logger.LogWarning("{FailedCount} of {FileCount} files of the page failed processing", failedCount, files.Count);

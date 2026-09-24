@@ -19,15 +19,18 @@ namespace PhotoMap.Api.Controllers
         private readonly IUserPhotoSourceService _userPhotoSourceService;
         private readonly IPhotoSourceProcessingService _photoSourceProcessingService;
         private readonly IPhotoSourceDataService _photoSourceDataService;
+        private readonly IFailedFileService _failedFileService;
 
         public UsersPhotoSourcesController(
             IUserPhotoSourceService userPhotoSourceService,
             IPhotoSourceProcessingService photoSourceProcessingService,
-            IPhotoSourceDataService photoSourceDataService)
+            IPhotoSourceDataService photoSourceDataService,
+            IFailedFileService failedFileService)
         {
             _userPhotoSourceService = userPhotoSourceService;
             _photoSourceProcessingService = photoSourceProcessingService;
             _photoSourceDataService = photoSourceDataService;
+            _failedFileService = failedFileService;
         }
 
         [HttpGet]
@@ -77,6 +80,30 @@ namespace PhotoMap.Api.Controllers
             }
 
             return Ok();
+        }
+
+        /// <summary>
+        /// The files of the photo source that could not be downloaded or processed, in the order they first failed.
+        /// The RetryFailed command downloads them again.
+        /// </summary>
+        [HttpGet("{sourceId:long}/failed-files")]
+        [ProducesResponseType(typeof(IEnumerable<FailedFileDto>), StatusCodes.Status200OK)]
+        public async Task<IActionResult> GetFailedFiles(long userId, long sourceId)
+        {
+            var failedFiles = await _failedFileService.GetAsync(userId, sourceId);
+
+            var dtos = failedFiles.Select(a => new FailedFileDto
+            {
+                ExternalId = a.ExternalId,
+                Path = a.Path,
+                FileName = a.FileName,
+                Stage = a.Stage.ToString(),
+                Error = a.Error,
+                Attempts = a.Attempts,
+                FailedAt = a.FailedAt.UtcDateTime.ToString("o")
+            });
+
+            return Ok(dtos);
         }
 
         /// <summary>

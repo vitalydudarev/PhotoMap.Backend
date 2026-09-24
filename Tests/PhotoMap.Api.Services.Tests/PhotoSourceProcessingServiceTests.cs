@@ -20,6 +20,7 @@ public class PhotoSourceProcessingServiceTests
 
     private readonly Mock<IUserPhotoSourceService> _userPhotoSourceService = new();
     private readonly List<UserPhotoSourceStatus> _reportedStatuses = [];
+    private readonly Mock<IDownloadService> _downloadService = new();
 
     [Fact]
     public async Task RunCommandAsync_ShouldContinueTheCountersOfAStoppedRun()
@@ -91,6 +92,33 @@ public class PhotoSourceProcessingServiceTests
         Assert.Equal(PhotoSourceStatus.Stopped, _reportedStatuses.Last().Status);
     }
 
+    [Fact]
+    public async Task RunCommandAsync_ShouldCountTheRetriedFilesSavedAsProcessedInsteadOfFailed()
+    {
+        // Arrange
+        SetUpUserPhotoSource(processedCount: 39, failedCount: 2, state: null);
+
+        var service = CreateService(out var runTask);
+        _downloadService
+            .Setup(a => a.RetryFailedAsync(It.IsAny<CancellationToken>()))
+            .Returns(ProcessedFilesAsync(ProcessingResult.Success, ProcessingResult.Failed("Corrupt image")));
+
+        // Act
+        await service.RunCommandAsync(UserId, SourceId, PhotoSourceProcessingCommands.RetryFailed);
+        await runTask();
+
+        // Assert: the file saved moves from failed to processed, the one failing again was counted already
+        var lastStatus = _reportedStatuses.Last();
+        Assert.Equal(PhotoSourceStatus.Done, lastStatus.Status);
+        Assert.Equal(40, lastStatus.ProcessedCount);
+        Assert.Equal(1, lastStatus.FailedCount);
+
+        // the source is not listed, the total of the previous run stays
+        Assert.Equal(2826, lastStatus.TotalCount);
+        _downloadService.Verify(a => a.GetTotalFileCountAsync(), Times.Never);
+        _downloadService.Verify(a => a.DownloadAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
     private void SetUpUserPhotoSource(int processedCount, int failedCount, string? state)
     {
         _userPhotoSourceService
@@ -133,14 +161,13 @@ public class PhotoSourceProcessingServiceTests
         var photoSourceService = new Mock<IPhotoSourceService>();
         photoSourceService.Setup(a => a.GetByIdAsync(SourceId)).ReturnsAsync(photoSource);
 
-        var downloadService = new Mock<IDownloadService>();
-        downloadService.Setup(a => a.GetTotalFileCountAsync()).ReturnsAsync(2826);
-        downloadService.Setup(a => a.DownloadAsync(It.IsAny<CancellationToken>())).Returns(NoFilesAsync());
+        _downloadService.Setup(a => a.GetTotalFileCountAsync()).ReturnsAsync(2826);
+        _downloadService.Setup(a => a.DownloadAsync(It.IsAny<CancellationToken>())).Returns(NoFilesAsync());
 
         var downloadServiceFactory = new Mock<IPhotoSourceDownloadServiceFactory>();
         downloadServiceFactory
             .Setup(a => a.GetService(It.IsAny<PhotoSource>(), It.IsAny<DownloadServiceParameters>()))
-            .Returns(downloadService.Object);
+            .Returns(_downloadService.Object);
 
         Task? run = null;
 
@@ -189,6 +216,22 @@ public class PhotoSourceProcessingServiceTests
         await Task.CompletedTask;
 
         yield break;
+    }
+
+    /// <summary>
+    /// Files that have been through the processing pipeline already, with the given results.
+    /// </summary>
+    private static async IAsyncEnumerable<DownloadedFile> ProcessedFilesAsync(params ProcessingResult[] results)
+    {
+        await Task.CompletedTask;
+
+        for (var i = 0; i < results.Length; i++)
+        {
+            var file = new DownloadedFile(new DownloadedFileInfo($"photo{i}.jpg", $"/photo{i}.jpg", null, $"id:{i}"), []);
+            file.Processed.SetResult(results[i]);
+
+            yield return file;
+        }
     }
 
     private static PhotoSource CreatePhotoSource()

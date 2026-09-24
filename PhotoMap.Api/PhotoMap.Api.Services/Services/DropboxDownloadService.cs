@@ -3,6 +3,7 @@ using Dropbox.Api;
 using Dropbox.Api.Auth;
 using Dropbox.Api.Files;
 using Microsoft.Extensions.Logging;
+using PhotoMap.Api.Domain.Models;
 using PhotoMap.Api.Domain.Services;
 using PhotoMap.Shared.Models;
 using DropboxException = PhotoMap.Api.Services.Exceptions.DropboxException;
@@ -24,10 +25,12 @@ public sealed class DropboxDownloadService : IDownloadService
     private readonly IDropboxDownloadStateService _stateService;
     private readonly IProgressReporter _progressReporter;
     private readonly IPhotoService _photoService;
+    private readonly IFailedFileService _failedFileService;
     private readonly DropboxSettings _settings;
     private DropboxClient? _dropboxClient;
     private readonly HttpClient _httpClient;
     private DropboxDownloadState? _state;
+    private PageFailures _pageFailures = new();
     private readonly DownloadServiceParameters _parameters;
 
     public DropboxDownloadService(
@@ -35,6 +38,7 @@ public sealed class DropboxDownloadService : IDownloadService
         IDropboxDownloadStateService stateService,
         IProgressReporter progressReporter,
         IPhotoService photoService,
+        IFailedFileService failedFileService,
         IHttpClientFactory httpClientFactory,
         DropboxSettings settings,
         DownloadServiceParameters parameters)
@@ -43,6 +47,7 @@ public sealed class DropboxDownloadService : IDownloadService
         _stateService = stateService;
         _progressReporter = progressReporter;
         _photoService = photoService;
+        _failedFileService = failedFileService;
         _settings = settings;
         _parameters = parameters;
         _httpClient = httpClientFactory.CreateClient("dropboxClient");
@@ -63,6 +68,7 @@ public sealed class DropboxDownloadService : IDownloadService
         while (true)
         {
             var pageFiles = new List<DownloadedFile>();
+            _pageFailures = new PageFailures();
 
             var filesToDownload = await GetFilesToDownloadAsync(listFolderResult);
 
@@ -79,6 +85,8 @@ public sealed class DropboxDownloadService : IDownloadService
                 yield break;
             }
 
+            await RecordPageFailuresAsync(pageFiles);
+
             _state.Cursor = listFolderResult.Cursor;
             await SaveStateAsync();
 
@@ -88,6 +96,35 @@ public sealed class DropboxDownloadService : IDownloadService
             }
 
             listFolderResult = await ListFolderAsync(_state.Cursor, cancellationToken);
+        }
+    }
+
+    public async IAsyncEnumerable<DownloadedFile> RetryFailedAsync([EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        CreateDropboxClient();
+
+        var failedFiles = await _failedFileService.GetAsync(_parameters.UserId, _parameters.SourceId);
+
+        foreach (var page in failedFiles.Chunk(PageSize))
+        {
+            var pageFiles = new List<DownloadedFile>();
+            _pageFailures = new PageFailures();
+
+            await foreach (var downloadedFile in ParallelDownloads.RunAsync(page, GetMaxParallelDownloads(),
+                               RetryFileOrSkipAsync, cancellationToken))
+            {
+                pageFiles.Add(downloadedFile);
+
+                yield return downloadedFile;
+            }
+
+            if (!await WaitUntilProcessedAsync(pageFiles, cancellationToken))
+            {
+                _logger.LogInformation("Cancellation requested");
+                yield break;
+            }
+
+            await RecordPageFailuresAsync(pageFiles);
         }
     }
 
@@ -203,15 +240,39 @@ public sealed class DropboxDownloadService : IDownloadService
     {
         try
         {
-            return await DownloadFileAsync(fileMetadata, cancellationToken);
+            return await DownloadFileWithInfoAsync(fileMetadata.Id, fileMetadata.Name, cancellationToken);
         }
         catch (DropboxException e) when (!e.IsAuthError)
         {
             // skip the file, the error has been logged
             _parameters.Progress.FileFailed();
+            _pageFailures.DownloadFailed(fileMetadata.Id, fileMetadata.PathDisplay, fileMetadata.Name, e.Message);
 
             return null;
         }
+    }
+
+    /// <summary>
+    /// The file is downloaded by its ID, which stays the same when it is moved or renamed. It has been counted as
+    /// failed by the run it failed in, so failing again leaves the counters as they are.
+    /// </summary>
+    private async Task<DownloadedFile?> RetryFileOrSkipAsync(FailedFile failedFile, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await DownloadFileWithInfoAsync(failedFile.ExternalId, failedFile.FileName, cancellationToken);
+        }
+        catch (DropboxException e) when (!e.IsAuthError)
+        {
+            _pageFailures.DownloadFailed(failedFile.ExternalId, failedFile.Path, failedFile.FileName, e.Message);
+
+            return null;
+        }
+    }
+
+    private Task RecordPageFailuresAsync(IReadOnlyCollection<DownloadedFile> pageFiles)
+    {
+        return _pageFailures.RecordAsync(_failedFileService, _parameters.UserId, _parameters.SourceId, pageFiles);
     }
 
     private int GetMaxParallelDownloads()
@@ -225,7 +286,7 @@ public sealed class DropboxDownloadService : IDownloadService
         {
             var results = await Task.WhenAll(files.Select(a => a.Processed.Task)).WaitAsync(cancellationToken);
 
-            var failedCount = results.Count(a => !a);
+            var failedCount = results.Count(a => !a.Succeeded);
             if (failedCount > 0)
             {
                 _logger.LogWarning("{FailedCount} of {FileCount} files of the page failed processing", failedCount, files.Count);
@@ -239,22 +300,23 @@ public sealed class DropboxDownloadService : IDownloadService
         }
     }
 
-    private async Task<DownloadedFile> DownloadFileAsync(FileMetadata metadata, CancellationToken cancellationToken)
+    /// <param name="fileId">The Dropbox file ID of the file.</param>
+    /// <param name="metadataName">The name of the file, for the log.</param>
+    private async Task<DownloadedFile> DownloadFileWithInfoAsync(string fileId, string metadataName, CancellationToken cancellationToken)
     {
-        var metadataName = metadata.Name;
-
         try
         {
             _logger.LogInformation("Started downloading {MetadataName}", metadataName);
 
-            var fileMetadata = await WrapApiCallAsync(() => _dropboxClient!.Files.DownloadAsync(metadata.Id), cancellationToken);
+            var fileMetadata = await WrapApiCallAsync(() => _dropboxClient!.Files.DownloadAsync(fileId), cancellationToken);
             var fileContents = await fileMetadata.GetContentAsByteArrayAsync();
 
             _logger.LogInformation("Finished downloading {MetadataName}", metadataName);
 
             var createdOn = fileMetadata.Response.ClientModified;
 
-            var fileInfo = new DownloadedFileInfo(metadataName, metadata.PathDisplay, createdOn, fileMetadata.Response.Id);
+            var fileInfo = new DownloadedFileInfo(fileMetadata.Response.Name, fileMetadata.Response.PathDisplay, createdOn,
+                fileMetadata.Response.Id);
 
             return new DownloadedFile(fileInfo, fileContents);
         }

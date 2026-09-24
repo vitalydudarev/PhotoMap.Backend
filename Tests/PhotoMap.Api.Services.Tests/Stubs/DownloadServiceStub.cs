@@ -10,6 +10,11 @@ public class DownloadServiceStub : IDownloadService
         throw new NotImplementedException();
     }
 
+    public IAsyncEnumerable<DownloadedFile> RetryFailedAsync(CancellationToken cancellationToken)
+    {
+        throw new NotImplementedException();
+    }
+
     public Task<byte[]> DownloadFileAsync(string? externalId, string? path, CancellationToken cancellationToken)
     {
         throw new NotImplementedException();

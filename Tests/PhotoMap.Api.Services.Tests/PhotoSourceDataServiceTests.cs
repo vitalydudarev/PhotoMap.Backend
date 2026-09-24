@@ -12,6 +12,7 @@ public class PhotoSourceDataServiceTests
 
     private readonly Mock<IPhotoService> _photoService = new();
     private readonly Mock<IUserPhotoSourceService> _userPhotoSourceService = new();
+    private readonly Mock<IFailedFileService> _failedFileService = new();
     private readonly Mock<IPhotoSourceProcessingService> _processingService = new();
     private readonly Mock<IFileStorage> _fileStorage = new();
     private readonly Mock<IFrontendNotificationService> _frontendNotificationService = new();
@@ -24,7 +25,7 @@ public class PhotoSourceDataServiceTests
     }
 
     [Fact]
-    public async Task DeleteDataAsync_ShouldDeleteThePhotosThumbnailsStatusAndState()
+    public async Task DeleteDataAsync_ShouldDeleteThePhotosThumbnailsStatusStateAndFailedFiles()
     {
         // Arrange
         var service = CreateService();
@@ -42,6 +43,9 @@ public class PhotoSourceDataServiceTests
 
         // the source resumes from its state, which has to go with the photos it was downloading
         _userPhotoSourceService.Verify(a => a.UpdateUserPhotoStateAsync(UserId, SourceId, null));
+
+        // the files that failed are downloaded again by the next run, with the rest of the source
+        _failedFileService.Verify(a => a.DeleteByPhotoSourceAsync(UserId, SourceId));
     }
 
     [Fact]
@@ -75,6 +79,7 @@ public class PhotoSourceDataServiceTests
 
         _photoService.VerifyNoOtherCalls();
         _userPhotoSourceService.VerifyNoOtherCalls();
+        _failedFileService.VerifyNoOtherCalls();
         _fileStorage.VerifyNoOtherCalls();
     }
 
@@ -99,7 +104,7 @@ public class PhotoSourceDataServiceTests
     private PhotoSourceDataService CreateService()
     {
         return new PhotoSourceDataService(_photoService.Object, _userPhotoSourceService.Object,
-            _processingService.Object, _fileStorage.Object, _frontendNotificationService.Object,
+            _failedFileService.Object, _processingService.Object, _fileStorage.Object, _frontendNotificationService.Object,
             NullLogger<PhotoSourceDataService>.Instance);
     }
 }

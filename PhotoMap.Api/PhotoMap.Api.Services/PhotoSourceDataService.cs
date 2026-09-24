@@ -8,6 +8,7 @@ public class PhotoSourceDataService : IPhotoSourceDataService
 {
     private readonly IPhotoService _photoService;
     private readonly IUserPhotoSourceService _userPhotoSourceService;
+    private readonly IFailedFileService _failedFileService;
     private readonly IPhotoSourceProcessingService _photoSourceProcessingService;
     private readonly IFileStorage _fileStorage;
     private readonly IFrontendNotificationService _frontendNotificationService;
@@ -16,6 +17,7 @@ public class PhotoSourceDataService : IPhotoSourceDataService
     public PhotoSourceDataService(
         IPhotoService photoService,
         IUserPhotoSourceService userPhotoSourceService,
+        IFailedFileService failedFileService,
         IPhotoSourceProcessingService photoSourceProcessingService,
         IFileStorage fileStorage,
         IFrontendNotificationService frontendNotificationService,
@@ -23,6 +25,7 @@ public class PhotoSourceDataService : IPhotoSourceDataService
     {
         _photoService = photoService;
         _userPhotoSourceService = userPhotoSourceService;
+        _failedFileService = failedFileService;
         _photoSourceProcessingService = photoSourceProcessingService;
         _fileStorage = fileStorage;
         _frontendNotificationService = frontendNotificationService;
@@ -31,8 +34,9 @@ public class PhotoSourceDataService : IPhotoSourceDataService
 
     /// <summary>
     /// Deletes the photos of a photo source and what the runs that downloaded them left behind: the thumbnails,
-    /// the status of the source and the state a stopped run resumes from. The photos themselves stay in the
-    /// photo source, and the user stays authorized in it, so processing it again downloads them all anew.
+    /// the status of the source, the state a stopped run resumes from and the files that failed. The photos
+    /// themselves stay in the photo source, and the user stays authorized in it, so processing it again downloads
+    /// them all anew.
     /// </summary>
     public async Task<bool> DeleteDataAsync(long userId, long sourceId)
     {
@@ -51,6 +55,7 @@ public class PhotoSourceDataService : IPhotoSourceDataService
 
         await _userPhotoSourceService.DeleteUserPhotoStatusAsync(userId, sourceId);
         await _userPhotoSourceService.UpdateUserPhotoStateAsync(userId, sourceId, null);
+        await _failedFileService.DeleteByPhotoSourceAsync(userId, sourceId);
 
         _logger.LogInformation("Deleted the data of photo source {SourceId} of user {UserId}", sourceId, userId);
 
