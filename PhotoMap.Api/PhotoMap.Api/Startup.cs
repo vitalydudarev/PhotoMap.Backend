@@ -71,6 +71,7 @@ namespace PhotoMap.Api
 
             // domain services
             services.AddScoped<IPhotoService, PhotoService>();
+            services.AddSingleton<PhotoYearsCache>();
             services.AddScoped<IUserService, UserService>();
             services.AddScoped<IPhotoSourceService, PhotoSourceService>();
             services.AddScoped<IUserPhotoSourceService, UserPhotoSourceService>();

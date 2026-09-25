@@ -47,9 +47,10 @@ public class PhotoRepository : IPhotoRepository
         return savedExternalIds.ToHashSet();
     }
 
-    public async Task<IEnumerable<Photo>> GetByUserIdAsync(long userId, int top, int skip, PhotoSortOrder sortOrder)
+    public async Task<IEnumerable<Photo>> GetByUserIdAsync(long userId, PhotoFilter filter, int top, int skip,
+        PhotoSortOrder sortOrder)
     {
-        var photos = _context.Photos.Where(a => a.UserId == userId);
+        var photos = GetUserPhotos(userId, filter);
 
         // the ID orders photos taken within the same second, which would otherwise be free to swap places
         // between one page and the next
@@ -65,9 +66,18 @@ public class PhotoRepository : IPhotoRepository
         return page.Select(EntityToModel);
     }
 
-    public async Task<int> GetTotalCountByUserIdAsync(long userId)
+    public async Task<int> GetTotalCountByUserIdAsync(long userId, PhotoFilter filter)
     {
-        return await _context.Photos.CountAsync(a => a.UserId == userId);
+        return await GetUserPhotos(userId, filter).CountAsync();
+    }
+
+    public async Task<IEnumerable<int>> GetYearsAsync(long userId)
+    {
+        return await _context.Photos
+            .Where(a => a.UserId == userId)
+            .Select(a => a.DateTimeTaken.Year)
+            .Distinct()
+            .ToListAsync();
     }
 
     /// <summary>
@@ -89,6 +99,23 @@ public class PhotoRepository : IPhotoRepository
             .Where(a => !string.IsNullOrEmpty(a))
             .Select(a => a!)
             .ToList();
+    }
+
+    private IQueryable<PhotoEntity> GetUserPhotos(long userId, PhotoFilter filter)
+    {
+        var photos = _context.Photos.Where(a => a.UserId == userId);
+
+        if (filter.PhotoSourceIds.Count > 0)
+        {
+            photos = photos.Where(a => filter.PhotoSourceIds.Contains(a.PhotoSourceId));
+        }
+
+        if (filter.Years.Count > 0)
+        {
+            photos = photos.Where(a => filter.Years.Contains(a.DateTimeTaken.Year));
+        }
+
+        return photos;
     }
 
     private static Photo EntityToModel(PhotoEntity photoEntity)

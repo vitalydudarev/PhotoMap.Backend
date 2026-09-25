@@ -7,15 +7,22 @@ namespace PhotoMap.Api.Services.Services.Domain
     public class PhotoService : IPhotoService
     {
         private readonly IPhotoRepository _photoRepository;
+        private readonly PhotoYearsCache _yearsCache;
 
-        public PhotoService(IPhotoRepository photoRepository)
+        public PhotoService(IPhotoRepository photoRepository, PhotoYearsCache yearsCache)
         {
             _photoRepository = photoRepository;
+            _yearsCache = yearsCache;
         }
 
-        public Task AddRangeAsync(IReadOnlyCollection<Photo> photos)
+        public async Task AddRangeAsync(IReadOnlyCollection<Photo> photos)
         {
-            return _photoRepository.AddRangeAsync(photos);
+            await _photoRepository.AddRangeAsync(photos);
+
+            foreach (var userPhotos in photos.GroupBy(a => a.UserId))
+            {
+                _yearsCache.AddYears(userPhotos.Key, userPhotos.Select(a => a.DateTimeTaken.UtcDateTime.Year));
+            }
         }
 
         public Task<Photo?> GetAsync(long id)
@@ -28,19 +35,33 @@ namespace PhotoMap.Api.Services.Services.Domain
             return _photoRepository.GetSavedExternalIdsAsync(userId, photoSourceId, externalIds);
         }
 
-        public Task<IEnumerable<Photo>> GetByUserIdAsync(long userId, int top, int skip, PhotoSortOrder sortOrder)
+        public Task<IEnumerable<Photo>> GetByUserIdAsync(long userId, PhotoFilter filter, int top, int skip,
+            PhotoSortOrder sortOrder)
         {
-            return _photoRepository.GetByUserIdAsync(userId, top, skip, sortOrder);
+            return _photoRepository.GetByUserIdAsync(userId, filter, top, skip, sortOrder);
         }
 
-        public Task<int> GetTotalCountByUserIdAsync(long userId)
+        public Task<int> GetTotalCountByUserIdAsync(long userId, PhotoFilter filter)
         {
-            return _photoRepository.GetTotalCountByUserIdAsync(userId);
+            return _photoRepository.GetTotalCountByUserIdAsync(userId, filter);
         }
 
-        public Task<IReadOnlyCollection<string>> DeleteByPhotoSourceAsync(long userId, long photoSourceId)
+        public Task<IReadOnlyList<int>> GetYearsAsync(long userId)
         {
-            return _photoRepository.DeleteByPhotoSourceAsync(userId, photoSourceId);
+            return _yearsCache.GetOrLoadAsync(userId, () => _photoRepository.GetYearsAsync(userId));
+        }
+
+        public async Task<IReadOnlyCollection<string>> DeleteByPhotoSourceAsync(long userId, long photoSourceId)
+        {
+            try
+            {
+                return await _photoRepository.DeleteByPhotoSourceAsync(userId, photoSourceId);
+            }
+            finally
+            {
+                // a delete that failed may still have taken some of the photos
+                _yearsCache.Invalidate(userId);
+            }
         }
     }
 }

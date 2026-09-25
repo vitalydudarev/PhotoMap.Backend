@@ -50,16 +50,24 @@ namespace PhotoMap.Api.Controllers
         /// <param name="top">How many photos to return, 1 to 1000. Required.</param>
         /// <param name="skip">How many photos to skip, 0 or more, 0 when not given.</param>
         /// <param name="sort">The order of the photos by the date they were taken.</param>
+        /// <param name="source">The IDs of the photo sources to take the photos from, repeated for each one, such as
+        /// <c>source=1&amp;source=2</c>. All the sources of the user when not given.</param>
+        /// <param name="year">The years, in UTC, the photos were taken in, repeated for each one, such as
+        /// <c>year=2016&amp;year=2019</c>. All the years when not given.</param>
         [HttpGet("{id:long}/photos")]
         [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(PagedResponse<PhotoDto>))]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         public async Task<IActionResult> GetUserPhotos([FromRoute] long id,
             [FromQuery, BindRequired, Range(1, MaxPageSize)] int top,
             [FromQuery, Range(0, int.MaxValue)] int skip,
-            [FromQuery] PhotoSortOrder sort = PhotoSortOrder.Asc)
+            [FromQuery] PhotoSortOrder sort = PhotoSortOrder.Asc,
+            [FromQuery] long[]? source = null,
+            [FromQuery] int[]? year = null)
         {
-            var userPhotos = await _photoService.GetByUserIdAsync(id, top, skip, sort);
-            var totalPhotosCount = await _photoService.GetTotalCountByUserIdAsync(id);
+            var filter = new PhotoFilter(source ?? [], year ?? []);
+
+            var userPhotos = await _photoService.GetByUserIdAsync(id, filter, top, skip, sort);
+            var totalPhotosCount = await _photoService.GetTotalCountByUserIdAsync(id, filter);
             
             var url = _hostInfo.GetUrl() + "api";
 
@@ -78,6 +86,18 @@ namespace PhotoMap.Api.Controllers
             var response = new PagedResponse<PhotoDto> { Values = values, Limit = top, Offset = skip, Total = totalPhotosCount };
             
             return Ok(response);
+        }
+
+        /// <summary>
+        /// The years, in UTC, the photos of the user were taken in, oldest first. They are cached, and kept up to date
+        /// as photos are added and deleted.
+        /// </summary>
+        /// <param name="id">The ID of the user.</param>
+        [HttpGet("{id:long}/photos/years")]
+        [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(int[]))]
+        public async Task<IActionResult> GetUserPhotoYears([FromRoute] long id)
+        {
+            return Ok(await _photoService.GetYearsAsync(id));
         }
     }
 }

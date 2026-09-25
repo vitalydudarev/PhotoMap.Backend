@@ -13,9 +13,12 @@ namespace PhotoMap.Api.Domain.Services
 
         Task<IReadOnlySet<string>> GetSavedExternalIdsAsync(long userId, long photoSourceId, IEnumerable<string> externalIds);
 
-        Task<IEnumerable<Photo>> GetByUserIdAsync(long userId, int top, int skip, PhotoSortOrder sortOrder);
-        
-        Task<int> GetTotalCountByUserIdAsync(long userId);
+        Task<IEnumerable<Photo>> GetByUserIdAsync(long userId, PhotoFilter filter, int top, int skip, PhotoSortOrder sortOrder);
+
+        Task<int> GetTotalCountByUserIdAsync(long userId, PhotoFilter filter);
+
+        /// <returns>The years, in UTC, the photos of the user were taken in, oldest first.</returns>
+        Task<IReadOnlyList<int>> GetYearsAsync(long userId);
 
         /// <returns>The thumbnail files of the deleted photos.</returns>
         Task<IReadOnlyCollection<string>> DeleteByPhotoSourceAsync(long userId, long photoSourceId);
