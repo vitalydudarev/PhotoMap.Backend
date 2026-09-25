@@ -26,6 +26,12 @@ namespace PhotoMap.Worker.Services.Implementations
 
             var fileContents = File.ReadAllBytes(request.FileName);
 
+            // thrown rather than processed: the file is then recorded as failed, to be downloaded again later
+            if (fileContents.Length == 0)
+            {
+                throw new InvalidDataException("The downloaded file is empty.");
+            }
+
             using var imageProcessor = new ImageProcessor(fileContents);
             imageProcessor.Rotate();
             

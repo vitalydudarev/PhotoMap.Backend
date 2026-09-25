@@ -122,7 +122,7 @@ public abstract class DownloadServiceBase<TState> : IDownloadService where TStat
     {
         try
         {
-            return await downloadAsync();
+            return await DownloadNonEmptyAsync(downloadAsync, fileName);
         }
         catch (PhotoSourceException e) when (!e.IsAuthError)
         {
@@ -153,7 +153,7 @@ public abstract class DownloadServiceBase<TState> : IDownloadService where TStat
     {
         try
         {
-            return await RetryFileAsync(failedFile, cancellationToken);
+            return await DownloadNonEmptyAsync(() => RetryFileAsync(failedFile, cancellationToken), failedFile.FileName);
         }
         catch (PhotoSourceException e) when (!e.IsAuthError)
         {
@@ -161,6 +161,31 @@ public abstract class DownloadServiceBase<TState> : IDownloadService where TStat
 
             return null;
         }
+    }
+
+    /// <summary>
+    /// Downloads the file, once more when it comes without any contents: a download sometimes ends empty.
+    /// </summary>
+    /// <exception cref="EmptyFileException">The file came empty the second time as well.</exception>
+    private async Task<DownloadedFile> DownloadNonEmptyAsync(Func<Task<DownloadedFile>> downloadAsync, string fileName)
+    {
+        var downloadedFile = await downloadAsync();
+        if (downloadedFile.FileContents.Length > 0)
+        {
+            return downloadedFile;
+        }
+
+        Logger.LogWarning("{FileName} has been downloaded empty, downloading it again", fileName);
+
+        downloadedFile = await downloadAsync();
+        if (downloadedFile.FileContents.Length > 0)
+        {
+            return downloadedFile;
+        }
+
+        Logger.LogError("{FileName} has been downloaded empty again", fileName);
+
+        throw new EmptyFileException("The file has been downloaded empty twice.");
     }
 
     private async Task WaitUntilProcessedAsync(List<DownloadedFile> files, CancellationToken cancellationToken)

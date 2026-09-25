@@ -41,6 +41,63 @@ public class DownloadServiceBaseTests
     }
 
     [Fact]
+    public async Task DownloadAsync_ShouldDownloadAgain_WhenTheFileComesEmpty()
+    {
+        // Arrange
+        var service = CreateService(new Dictionary<string, Exception?> { ["flaky"] = null },
+            emptyDownloads: new Dictionary<string, int> { ["flaky"] = 1 });
+
+        // Act
+        var downloadedFiles = await ProcessAllAsync(service.DownloadAsync(CancellationToken.None));
+
+        // Assert
+        Assert.Equal(["flaky"], downloadedFiles);
+        Assert.Equal(0, _progress.FailedCount);
+    }
+
+    [Fact]
+    public async Task DownloadAsync_ShouldCountAndRecordFileThatComesEmptyTwice_AndGoOn()
+    {
+        // Arrange
+        var service = CreateService(new Dictionary<string, Exception?> { ["ok"] = null, ["empty"] = null },
+            emptyDownloads: new Dictionary<string, int> { ["empty"] = 2 });
+
+        // Act
+        var downloadedFiles = await ProcessAllAsync(service.DownloadAsync(CancellationToken.None));
+
+        // Assert
+        Assert.Equal(["ok"], downloadedFiles);
+        Assert.Equal(1, _progress.FailedCount);
+
+        _failedFileService.Verify(a => a.RecordAsync(UserId, SourceId,
+            It.Is<IReadOnlyCollection<FailedFile>>(b => b.Single().ExternalId == "empty" &&
+                                                        b.Single().Stage == FileFailureStage.Download),
+            It.Is<IReadOnlyCollection<string>>(b => b.SequenceEqual(new[] { "ok" }))));
+    }
+
+    [Fact]
+    public async Task RetryFailedAsync_ShouldRecordFileThatComesEmptyTwice()
+    {
+        // Arrange
+        _failedFileService
+            .Setup(a => a.GetAsync(UserId, SourceId))
+            .ReturnsAsync([CreateFailedFile("empty")]);
+
+        var service = CreateService(new Dictionary<string, Exception?> { ["empty"] = null },
+            emptyDownloads: new Dictionary<string, int> { ["empty"] = 2 });
+
+        // Act
+        var downloadedFiles = await ProcessAllAsync(service.RetryFailedAsync(CancellationToken.None));
+
+        // Assert
+        Assert.Empty(downloadedFiles);
+
+        _failedFileService.Verify(a => a.RecordAsync(UserId, SourceId,
+            It.Is<IReadOnlyCollection<FailedFile>>(b => b.Single().ExternalId == "empty"),
+            It.Is<IReadOnlyCollection<string>>(b => b.Count == 0)));
+    }
+
+    [Fact]
     public async Task DownloadAsync_ShouldFail_WhenTheAccessTokenIsRejected()
     {
         // Arrange
@@ -116,7 +173,8 @@ public class DownloadServiceBaseTests
         return fileIds;
     }
 
-    private FakeDownloadService CreateService(Dictionary<string, Exception?> files)
+    private FakeDownloadService CreateService(Dictionary<string, Exception?> files,
+        Dictionary<string, int>? emptyDownloads = null)
     {
         var parameters = new DownloadServiceParameters
         {
@@ -127,7 +185,7 @@ public class DownloadServiceBaseTests
             Progress = _progress
         };
 
-        return new FakeDownloadService(files, new Mock<IDownloadStateService<FakeState>>().Object,
+        return new FakeDownloadService(files, emptyDownloads ?? [], new Mock<IDownloadStateService<FakeState>>().Object,
             _failedFileService.Object, parameters);
     }
 
@@ -139,17 +197,21 @@ public class DownloadServiceBaseTests
     public sealed class FakeState;
 
     /// <summary>
-    /// A source of one page of the given files, each downloaded or failing with the exception given for it.
+    /// A source of one page of the given files, each downloaded or failing with the exception given for it, and
+    /// coming empty as many times as given for it first.
     /// </summary>
     private sealed class FakeDownloadService : DownloadServiceBase<FakeState>
     {
         private readonly Dictionary<string, Exception?> _files;
+        private readonly Dictionary<string, int> _emptyDownloads;
 
-        public FakeDownloadService(Dictionary<string, Exception?> files, IDownloadStateService<FakeState> stateService,
-            IFailedFileService failedFileService, DownloadServiceParameters parameters)
+        public FakeDownloadService(Dictionary<string, Exception?> files, Dictionary<string, int> emptyDownloads,
+            IDownloadStateService<FakeState> stateService, IFailedFileService failedFileService,
+            DownloadServiceParameters parameters)
             : base(NullLogger.Instance, stateService, new Mock<IPhotoService>().Object, failedFileService, parameters)
         {
             _files = files;
+            _emptyDownloads = emptyDownloads;
         }
 
         public bool PageCompleted { get; private set; }
@@ -196,7 +258,19 @@ public class DownloadServiceBaseTests
                 return Task.FromException<DownloadedFile>(exception);
             }
 
-            return Task.FromResult(new DownloadedFile(new DownloadedFileInfo(id + ".jpg", "/" + id + ".jpg", null, id), []));
+            byte[] contents = [1, 2, 3];
+
+            // the files of a page download in parallel, but each file only once at a time
+            lock (_emptyDownloads)
+            {
+                if (_emptyDownloads.TryGetValue(id, out var emptyCount) && emptyCount > 0)
+                {
+                    _emptyDownloads[id] = emptyCount - 1;
+                    contents = [];
+                }
+            }
+
+            return Task.FromResult(new DownloadedFile(new DownloadedFileInfo(id + ".jpg", "/" + id + ".jpg", null, id), contents));
         }
     }
 }

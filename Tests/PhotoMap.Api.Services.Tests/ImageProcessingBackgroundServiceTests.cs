@@ -1,10 +1,12 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using Moq;
 using PhotoMap.Shared.Models;
 using PhotoMap.Shared.Queues;
 using PhotoMap.Worker;
 using PhotoMap.Worker.Services;
 using PhotoMap.Worker.Services.Definitions;
+using PhotoMap.Worker.Services.Implementations;
 
 namespace PhotoMap.Api.Services.Tests;
 
@@ -73,6 +75,32 @@ public class ImageProcessingBackgroundServiceTests : IDisposable
         Assert.False(File.Exists(failedRequest.FileName));
     }
 
+    [Fact]
+    public async Task ExecuteAsync_ShouldFailTheImage_WhenTheDownloadedFileIsEmpty()
+    {
+        // Arrange
+        var requestQueue = new ChannelMessageQueue<ProcessImageRequest>();
+        var processedImageQueue = new ChannelMessageQueue<ProcessedImage>();
+        var imageProcessingService = new ImageProcessingService(NullLogger<ImageProcessingService>.Instance,
+            new Mock<IExifExtractor>().Object);
+        var service = CreateService(requestQueue, processedImageQueue, imageProcessingService);
+
+        var request = CreateRequest("empty", []);
+
+        // Act
+        await service.StartAsync(CancellationToken.None);
+
+        await requestQueue.EnqueueAsync(request);
+
+        var result = await request.Processed!.Task.WaitAsync(Timeout);
+
+        await service.StopAsync(CancellationToken.None);
+
+        // Assert
+        Assert.False(result.Succeeded);
+        Assert.Contains("empty", result.Error);
+    }
+
     public void Dispose()
     {
         Directory.Delete(_directory, recursive: true);
@@ -89,10 +117,10 @@ public class ImageProcessingBackgroundServiceTests : IDisposable
             processedImageQueue, imageProcessingService, settings);
     }
 
-    private ProcessImageRequest CreateRequest(string fileName)
+    private ProcessImageRequest CreateRequest(string fileName, byte[]? contents = null)
     {
         var filePath = Path.Combine(_directory, fileName);
-        File.WriteAllBytes(filePath, [1, 2, 3]);
+        File.WriteAllBytes(filePath, contents ?? [1, 2, 3]);
 
         return new ProcessImageRequest
         {
