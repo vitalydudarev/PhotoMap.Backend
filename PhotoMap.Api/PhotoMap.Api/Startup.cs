@@ -72,6 +72,8 @@ namespace PhotoMap.Api
             // domain services
             services.AddScoped<IPhotoService, PhotoService>();
             services.AddSingleton<PhotoYearsCache>();
+            services.AddSingleton<PhotoCategorizationSignal>();
+            services.AddScoped<PhotoCategorizationService>();
             services.AddScoped<IUserService, UserService>();
             services.AddScoped<IPhotoSourceService, PhotoSourceService>();
             services.AddScoped<IUserPhotoSourceService, UserPhotoSourceService>();
@@ -106,6 +108,7 @@ namespace PhotoMap.Api
             // worker, hosted in this application
             services.AddWorker(Configuration);
             services.AddHostedService<ProcessedImageBackgroundService>();
+            services.AddHostedService<PhotoCategorizationBackgroundService>();
             // registered after the image processing services: hosted services stop in reverse order, so processing
             // runs are cancelled (and record their Stopped status) while the rest of the application is still running
             services.AddHostedService(provider => provider.GetRequiredService<BackgroundTaskManager>());

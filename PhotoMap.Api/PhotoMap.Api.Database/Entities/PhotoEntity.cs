@@ -19,4 +19,10 @@ public class PhotoEntity
     public string? ExternalId { get; set; }
     public string? ContentHash { get; set; }
     public required DateTimeOffset AddedOn { get; set; }
+
+    /// <summary>
+    /// The version of the rules the photo was put in its categories by, 0 until it has been.
+    /// </summary>
+    public int CategoriesVersion { get; set; }
+    public List<PhotoCategoryEntity> Categories { get; set; } = [];
 }

@@ -1,3 +1,4 @@
+using System;
 using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using System.Threading.Tasks;
@@ -54,6 +55,9 @@ namespace PhotoMap.Api.Controllers
         /// <c>source=1&amp;source=2</c>. All the sources of the user when not given.</param>
         /// <param name="year">The years, in UTC, the photos were taken in, repeated for each one, such as
         /// <c>year=2016&amp;year=2019</c>. All the years when not given.</param>
+        /// <param name="category">The categories the photos are in, any of them, repeated for each one, such as
+        /// <c>category=Screenshot&amp;category=Other</c>; <c>Other</c> takes the photos in none of the categories.
+        /// Photos of every category when not given.</param>
         [HttpGet("{id:long}/photos")]
         [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(PagedResponse<PhotoDto>))]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -62,9 +66,18 @@ namespace PhotoMap.Api.Controllers
             [FromQuery, Range(0, int.MaxValue)] int skip,
             [FromQuery] PhotoSortOrder sort = PhotoSortOrder.Asc,
             [FromQuery] long[]? source = null,
-            [FromQuery] int[]? year = null)
+            [FromQuery] int[]? year = null,
+            [FromQuery] PhotoCategory[]? category = null)
         {
-            var filter = new PhotoFilter(source ?? [], year ?? []);
+            // a number binds to the enum whether it names a category or not
+            if (category != null && !category.All(Enum.IsDefined))
+            {
+                ModelState.AddModelError(nameof(category), "The category is not one of the photo categories.");
+
+                return ValidationProblem(ModelState);
+            }
+
+            var filter = new PhotoFilter(source ?? [], year ?? [], category ?? []);
 
             var userPhotos = await _photoService.GetByUserIdAsync(id, filter, top, skip, sort);
             var totalPhotosCount = await _photoService.GetTotalCountByUserIdAsync(id, filter);

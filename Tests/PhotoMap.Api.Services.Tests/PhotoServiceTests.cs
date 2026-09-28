@@ -12,6 +12,7 @@ public class PhotoServiceTests
 
     private readonly Mock<IPhotoRepository> _photoRepository = new();
     private readonly PhotoYearsCache _yearsCache = new();
+    private readonly PhotoCategorizationSignal _categorizationSignal = new();
 
     public PhotoServiceTests()
     {
@@ -35,6 +36,19 @@ public class PhotoServiceTests
     }
 
     [Fact]
+    public async Task AddRangeAsync_ShouldSignalTheCategorization()
+    {
+        // Arrange
+        var service = CreateService();
+
+        // Act
+        await service.AddRangeAsync([CreatePhoto(DateTimeOffset.UtcNow)]);
+
+        // Assert
+        Assert.True(_categorizationSignal.WaitAsync(CancellationToken.None).IsCompletedSuccessfully);
+    }
+
+    [Fact]
     public async Task DeleteByPhotoSourceAsync_ShouldReadTheYearsAgain()
     {
         // Arrange
@@ -51,7 +65,7 @@ public class PhotoServiceTests
 
     private PhotoService CreateService()
     {
-        return new PhotoService(_photoRepository.Object, _yearsCache);
+        return new PhotoService(_photoRepository.Object, _yearsCache, _categorizationSignal);
     }
 
     private static Photo CreatePhoto(DateTimeOffset dateTimeTaken)

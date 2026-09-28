@@ -19,6 +19,7 @@ namespace PhotoMap.Api.Database
         public DbSet<UserPhotoSourceStatusEntity> UserPhotoSourcesStatuses { get; set; } = null!;
         public DbSet<UserPhotoSourceEntity> UserPhotoSources { get; set; } = null!;
         public DbSet<FailedFileEntity> FailedFiles { get; set; } = null!;
+        public DbSet<PhotoCategoryEntity> PhotoCategories { get; set; } = null!;
 
         public PhotoMapContext(IConfiguration? configuration, DbContextOptions<PhotoMapContext> options)
             : base(options)
@@ -34,6 +35,7 @@ namespace PhotoMap.Api.Database
             modelBuilder.ApplyConfiguration(new UserPhotoSourceEntityConfiguration());
             modelBuilder.ApplyConfiguration(new UserPhotoSourceStatusEntityConfiguration());
             modelBuilder.ApplyConfiguration(new FailedFileEntityConfiguration());
+            modelBuilder.ApplyConfiguration(new PhotoCategoryEntityConfiguration());
         }
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)

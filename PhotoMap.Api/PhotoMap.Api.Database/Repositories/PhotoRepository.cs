@@ -81,6 +81,44 @@ public class PhotoRepository : IPhotoRepository
     }
 
     /// <summary>
+    /// The photos not yet put in their categories by the given version of the rules, in the order they were saved.
+    /// </summary>
+    public async Task<IReadOnlyList<Photo>> GetNotCategorizedAsync(int version, int top)
+    {
+        var photos = await _context.Photos
+            .Where(a => a.CategoriesVersion < version)
+            .OrderBy(a => a.Id)
+            .Take(top)
+            .ToListAsync();
+
+        return photos.Select(EntityToModel).ToList();
+    }
+
+    /// <summary>
+    /// Replaces the categories of the photos, and records the version of the rules they were put in them by. The
+    /// photos are all updated, or none of them is.
+    /// </summary>
+    public async Task SetCategoriesAsync(IReadOnlyDictionary<long, IReadOnlyCollection<PhotoCategory>> categoriesByPhotoId,
+        int version)
+    {
+        var photoIds = categoriesByPhotoId.Keys.ToArray();
+
+        await using var transaction = await _context.Database.BeginTransactionAsync();
+
+        await _context.PhotoCategories.Where(a => photoIds.Contains(a.PhotoId)).ExecuteDeleteAsync();
+
+        await _context.PhotoCategories.AddRangeAsync(categoriesByPhotoId.SelectMany(a =>
+            a.Value.Select(category => new PhotoCategoryEntity { PhotoId = a.Key, Category = category })));
+        await _context.SaveChangesAsync();
+
+        await _context.Photos
+            .Where(a => photoIds.Contains(a.Id))
+            .ExecuteUpdateAsync(a => a.SetProperty(photo => photo.CategoriesVersion, version));
+
+        await transaction.CommitAsync();
+    }
+
+    /// <summary>
     /// Deletes the photos a photo source was the origin of, for one user.
     /// </summary>
     /// <returns>The thumbnail files of the deleted photos, which the caller removes from the storage.</returns>
@@ -113,6 +151,15 @@ public class PhotoRepository : IPhotoRepository
         if (filter.Years.Count > 0)
         {
             photos = photos.Where(a => filter.Years.Contains(a.DateTimeTaken.Year));
+        }
+
+        if (filter.Categories.Count > 0)
+        {
+            var categories = filter.Categories.Where(a => a != PhotoCategory.Other).ToArray();
+            var other = filter.Categories.Contains(PhotoCategory.Other);
+
+            photos = photos.Where(a => a.Categories.Any(c => categories.Contains(c.Category)) ||
+                                       (other && !a.Categories.Any()));
         }
 
         return photos;

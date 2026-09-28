@@ -8,11 +8,14 @@ namespace PhotoMap.Api.Services.Services.Domain
     {
         private readonly IPhotoRepository _photoRepository;
         private readonly PhotoYearsCache _yearsCache;
+        private readonly PhotoCategorizationSignal _categorizationSignal;
 
-        public PhotoService(IPhotoRepository photoRepository, PhotoYearsCache yearsCache)
+        public PhotoService(IPhotoRepository photoRepository, PhotoYearsCache yearsCache,
+            PhotoCategorizationSignal categorizationSignal)
         {
             _photoRepository = photoRepository;
             _yearsCache = yearsCache;
+            _categorizationSignal = categorizationSignal;
         }
 
         public async Task AddRangeAsync(IReadOnlyCollection<Photo> photos)
@@ -23,6 +26,9 @@ namespace PhotoMap.Api.Services.Services.Domain
             {
                 _yearsCache.AddYears(userPhotos.Key, userPhotos.Select(a => a.DateTimeTaken.UtcDateTime.Year));
             }
+
+            // the photos are saved in none of the categories, until the categorization gets to them
+            _categorizationSignal.Notify();
         }
 
         public Task<Photo?> GetAsync(long id)

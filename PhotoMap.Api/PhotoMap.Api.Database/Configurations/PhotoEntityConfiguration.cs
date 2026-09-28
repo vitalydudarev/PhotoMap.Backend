@@ -23,12 +23,15 @@ namespace PhotoMap.Api.Database.Configurations
             builder.Property(a => a.AddedOn).IsRequired();
             builder.Property(a => a.ExternalId);
             builder.Property(a => a.ContentHash);
+            builder.Property(a => a.CategoriesVersion).IsRequired();
             builder.ToTable("photos");
 
             // file ID assigned by the photo source (Dropbox file ID, Yandex.Disk resource_id)
             builder.HasIndex(a => new { a.UserId, a.PhotoSourceId, a.ExternalId }).IsUnique();
             // SHA-256 of the file contents, the same across photo sources
             builder.HasIndex(a => new { a.UserId, a.ContentHash });
+            // the photos still to be put in their categories, looked for whenever photos are saved
+            builder.HasIndex(a => a.CategoriesVersion);
 
             builder.HasOne(a => a.User).WithMany().HasForeignKey(a => a.UserId);
             builder.HasOne(a => a.PhotoSource).WithMany().HasForeignKey(a => a.PhotoSourceId);
