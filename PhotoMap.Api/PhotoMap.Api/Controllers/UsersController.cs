@@ -58,6 +58,7 @@ namespace PhotoMap.Api.Controllers
         /// <param name="category">The categories the photos are in, any of them, repeated for each one, such as
         /// <c>category=Screenshot&amp;category=Other</c>; <c>Other</c> takes the photos in none of the categories.
         /// Photos of every category when not given.</param>
+        /// <param name="gps">Whether the photos have a GPS location. The photos with and without one when not given.</param>
         [HttpGet("{id:long}/photos")]
         [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(PagedResponse<PhotoDto>))]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -67,7 +68,8 @@ namespace PhotoMap.Api.Controllers
             [FromQuery] PhotoSortOrder sort = PhotoSortOrder.Asc,
             [FromQuery] long[]? source = null,
             [FromQuery] int[]? year = null,
-            [FromQuery] PhotoCategory[]? category = null)
+            [FromQuery] PhotoCategory[]? category = null,
+            [FromQuery] bool? gps = null)
         {
             // a number binds to the enum whether it names a category or not
             if (category != null && !category.All(Enum.IsDefined))
@@ -77,7 +79,7 @@ namespace PhotoMap.Api.Controllers
                 return ValidationProblem(ModelState);
             }
 
-            var filter = new PhotoFilter(source ?? [], year ?? [], category ?? []);
+            var filter = new PhotoFilter(source ?? [], year ?? [], category ?? [], gps);
 
             var userPhotos = await _photoService.GetByUserIdAsync(id, filter, top, skip, sort);
             var totalPhotosCount = await _photoService.GetTotalCountByUserIdAsync(id, filter);

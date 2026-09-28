@@ -162,6 +162,11 @@ public class PhotoRepository : IPhotoRepository
                                        (other && !a.Categories.Any()));
         }
 
+        if (filter.HasGps != null)
+        {
+            photos = photos.Where(a => a.HasGps == filter.HasGps.Value);
+        }
+
         return photos;
     }
 

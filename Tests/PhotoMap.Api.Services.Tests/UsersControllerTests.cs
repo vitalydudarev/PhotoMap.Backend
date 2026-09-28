@@ -78,6 +78,23 @@ public class UsersControllerTests
             It.Is<PhotoFilter>(f => f.Categories.SequenceEqual(new[] { PhotoCategory.Screenshot, PhotoCategory.Other }))));
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task GetUserPhotos_ShouldTakeThePhotosWithOrWithoutAGpsLocation(bool gps)
+    {
+        // Arrange
+        var controller = CreateController();
+
+        // Act
+        await controller.GetUserPhotos(UserId, 100, 0, gps: gps);
+
+        // Assert
+        _photoService.Verify(a => a.GetByUserIdAsync(UserId, It.Is<PhotoFilter>(f => f.HasGps == gps), 100, 0,
+            PhotoSortOrder.Asc));
+        _photoService.Verify(a => a.GetTotalCountByUserIdAsync(UserId, It.Is<PhotoFilter>(f => f.HasGps == gps)));
+    }
+
     [Fact]
     public async Task GetUserPhotos_ShouldReturnBadRequest_WhenTheCategoryIsNotOne()
     {
@@ -111,7 +128,7 @@ public class UsersControllerTests
     private static bool IsFilter(PhotoFilter filter, long[] photoSourceIds, int[] years)
     {
         return filter.PhotoSourceIds.SequenceEqual(photoSourceIds) && filter.Years.SequenceEqual(years) &&
-               filter.Categories.Count == 0;
+               filter.Categories.Count == 0 && filter.HasGps == null;
     }
 
     private UsersController CreateController()

@@ -8,10 +8,12 @@ namespace PhotoMap.Api.Domain.Models;
 /// <param name="Years">The years, in UTC, the photos were taken in.</param>
 /// <param name="Categories">The categories the photos are in, any of them. <see cref="PhotoCategory.Other"/> takes
 /// the photos in none of the categories.</param>
+/// <param name="HasGps">Whether the photos have a GPS location, or null for the photos with and without one.</param>
 public record PhotoFilter(
     IReadOnlyCollection<long> PhotoSourceIds,
     IReadOnlyCollection<int> Years,
-    IReadOnlyCollection<PhotoCategory> Categories)
+    IReadOnlyCollection<PhotoCategory> Categories,
+    bool? HasGps = null)
 {
     public static PhotoFilter All { get; } = new([], [], []);
 }
