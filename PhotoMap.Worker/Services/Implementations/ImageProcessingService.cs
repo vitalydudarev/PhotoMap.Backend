@@ -32,12 +32,14 @@ namespace PhotoMap.Worker.Services.Implementations
                 throw new InvalidDataException("The downloaded file is empty.");
             }
 
-            using var imageProcessor = new ImageProcessor(fileContents);
+            var sizes = request.Sizes.ToArray();
+
+            using var imageProcessor = new ImageProcessor(fileContents, sizes.Max());
             imageProcessor.Rotate();
             
             var sizeBytesMap = new Dictionary<int, byte[]>();
 
-            foreach (var size in request.Sizes)
+            foreach (var size in sizes)
             {
                 imageProcessor.Crop(size);
                 var bytes = imageProcessor.GetImageBytes();
