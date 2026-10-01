@@ -49,6 +49,38 @@ public class PhotoServiceTests
     }
 
     [Fact]
+    public async Task MarkAsDeletedAsync_ShouldMarkThePhotoAsDeletedNow()
+    {
+        // Arrange
+        _photoRepository.Setup(a => a.SetDeletedOnAsync(UserId, 5, It.IsAny<DateTimeOffset?>())).ReturnsAsync(true);
+        var service = CreateService();
+        var before = DateTimeOffset.UtcNow;
+
+        // Act
+        var marked = await service.MarkAsDeletedAsync(UserId, 5);
+
+        // Assert
+        Assert.True(marked);
+        _photoRepository.Verify(a => a.SetDeletedOnAsync(UserId, 5,
+            It.Is<DateTimeOffset?>(d => d >= before && d <= DateTimeOffset.UtcNow)));
+    }
+
+    [Fact]
+    public async Task RestoreAsync_ShouldMarkThePhotoAsNotDeleted()
+    {
+        // Arrange
+        _photoRepository.Setup(a => a.SetDeletedOnAsync(UserId, 5, null)).ReturnsAsync(true);
+        var service = CreateService();
+
+        // Act
+        var restored = await service.RestoreAsync(UserId, 5);
+
+        // Assert
+        Assert.True(restored);
+        _photoRepository.Verify(a => a.SetDeletedOnAsync(UserId, 5, null));
+    }
+
+    [Fact]
     public async Task DeleteByPhotoSourceAsync_ShouldReadTheYearsAgain()
     {
         // Arrange

@@ -119,6 +119,19 @@ public class PhotoRepository : IPhotoRepository
     }
 
     /// <summary>
+    /// Marks a photo of the user as deleted, or no longer deleted when <paramref name="deletedOn"/> is null.
+    /// </summary>
+    /// <returns>false if the user has no such photo.</returns>
+    public async Task<bool> SetDeletedOnAsync(long userId, long photoId, DateTimeOffset? deletedOn)
+    {
+        var updated = await _context.Photos
+            .Where(a => a.UserId == userId && a.Id == photoId)
+            .ExecuteUpdateAsync(a => a.SetProperty(photo => photo.DeletedOn, deletedOn));
+
+        return updated > 0;
+    }
+
+    /// <summary>
     /// Deletes the photos a photo source was the origin of, for one user.
     /// </summary>
     /// <returns>The thumbnail files of the deleted photos, which the caller removes from the storage.</returns>
@@ -155,11 +168,21 @@ public class PhotoRepository : IPhotoRepository
 
         if (filter.Categories.Count > 0)
         {
-            var categories = filter.Categories.Where(a => a != PhotoCategory.Other).ToArray();
+            var categories = filter.Categories
+                .Where(a => a != PhotoCategory.Other && a != PhotoCategory.Deleted)
+                .ToArray();
             var other = filter.Categories.Contains(PhotoCategory.Other);
+            var deleted = filter.Categories.Contains(PhotoCategory.Deleted);
 
-            photos = photos.Where(a => a.Categories.Any(c => categories.Contains(c.Category)) ||
-                                       (other && !a.Categories.Any()));
+            // a photo marked as deleted is in the deleted ones only, whatever its other categories
+            photos = photos.Where(a => (a.DeletedOn == null &&
+                                        (a.Categories.Any(c => categories.Contains(c.Category)) ||
+                                         (other && !a.Categories.Any()))) ||
+                                       (deleted && a.DeletedOn != null));
+        }
+        else
+        {
+            photos = photos.Where(a => a.DeletedOn == null);
         }
 
         if (filter.HasGps != null)
@@ -188,7 +211,8 @@ public class PhotoRepository : IPhotoRepository
             ExternalId = photoEntity.ExternalId,
             ContentHash = photoEntity.ContentHash,
             AddedOn = photoEntity.AddedOn,
-            PhotoSourceId = photoEntity.PhotoSourceId
+            PhotoSourceId = photoEntity.PhotoSourceId,
+            DeletedOn = photoEntity.DeletedOn
         };
     }
 

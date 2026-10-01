@@ -24,6 +24,7 @@ namespace PhotoMap.Api.Database.Configurations
             builder.Property(a => a.ExternalId);
             builder.Property(a => a.ContentHash);
             builder.Property(a => a.CategoriesVersion).IsRequired();
+            builder.Property(a => a.DeletedOn);
             builder.ToTable("photos");
 
             // file ID assigned by the photo source (Dropbox file ID, Yandex.Disk resource_id)

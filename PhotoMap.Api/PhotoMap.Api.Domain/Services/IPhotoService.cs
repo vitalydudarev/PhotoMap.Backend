@@ -20,6 +20,18 @@ namespace PhotoMap.Api.Domain.Services
         /// <returns>The years, in UTC, the photos of the user were taken in, oldest first.</returns>
         Task<IReadOnlyList<int>> GetYearsAsync(long userId);
 
+        /// <summary>
+        /// Marks a photo of the user as deleted: it is kept, with its files, but only shows among the deleted photos.
+        /// </summary>
+        /// <returns>false if the user has no such photo.</returns>
+        Task<bool> MarkAsDeletedAsync(long userId, long photoId);
+
+        /// <summary>
+        /// Takes a photo of the user back from the deleted photos.
+        /// </summary>
+        /// <returns>false if the user has no such photo.</returns>
+        Task<bool> RestoreAsync(long userId, long photoId);
+
         /// <returns>The thumbnail files of the deleted photos.</returns>
         Task<IReadOnlyCollection<string>> DeleteByPhotoSourceAsync(long userId, long photoSourceId);
     }

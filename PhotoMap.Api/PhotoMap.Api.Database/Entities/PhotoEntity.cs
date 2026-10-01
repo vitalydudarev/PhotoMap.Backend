@@ -21,6 +21,11 @@ public class PhotoEntity
     public required DateTimeOffset AddedOn { get; set; }
 
     /// <summary>
+    /// When the user marked the photo as deleted, null while it is not.
+    /// </summary>
+    public DateTimeOffset? DeletedOn { get; set; }
+
+    /// <summary>
     /// The version of the rules the photo was put in its categories by, 0 until it has been.
     /// </summary>
     public int CategoriesVersion { get; set; }

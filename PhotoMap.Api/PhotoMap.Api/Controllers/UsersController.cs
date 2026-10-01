@@ -57,7 +57,8 @@ namespace PhotoMap.Api.Controllers
         /// <c>year=2016&amp;year=2019</c>. All the years when not given.</param>
         /// <param name="category">The categories the photos are in, any of them, repeated for each one, such as
         /// <c>category=Screenshot&amp;category=Other</c>; <c>Other</c> takes the photos in none of the categories.
-        /// Photos of every category when not given.</param>
+        /// <c>Deleted</c> takes the photos marked as deleted, which every other category leaves out. Photos of every
+        /// category but <c>Deleted</c> when not given.</param>
         /// <param name="gps">Whether the photos have a GPS location. The photos with and without one when not given.</param>
         [HttpGet("{id:long}/photos")]
         [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(PagedResponse<PhotoDto>))]
@@ -95,12 +96,40 @@ namespace PhotoMap.Api.Controllers
                 Longitude = a.Longitude,
                 PhotoUrl = $"{url}/photos/{a.Id}",
                 ThumbnailLargeUrl = $"{url}/photos/{a.Id}/thumb/large",
-                ThumbnailSmallUrl = $"{url}/photos/{a.Id}/thumb/small"
+                ThumbnailSmallUrl = $"{url}/photos/{a.Id}/thumb/small",
+                DeletedOn = a.DeletedOn?.UtcDateTime
             }).ToArray();
 
             var response = new PagedResponse<PhotoDto> { Values = values, Limit = top, Offset = skip, Total = totalPhotosCount };
             
             return Ok(response);
+        }
+
+        /// <summary>
+        /// Marks a photo of the user as deleted. It is kept, with its files, and only shows among the photos of the
+        /// <c>Deleted</c> category until it is restored.
+        /// </summary>
+        /// <param name="id">The ID of the user.</param>
+        /// <param name="photoId">The ID of the photo.</param>
+        [HttpPost("{id:long}/photos/{photoId:long}/delete")]
+        [ProducesResponseType(StatusCodes.Status204NoContent)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> MarkPhotoAsDeleted([FromRoute] long id, [FromRoute] long photoId)
+        {
+            return await _photoService.MarkAsDeletedAsync(id, photoId) ? NoContent() : NotFound();
+        }
+
+        /// <summary>
+        /// Takes a photo of the user back from the deleted photos. Restoring a photo that is not deleted does nothing.
+        /// </summary>
+        /// <param name="id">The ID of the user.</param>
+        /// <param name="photoId">The ID of the photo.</param>
+        [HttpPost("{id:long}/photos/{photoId:long}/restore")]
+        [ProducesResponseType(StatusCodes.Status204NoContent)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> RestorePhoto([FromRoute] long id, [FromRoute] long photoId)
+        {
+            return await _photoService.RestoreAsync(id, photoId) ? NoContent() : NotFound();
         }
 
         /// <summary>

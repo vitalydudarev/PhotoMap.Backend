@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Moq;
 using PhotoMap.Api.Controllers;
 using PhotoMap.Api.Domain.Models;
@@ -109,6 +110,57 @@ public class UsersControllerTests
         Assert.Contains("category", problem.Errors.Keys);
         _photoService.Verify(a => a.GetByUserIdAsync(It.IsAny<long>(), It.IsAny<PhotoFilter>(), It.IsAny<int>(),
             It.IsAny<int>(), It.IsAny<PhotoSortOrder>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task GetUserPhotos_ShouldTellWhenThePhotoWasMarkedAsDeleted()
+    {
+        // Arrange
+        var deletedOn = new DateTimeOffset(2026, 10, 1, 15, 0, 0, TimeSpan.FromHours(3));
+        _photoService
+            .Setup(a => a.GetByUserIdAsync(UserId, It.IsAny<PhotoFilter>(), It.IsAny<int>(), It.IsAny<int>(),
+                It.IsAny<PhotoSortOrder>()))
+            .ReturnsAsync([new Photo { Id = 5, UserId = UserId, FileName = "a.jpg", DeletedOn = deletedOn }]);
+        var controller = CreateController();
+
+        // Act
+        var result = await controller.GetUserPhotos(UserId, 100, 0, category: [PhotoCategory.Deleted]);
+
+        // Assert
+        var response = Assert.IsType<PagedResponse<PhotoDto>>(Assert.IsType<OkObjectResult>(result).Value);
+        Assert.Equal(deletedOn.UtcDateTime, Assert.Single(response.Values).DeletedOn);
+    }
+
+    [Theory]
+    [InlineData(true, StatusCodes.Status204NoContent)]
+    [InlineData(false, StatusCodes.Status404NotFound)]
+    public async Task MarkPhotoAsDeleted_ShouldMarkThePhoto_OrReturnNotFound(bool found, int statusCode)
+    {
+        // Arrange
+        _photoService.Setup(a => a.MarkAsDeletedAsync(UserId, 5)).ReturnsAsync(found);
+        var controller = CreateController();
+
+        // Act
+        var result = await controller.MarkPhotoAsDeleted(UserId, 5);
+
+        // Assert
+        Assert.Equal(statusCode, Assert.IsAssignableFrom<IStatusCodeActionResult>(result).StatusCode);
+    }
+
+    [Theory]
+    [InlineData(true, StatusCodes.Status204NoContent)]
+    [InlineData(false, StatusCodes.Status404NotFound)]
+    public async Task RestorePhoto_ShouldRestoreThePhoto_OrReturnNotFound(bool found, int statusCode)
+    {
+        // Arrange
+        _photoService.Setup(a => a.RestoreAsync(UserId, 5)).ReturnsAsync(found);
+        var controller = CreateController();
+
+        // Act
+        var result = await controller.RestorePhoto(UserId, 5);
+
+        // Assert
+        Assert.Equal(statusCode, Assert.IsAssignableFrom<IStatusCodeActionResult>(result).StatusCode);
     }
 
     [Fact]

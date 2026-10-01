@@ -17,4 +17,9 @@ public class Photo
     public string? ContentHash { get; set; }
     public DateTimeOffset AddedOn { get; set; }
     public long PhotoSourceId { get; set; }
+
+    /// <summary>
+    /// When the user marked the photo as deleted, null while it is not.
+    /// </summary>
+    public DateTimeOffset? DeletedOn { get; set; }
 }

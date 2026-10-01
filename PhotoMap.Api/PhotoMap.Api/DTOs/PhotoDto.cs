@@ -12,5 +12,10 @@ namespace PhotoMap.Api.DTOs
         public double? Latitude { get; set; }
         public double? Longitude { get; set; }
         public string FileName { get; set; } = null!;
+
+        /// <summary>
+        /// When the user marked the photo as deleted, null while it is not.
+        /// </summary>
+        public DateTime? DeletedOn { get; set; }
     }
 }

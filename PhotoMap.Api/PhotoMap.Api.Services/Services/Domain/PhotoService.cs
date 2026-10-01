@@ -57,6 +57,16 @@ namespace PhotoMap.Api.Services.Services.Domain
             return _yearsCache.GetOrLoadAsync(userId, () => _photoRepository.GetYearsAsync(userId));
         }
 
+        public Task<bool> MarkAsDeletedAsync(long userId, long photoId)
+        {
+            return _photoRepository.SetDeletedOnAsync(userId, photoId, DateTimeOffset.UtcNow);
+        }
+
+        public Task<bool> RestoreAsync(long userId, long photoId)
+        {
+            return _photoRepository.SetDeletedOnAsync(userId, photoId, null);
+        }
+
         public async Task<IReadOnlyCollection<string>> DeleteByPhotoSourceAsync(long userId, long photoSourceId)
         {
             try

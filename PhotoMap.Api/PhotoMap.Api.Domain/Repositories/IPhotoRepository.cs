@@ -21,6 +21,12 @@ public interface IPhotoRepository
     /// </summary>
     Task SetCategoriesAsync(IReadOnlyDictionary<long, IReadOnlyCollection<PhotoCategory>> categoriesByPhotoId, int version);
 
+    /// <summary>
+    /// Marks a photo of the user as deleted, or no longer deleted when <paramref name="deletedOn"/> is null.
+    /// </summary>
+    /// <returns>false if the user has no such photo.</returns>
+    Task<bool> SetDeletedOnAsync(long userId, long photoId, DateTimeOffset? deletedOn);
+
     /// <returns>The thumbnail files of the deleted photos.</returns>
     Task<IReadOnlyCollection<string>> DeleteByPhotoSourceAsync(long userId, long photoSourceId);
 }
