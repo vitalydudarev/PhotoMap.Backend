@@ -25,9 +25,26 @@ public class FrontendNotificationService : IFrontendNotificationService
 
     public Task SendProgressAsync(UserPhotoSourceStatus status)
     {
+        return SendProgressAsync("Progress", status);
+    }
+
+    public Task SendVideoErrorAsync(long userId, long sourceId, string errorText)
+    {
+        var hubErrorModel = new HubErrorModel(sourceId, errorText);
+
+        return _hubContext.Clients.Group(NotificationHub.GetUserGroupName(userId)).SendAsync("VideoError", hubErrorModel);
+    }
+
+    public Task SendVideoProgressAsync(UserPhotoSourceStatus status)
+    {
+        return SendProgressAsync("VideoProgress", status);
+    }
+
+    private Task SendProgressAsync(string method, UserPhotoSourceStatus status)
+    {
         var hubProgressModel = new HubProgressModel(status.PhotoSourceId, status.Status.ToString(), status.ProcessedCount,
             status.FailedCount, status.TotalCount);
 
-        return _hubContext.Clients.Group(NotificationHub.GetUserGroupName(status.UserId)).SendAsync("Progress", hubProgressModel);
+        return _hubContext.Clients.Group(NotificationHub.GetUserGroupName(status.UserId)).SendAsync(method, hubProgressModel);
     }
 }

@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using PhotoMap.Api.Database;
@@ -12,9 +13,11 @@ using PhotoMap.Api.Domain.Models;
 namespace PhotoMap.Api.Database.Migrations
 {
     [DbContext(typeof(PhotoMapContext))]
-    partial class PhotoMapContextModelSnapshot : ModelSnapshot
+    [Migration("20261003135838_AddVideos")]
+    partial class AddVideos
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -370,10 +373,6 @@ namespace PhotoMap.Api.Database.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("date_time_taken");
 
-                    b.Property<DateTimeOffset?>("ExifDateTime")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("exif_date_time");
-
                     b.Property<string>("ExternalId")
                         .IsRequired()
                         .HasColumnType("text")
@@ -384,21 +383,13 @@ namespace PhotoMap.Api.Database.Migrations
                         .HasColumnType("text")
                         .HasColumnName("file_name");
 
-                    b.Property<string>("FolderPath")
-                        .HasColumnType("text")
-                        .HasColumnName("folder_path");
-
-                    b.Property<double?>("Latitude")
-                        .HasColumnType("double precision")
-                        .HasColumnName("latitude");
-
-                    b.Property<double?>("Longitude")
-                        .HasColumnType("double precision")
-                        .HasColumnName("longitude");
-
                     b.Property<string>("MimeType")
                         .HasColumnType("text")
                         .HasColumnName("mime_type");
+
+                    b.Property<string>("Path")
+                        .HasColumnType("text")
+                        .HasColumnName("path");
 
                     b.Property<long>("PhotoSourceId")
                         .HasColumnType("bigint")

@@ -1,4 +1,3 @@
-using System.Net;
 using System.Runtime.CompilerServices;
 using Microsoft.Extensions.Logging;
 using PhotoMap.Api.Domain.Models;
@@ -12,8 +11,6 @@ namespace PhotoMap.Api.Services.Services;
 
 public sealed class YandexDiskDownloadService : DownloadServiceBase<YandexDiskDownloadState>
 {
-    private const int MaxRateLimitRetries = 3;
-
     /// <summary>
     /// The folder is listed oldest first: the files uploaded after a run are listed after the ones it has listed,
     /// so the next run carries on from the offset the previous one has reached.
@@ -259,42 +256,9 @@ public sealed class YandexDiskDownloadService : DownloadServiceBase<YandexDiskDo
         }
     }
 
-    private async Task<T> WrapApiCallAsync<T>(Func<Task<T>> apiCall, CancellationToken cancellationToken = default)
+    private Task<T> WrapApiCallAsync<T>(Func<Task<T>> apiCall, CancellationToken cancellationToken = default)
     {
-        for (var attempt = 1; ; attempt++)
-        {
-            try
-            {
-                return await apiCall();
-            }
-            catch (ApiException e) when (e.StatusCode == HttpStatusCode.TooManyRequests && attempt <= MaxRateLimitRetries)
-            {
-                // without this the file would be counted as failed and skipped until the next run
-                var retryAfter = e.RetryAfter ?? TimeSpan.FromSeconds(Math.Pow(2, attempt));
-
-                Logger.LogWarning(
-                    "Yandex.Disk rate limit reached, retrying in {RetryAfter} (attempt {Attempt} of {MaxAttempts})",
-                    retryAfter, attempt, MaxRateLimitRetries);
-
-                await Task.Delay(retryAfter, cancellationToken);
-            }
-            catch (ApiException e) when (e.StatusCode == HttpStatusCode.Unauthorized)
-            {
-                Logger.LogError(e, "An auth error has occurred while calling API");
-
-                throw new YandexDiskException("An auth error has occurred while calling API: " + e.Message, isAuthError: true);
-            }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-            {
-                throw;
-            }
-            catch (Exception e)
-            {
-                Logger.LogError(e, "An error has occurred while calling API");
-
-                throw new YandexDiskException("An error has occurred while calling API: " + e.Message);
-            }
-        }
+        return YandexDiskApiCalls.WrapAsync(Logger, apiCall, cancellationToken);
     }
 
     #endregion Private Methods

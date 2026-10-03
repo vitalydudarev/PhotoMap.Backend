@@ -28,5 +28,6 @@ namespace PhotoMap.Shared.Yandex.Disk.Models
         public DateTime Created { get; set; }
         public DateTime Modified { get; set; }
         public CommentIds? CommentIds { get; set; }
+        public List<ResourceSize> Sizes { get; set; } = [];
     }
 }

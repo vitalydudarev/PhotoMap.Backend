@@ -70,17 +70,37 @@ namespace PhotoMap.Shared.Yandex.Disk
             return await responseMessage.Content.ReadAsByteArrayAsync(cancellationToken);
         }
 
-        public async Task<FilesResourceList> GetFlatFilesListAsync(CancellationToken cancellationToken, string? mediaType = null, int limit = 20)
+        /// <param name="mediaType">The media types of the files to list, e.g. "image" or "video", every file when null.</param>
+        public async Task<FilesResourceList> GetFlatFilesListAsync(CancellationToken cancellationToken, string? mediaType = null, int limit = 20,
+            int offset = 0)
         {
             var parameters = new Dictionary<string, string?>
             {
                 { nameof(mediaType), mediaType },
-                { nameof(limit), limit.ToString() }
+                { nameof(limit), limit.ToString() },
+                { nameof(offset), offset.ToString() }
             };
 
             var url = _urlBuilder.Build(Url, "resources/files", parameters);
 
             return await GetAsync<FilesResourceList>(url, cancellationToken);
+        }
+
+        /// <summary>
+        /// Downloads a file by a URL the API has given, such as the URL of a preview of a resource, which is only
+        /// served with the OAuth token.
+        /// </summary>
+        /// <returns>The contents of the file and their media type, as the server sent them.</returns>
+        public async Task<(byte[] Contents, string? ContentType)> DownloadByUrlAsync(string url, CancellationToken cancellationToken)
+        {
+            using var responseMessage = await _httpClient.GetAsync(url, cancellationToken);
+
+            if (!responseMessage.IsSuccessStatusCode)
+                throw await CreateApiExceptionAsync(responseMessage, cancellationToken);
+
+            var contents = await responseMessage.Content.ReadAsByteArrayAsync(cancellationToken);
+
+            return (contents, responseMessage.Content.Headers.ContentType?.MediaType);
         }
 
         public async Task UploadFileAsync(string path, byte[] fileContents, CancellationToken cancellationToken)

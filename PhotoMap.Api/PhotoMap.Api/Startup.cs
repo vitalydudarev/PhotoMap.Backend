@@ -68,6 +68,7 @@ namespace PhotoMap.Api
             services.AddScoped<IPhotoSourceDataService, PhotoSourceDataService>();
             services.AddScoped<IDownloadServiceFactory, DropboxDownloadServiceFactory>();
             services.AddScoped<IDownloadServiceFactory, YandexDiskDownloadServiceFactory>();
+            services.AddScoped<IVideoProcessingService, VideoProcessingService>();
 
             // domain services
             services.AddScoped<IPhotoService, PhotoService>();
@@ -78,6 +79,7 @@ namespace PhotoMap.Api
             services.AddScoped<IPhotoSourceService, PhotoSourceService>();
             services.AddScoped<IUserPhotoSourceService, UserPhotoSourceService>();
             services.AddScoped<IFailedFileService, FailedFileService>();
+            services.AddScoped<IVideoService, VideoService>();
             
             // repositories
             services.AddScoped<IPhotoRepository, PhotoRepository>();
@@ -196,12 +198,19 @@ namespace PhotoMap.Api
         {
             using var scope = app.ApplicationServices.CreateScope();
             var userPhotoSourceService = scope.ServiceProvider.GetRequiredService<IUserPhotoSourceService>();
+            var videoService = scope.ServiceProvider.GetRequiredService<IVideoService>();
             var logger = scope.ServiceProvider.GetRequiredService<ILogger<Startup>>();
 
             var pausedCount = userPhotoSourceService.PauseInProgressAsync().GetAwaiter().GetResult();
             if (pausedCount > 0)
             {
                 logger.LogInformation("Paused {PausedCount} photo source runs interrupted by the application stopping", pausedCount);
+            }
+
+            var pausedVideoCount = videoService.PauseInProgressAsync().GetAwaiter().GetResult();
+            if (pausedVideoCount > 0)
+            {
+                logger.LogInformation("Paused {PausedCount} video runs interrupted by the application stopping", pausedVideoCount);
             }
         }
     }
