@@ -81,9 +81,10 @@ public class VideoService : IVideoService
         return entity == null ? null : ToModel(entity);
     }
 
-    public async Task<IReadOnlyList<Video>> GetByUserIdAsync(long userId, int top, int skip, PhotoSortOrder sortOrder)
+    public async Task<IReadOnlyList<Video>> GetByUserIdAsync(long userId, IReadOnlyCollection<string> folderPaths, int top,
+        int skip, PhotoSortOrder sortOrder)
     {
-        var videos = _context.Videos.AsNoTracking().Where(a => a.UserId == userId);
+        var videos = GetUserVideos(userId, folderPaths).AsNoTracking();
 
         var ordered = sortOrder == PhotoSortOrder.Desc
             ? videos.OrderByDescending(a => a.DateTimeTaken).ThenByDescending(a => a.Id)
@@ -94,9 +95,19 @@ public class VideoService : IVideoService
         return entities.Select(ToModel).ToList();
     }
 
-    public Task<int> GetTotalCountByUserIdAsync(long userId)
+    public Task<int> GetTotalCountByUserIdAsync(long userId, IReadOnlyCollection<string> folderPaths)
     {
-        return _context.Videos.CountAsync(a => a.UserId == userId);
+        return GetUserVideos(userId, folderPaths).CountAsync();
+    }
+
+    public async Task<IReadOnlyList<string>> GetFolderPathsAsync(long userId)
+    {
+        return await _context.Videos
+            .Where(a => a.UserId == userId && a.FolderPath != null)
+            .Select(a => a.FolderPath!)
+            .Distinct()
+            .OrderBy(a => a)
+            .ToListAsync();
     }
 
     public async Task<IReadOnlySet<string>> GetSavedExternalIdsAsync(long userId, long photoSourceId,
@@ -195,6 +206,13 @@ public class VideoService : IVideoService
         await _context.SaveChangesAsync();
 
         return entities.Count;
+    }
+
+    private IQueryable<VideoEntity> GetUserVideos(long userId, IReadOnlyCollection<string> folderPaths)
+    {
+        var videos = _context.Videos.Where(a => a.UserId == userId);
+
+        return folderPaths.Count > 0 ? videos.Where(a => a.FolderPath != null && folderPaths.Contains(a.FolderPath)) : videos;
     }
 
     private static Video ToModel(VideoEntity entity)

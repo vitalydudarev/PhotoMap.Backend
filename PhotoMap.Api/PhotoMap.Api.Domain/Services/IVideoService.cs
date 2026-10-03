@@ -10,9 +10,17 @@ public interface IVideoService
     /// <summary>
     /// The videos of the user, by the date they were taken, with the ID breaking ties.
     /// </summary>
-    Task<IReadOnlyList<Video>> GetByUserIdAsync(long userId, int top, int skip, PhotoSortOrder sortOrder);
+    /// <param name="folderPaths">The folders to take the videos from, all of them when empty.</param>
+    Task<IReadOnlyList<Video>> GetByUserIdAsync(long userId, IReadOnlyCollection<string> folderPaths, int top, int skip,
+        PhotoSortOrder sortOrder);
 
-    Task<int> GetTotalCountByUserIdAsync(long userId);
+    /// <param name="folderPaths">The folders to count the videos of, all of them when empty.</param>
+    Task<int> GetTotalCountByUserIdAsync(long userId, IReadOnlyCollection<string> folderPaths);
+
+    /// <summary>
+    /// The folders the videos of the user are in, by name.
+    /// </summary>
+    Task<IReadOnlyList<string>> GetFolderPathsAsync(long userId);
 
     /// <summary>
     /// The IDs, of the ones given, of the videos of the photo source saved already.

@@ -46,16 +46,21 @@ namespace PhotoMap.Api.Controllers
         /// <param name="top">How many videos to return, 1 to 1000. Required.</param>
         /// <param name="skip">How many videos to skip, 0 or more, 0 when not given.</param>
         /// <param name="sort">The order of the videos by the date they were taken.</param>
+        /// <param name="folder">The folders to take the videos from, without the file name, repeated for each one,
+        /// such as <c>folder=disk:/Camera Uploads&amp;folder=disk:/Videos</c>. All the folders when not given.</param>
         [HttpGet("api/users/{userId:long}/videos")]
         [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(PagedResponse<VideoDto>))]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         public async Task<IActionResult> GetUserVideos([FromRoute] long userId,
             [FromQuery, BindRequired, Range(1, MaxPageSize)] int top,
             [FromQuery, Range(0, int.MaxValue)] int skip,
-            [FromQuery] PhotoSortOrder sort = PhotoSortOrder.Asc)
+            [FromQuery] PhotoSortOrder sort = PhotoSortOrder.Asc,
+            [FromQuery] string[]? folder = null)
         {
-            var videos = await _videoService.GetByUserIdAsync(userId, top, skip, sort);
-            var total = await _videoService.GetTotalCountByUserIdAsync(userId);
+            var folderPaths = folder ?? [];
+
+            var videos = await _videoService.GetByUserIdAsync(userId, folderPaths, top, skip, sort);
+            var total = await _videoService.GetTotalCountByUserIdAsync(userId, folderPaths);
 
             var url = _hostInfo.GetUrl() + "api";
 
@@ -75,6 +80,17 @@ namespace PhotoMap.Api.Controllers
             }).ToArray();
 
             return Ok(new PagedResponse<VideoDto> { Values = values, Limit = top, Offset = skip, Total = total });
+        }
+
+        /// <summary>
+        /// The folders the videos of the user are in, without the file names, by name.
+        /// </summary>
+        /// <param name="userId">The ID of the user.</param>
+        [HttpGet("api/users/{userId:long}/videos/folders")]
+        [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(string[]))]
+        public async Task<IActionResult> GetUserVideoFolders([FromRoute] long userId)
+        {
+            return Ok(await _videoService.GetFolderPathsAsync(userId));
         }
 
         /// <summary>
