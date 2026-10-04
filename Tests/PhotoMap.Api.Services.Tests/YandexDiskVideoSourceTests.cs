@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using System.Web;
@@ -29,6 +30,65 @@ public class YandexDiskVideoSourceTests
 
         // Assert
         Assert.Equal(["r1", "r2", "r3"], videos.Select(a => a.ResourceId));
+    }
+
+    [Theory]
+    [InlineData("disk:/Camera Uploads", "video.mp4", "disk:/Camera Uploads/video.mp4")]
+    [InlineData("disk:/", "video.mp4", "disk:/video.mp4")]
+    public void GetPath_ShouldPutTheFileNameInItsFolder(string folderPath, string fileName, string expectedPath)
+    {
+        Assert.Equal(expectedPath, YandexDiskVideoSource.GetPath(folderPath, fileName));
+    }
+
+    [Fact]
+    public async Task OpenVideoAsync_ShouldDownloadTheRangeAskedFor_ByTheUrlOfThePath()
+    {
+        // Arrange
+        var handler = new FakeDownloadHandler();
+        var apiClient = new ApiClient("token", new HttpClient(handler));
+        var videoSource = new YandexDiskVideoSource(apiClient, NullLogger.Instance);
+
+        // Act
+        using var response = await videoSource.OpenVideoAsync("disk:/Videos/trip.mp4", new RangeHeaderValue(100, null),
+            CancellationToken.None);
+
+        // Assert
+        Assert.Equal(HttpStatusCode.PartialContent, response.StatusCode);
+        Assert.Equal("disk:/Videos/trip.mp4", handler.DownloadUrlPath);
+        Assert.Equal("bytes=100-", handler.DownloadRange);
+        Assert.Equal([1, 2, 3], await response.Content.ReadAsByteArrayAsync());
+    }
+
+    /// <summary>
+    /// The download URL of a path, and the download of a range of the file by it.
+    /// </summary>
+    private sealed class FakeDownloadHandler : HttpMessageHandler
+    {
+        public string? DownloadUrlPath { get; private set; }
+        public string? DownloadRange { get; private set; }
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var uri = request.RequestUri!;
+
+            if (uri.Host == "downloader.test")
+            {
+                DownloadRange = request.Headers.Range?.ToString();
+
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.PartialContent)
+                {
+                    Content = new ByteArrayContent([1, 2, 3])
+                });
+            }
+
+            DownloadUrlPath = HttpUtility.ParseQueryString(uri.Query)["path"];
+
+            var content = new StringContent(
+                JsonSerializer.Serialize(new { href = "https://downloader.test/trip.mp4", method = "GET", templated = false }),
+                Encoding.UTF8, "application/json");
+
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = content });
+        }
     }
 
     /// <summary>

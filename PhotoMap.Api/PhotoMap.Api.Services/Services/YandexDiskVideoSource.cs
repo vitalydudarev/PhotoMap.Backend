@@ -1,3 +1,4 @@
+using System.Net.Http.Headers;
 using Microsoft.Extensions.Logging;
 using PhotoMap.Shared.Yandex.Disk;
 using PhotoMap.Shared.Yandex.Disk.Models;
@@ -5,7 +6,7 @@ using PhotoMap.Shared.Yandex.Disk.Models;
 namespace PhotoMap.Api.Services.Services;
 
 /// <summary>
-/// The videos of a Yandex.Disk, wherever they are on it, and their preview images.
+/// The videos of a Yandex.Disk, wherever they are on it, their preview images and their contents.
 /// </summary>
 public class YandexDiskVideoSource
 {
@@ -75,5 +76,24 @@ public class YandexDiskVideoSource
     {
         return YandexDiskApiCalls.WrapAsync(_logger, () => _apiClient.DownloadByUrlAsync(previewUrl, cancellationToken),
             cancellationToken);
+    }
+
+    /// <summary>
+    /// Starts downloading the video, or the range of it asked for, by its path, as photos are downloaded. The
+    /// caller reads the contents as they come, and disposes the response.
+    /// </summary>
+    /// <param name="range">The bytes to download, the whole video when null.</param>
+    public Task<HttpResponseMessage> OpenVideoAsync(string path, RangeHeaderValue? range, CancellationToken cancellationToken)
+    {
+        return YandexDiskApiCalls.WrapAsync(_logger, () => _apiClient.OpenDownloadAsync(path, range, cancellationToken),
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// The path of the video on the disk, from its folder and file name.
+    /// </summary>
+    public static string GetPath(string folderPath, string fileName)
+    {
+        return folderPath.EndsWith('/') ? folderPath + fileName : $"{folderPath}/{fileName}";
     }
 }

@@ -62,6 +62,7 @@ namespace PhotoMap.Api
 
             services.AddScoped<IImageStore, ImageStore>();
             services.AddScoped<IPhotoProvider, PhotoProvider>();
+            services.AddScoped<IVideoProvider, VideoProvider>();
 
             services.AddScoped<IPhotoSourceDownloadServiceFactory, PhotoSourceDownloadServiceFactory>();
             services.AddScoped<IPhotoSourceProcessingService, PhotoSourceProcessingService>();

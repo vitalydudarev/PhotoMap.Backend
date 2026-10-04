@@ -71,6 +71,32 @@ namespace PhotoMap.Shared.Yandex.Disk
         }
 
         /// <param name="mediaType">The media types of the files to list, e.g. "image" or "video", every file when null.</param>
+        /// <summary>
+        /// Starts downloading the file, or the range of it asked for, by the URL its path gets, as
+        /// <see cref="DownloadFileAsync"/> does, without reading it: the caller reads the contents as they come,
+        /// and disposes the response.
+        /// </summary>
+        /// <param name="range">The bytes to download, the whole file when null.</param>
+        public async Task<HttpResponseMessage> OpenDownloadAsync(string path, RangeHeaderValue? range, CancellationToken cancellationToken)
+        {
+            var downloadUrl = await GetDownloadUrlAsync(path, cancellationToken);
+
+            using var request = new HttpRequestMessage(HttpMethod.Get, downloadUrl.Href);
+            request.Headers.Range = range;
+
+            var responseMessage = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+
+            if (!responseMessage.IsSuccessStatusCode)
+            {
+                using (responseMessage)
+                {
+                    throw await CreateApiExceptionAsync(responseMessage, cancellationToken);
+                }
+            }
+
+            return responseMessage;
+        }
+
         public async Task<FilesResourceList> GetFlatFilesListAsync(CancellationToken cancellationToken, string? mediaType = null, int limit = 20,
             int offset = 0)
         {

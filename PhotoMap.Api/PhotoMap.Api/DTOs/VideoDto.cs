@@ -7,6 +7,7 @@ namespace PhotoMap.Api.DTOs
         public long Id { get; set; }
         public long PhotoSourceId { get; set; }
         public string PreviewUrl { get; set; } = null!;
+        public string VideoUrl { get; set; } = null!;
         public string FileName { get; set; } = null!;
         public string? FolderPath { get; set; }
         public string? MimeType { get; set; }
