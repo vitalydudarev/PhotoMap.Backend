@@ -13,6 +13,7 @@ public class PhotoServiceTests
     private readonly Mock<IPhotoRepository> _photoRepository = new();
     private readonly PhotoYearsCache _yearsCache = new();
     private readonly PhotoCategorizationSignal _categorizationSignal = new();
+    private readonly PhotoDuplicatesSignal _duplicatesSignal = new();
 
     public PhotoServiceTests()
     {
@@ -95,9 +96,50 @@ public class PhotoServiceTests
         _photoRepository.Verify(a => a.GetYearsAsync(UserId), Times.Exactly(2));
     }
 
+    [Fact]
+    public async Task AddRangeAsync_ShouldSignalTheSearchForDuplicates()
+    {
+        // Arrange
+        var service = CreateService();
+
+        // Act
+        await service.AddRangeAsync([CreatePhoto(DateTimeOffset.UtcNow)]);
+
+        // Assert
+        Assert.True(_duplicatesSignal.WaitAsync(CancellationToken.None).IsCompletedSuccessfully);
+    }
+
+    [Fact]
+    public async Task MarkAsDeletedAsync_ShouldSignalTheSearchForDuplicates_WhenThePhotoIsMarked()
+    {
+        // Arrange
+        _photoRepository.Setup(a => a.SetDeletedOnAsync(UserId, 5, It.IsNotNull<DateTimeOffset?>())).ReturnsAsync(true);
+        var service = CreateService();
+
+        // Act
+        await service.MarkAsDeletedAsync(UserId, 5);
+
+        // Assert
+        Assert.True(_duplicatesSignal.WaitAsync(CancellationToken.None).IsCompletedSuccessfully);
+    }
+
+    [Fact]
+    public async Task RestoreAsync_ShouldNotSignalTheSearchForDuplicates_WhenThereIsNoSuchPhoto()
+    {
+        // Arrange
+        _photoRepository.Setup(a => a.SetDeletedOnAsync(UserId, 5, null)).ReturnsAsync(false);
+        var service = CreateService();
+
+        // Act
+        await service.RestoreAsync(UserId, 5);
+
+        // Assert
+        Assert.False(_duplicatesSignal.WaitAsync(CancellationToken.None).IsCompleted);
+    }
+
     private PhotoService CreateService()
     {
-        return new PhotoService(_photoRepository.Object, _yearsCache, _categorizationSignal);
+        return new PhotoService(_photoRepository.Object, _yearsCache, _categorizationSignal, _duplicatesSignal);
     }
 
     private static Photo CreatePhoto(DateTimeOffset dateTimeTaken)

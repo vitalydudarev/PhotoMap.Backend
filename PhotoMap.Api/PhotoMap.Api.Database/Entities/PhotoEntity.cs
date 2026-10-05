@@ -26,6 +26,11 @@ public class PhotoEntity
     public DateTimeOffset? DeletedOn { get; set; }
 
     /// <summary>
+    /// The group of the photos of the user this one is a copy of, the ID of the first of them; null when it has none.
+    /// </summary>
+    public long? DuplicateGroupId { get; set; }
+
+    /// <summary>
     /// The version of the rules the photo was put in its categories by, 0 until it has been.
     /// </summary>
     public int CategoriesVersion { get; set; }

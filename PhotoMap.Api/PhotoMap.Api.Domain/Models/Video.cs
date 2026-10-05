@@ -41,4 +41,10 @@ public class Video
 
     public string? PreviewContentType { get; set; }
     public DateTimeOffset AddedOn { get; set; }
+
+    /// <summary>
+    /// The group of the videos of the user this one is a duplicate of, the ID of the first of them; null when it
+    /// has no duplicate, or has not been looked at yet. See <c>VideoDuplicateFinder</c>.
+    /// </summary>
+    public long? DuplicateGroupId { get; set; }
 }

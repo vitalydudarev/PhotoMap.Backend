@@ -9,10 +9,12 @@ namespace PhotoMap.Api.Services.Services.Domain;
 public class VideoService : IVideoService
 {
     private readonly PhotoMapContext _context;
+    private readonly VideoDuplicatesSignal _duplicatesSignal;
 
-    public VideoService(PhotoMapContext context)
+    public VideoService(PhotoMapContext context, VideoDuplicatesSignal duplicatesSignal)
     {
         _context = context;
+        _duplicatesSignal = duplicatesSignal;
     }
 
     /// <summary>
@@ -72,6 +74,9 @@ public class VideoService : IVideoService
                 _context.Entry(entity).State = EntityState.Detached;
             }
         }
+
+        // the videos are saved in no group of duplicates, until the duplicates are looked for again
+        _duplicatesSignal.Notify();
     }
 
     public async Task<Video?> GetAsync(long id)
@@ -110,6 +115,43 @@ public class VideoService : IVideoService
             .ToListAsync();
     }
 
+    public async Task<IReadOnlyList<Video>> GetDuplicatesAsync(long userId)
+    {
+        var entities = await _context.Videos
+            .AsNoTracking()
+            .Where(a => a.UserId == userId && a.DuplicateGroupId != null)
+            .OrderByDescending(a => a.Size)
+            .ThenBy(a => a.DuplicateGroupId)
+            .ThenBy(a => a.Id)
+            .ToListAsync();
+
+        return entities.Select(ToModel).ToList();
+    }
+
+    public async Task<IReadOnlyList<VideoDuplicateKey>> GetDuplicateKeysAsync()
+    {
+        return await _context.Videos
+            .AsNoTracking()
+            .Select(a => new VideoDuplicateKey(a.Id, a.UserId, a.FileName, a.Size, a.DuplicateGroupId))
+            .ToListAsync();
+    }
+
+    public async Task SetDuplicateGroupsAsync(IReadOnlyDictionary<long, long?> duplicateGroupIdsByVideoId)
+    {
+        // a statement for each group rather than for each video
+        foreach (var group in duplicateGroupIdsByVideoId.GroupBy(a => a.Value, a => a.Key))
+        {
+            var duplicateGroupId = group.Key;
+
+            foreach (var videoIds in group.Chunk(1000))
+            {
+                await _context.Videos
+                    .Where(a => videoIds.Contains(a.Id))
+                    .ExecuteUpdateAsync(a => a.SetProperty(b => b.DuplicateGroupId, duplicateGroupId));
+            }
+        }
+    }
+
     public async Task<IReadOnlySet<string>> GetSavedExternalIdsAsync(long userId, long photoSourceId,
         IEnumerable<string> externalIds)
     {
@@ -137,6 +179,9 @@ public class VideoService : IVideoService
             .ToListAsync();
 
         await videos.ExecuteDeleteAsync();
+
+        // a video left alone in its group of duplicates is no longer a duplicate
+        _duplicatesSignal.Notify();
 
         return previewPaths;
     }
@@ -233,7 +278,8 @@ public class VideoService : IVideoService
             Longitude = entity.Longitude,
             PreviewFilePath = entity.PreviewFilePath,
             PreviewContentType = entity.PreviewContentType,
-            AddedOn = entity.AddedOn
+            AddedOn = entity.AddedOn,
+            DuplicateGroupId = entity.DuplicateGroupId
         };
     }
 }

@@ -14,6 +14,11 @@ namespace PhotoMap.Api.DTOs
         public string FileName { get; set; } = null!;
 
         /// <summary>
+        /// The path of the photo in its photo source, with its file name.
+        /// </summary>
+        public string? Path { get; set; }
+
+        /// <summary>
         /// When the user marked the photo as deleted, null while it is not.
         /// </summary>
         public DateTime? DeletedOn { get; set; }

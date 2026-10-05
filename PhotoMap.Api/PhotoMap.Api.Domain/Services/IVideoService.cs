@@ -23,6 +23,22 @@ public interface IVideoService
     Task<IReadOnlyList<string>> GetFolderPathsAsync(long userId);
 
     /// <summary>
+    /// The videos of the user that have duplicates, by their groups, the groups of the largest videos first, and
+    /// the videos of a group by their ID.
+    /// </summary>
+    Task<IReadOnlyList<Video>> GetDuplicatesAsync(long userId);
+
+    /// <summary>
+    /// What tells the duplicates of every video of every user.
+    /// </summary>
+    Task<IReadOnlyList<VideoDuplicateKey>> GetDuplicateKeysAsync();
+
+    /// <summary>
+    /// Puts the videos in the groups of duplicates given, null to take one out of its group.
+    /// </summary>
+    Task SetDuplicateGroupsAsync(IReadOnlyDictionary<long, long?> duplicateGroupIdsByVideoId);
+
+    /// <summary>
     /// The IDs, of the ones given, of the videos of the photo source saved already.
     /// </summary>
     Task<IReadOnlySet<string>> GetSavedExternalIdsAsync(long userId, long photoSourceId, IEnumerable<string> externalIds);

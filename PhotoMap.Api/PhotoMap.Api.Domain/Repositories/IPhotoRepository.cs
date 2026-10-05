@@ -21,6 +21,18 @@ public interface IPhotoRepository
     /// </summary>
     Task SetCategoriesAsync(IReadOnlyDictionary<long, IReadOnlyCollection<PhotoCategory>> categoriesByPhotoId, int version);
 
+    /// <returns>The photos of the user that have copies, by their groups, the groups of the photos taken first first, and
+    /// the photos of a group by their ID.</returns>
+    Task<IReadOnlyList<Photo>> GetDuplicatesAsync(long userId);
+
+    /// <returns>What tells the copies of every photo of every user.</returns>
+    Task<IReadOnlyList<PhotoDuplicateKey>> GetDuplicateKeysAsync();
+
+    /// <summary>
+    /// Puts the photos in the groups of duplicates given, null to take one out of its group.
+    /// </summary>
+    Task SetDuplicateGroupsAsync(IReadOnlyDictionary<long, long?> duplicateGroupIdsByPhotoId);
+
     /// <summary>
     /// Marks a photo of the user as deleted, or no longer deleted when <paramref name="deletedOn"/> is null.
     /// </summary>

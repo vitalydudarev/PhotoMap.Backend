@@ -67,25 +67,36 @@ namespace PhotoMap.Api.Controllers
             var videos = await _videoService.GetByUserIdAsync(userId, folderPaths, top, skip, sort);
             var total = await _videoService.GetTotalCountByUserIdAsync(userId, folderPaths);
 
-            var url = _hostInfo.GetUrl() + "api";
-
-            var values = videos.Select(a => new VideoDto
-            {
-                Id = a.Id,
-                PhotoSourceId = a.PhotoSourceId,
-                PreviewUrl = $"{url}/videos/{a.Id}/preview",
-                VideoUrl = $"{url}/videos/{a.Id}",
-                FileName = a.FileName,
-                FolderPath = a.FolderPath,
-                MimeType = a.MimeType,
-                Size = a.Size,
-                DateTimeTaken = a.DateTimeTaken.UtcDateTime,
-                ExifDateTime = a.ExifDateTime?.UtcDateTime,
-                Latitude = a.Latitude,
-                Longitude = a.Longitude
-            }).ToArray();
+            var values = videos.Select(ToDto).ToArray();
 
             return Ok(new PagedResponse<VideoDto> { Values = values, Limit = top, Offset = skip, Total = total });
+        }
+
+        /// <summary>
+        /// The videos of the user that are copies of one another, of the same size and file name, by their groups,
+        /// the groups of the largest videos first. The groups are looked for in the background, a video saved
+        /// only a moment ago may not be in one yet.
+        /// </summary>
+        /// <param name="userId">The ID of the user.</param>
+        [HttpGet("api/users/{userId:long}/videos/duplicates")]
+        [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(VideoDuplicateGroupDto[]))]
+        public async Task<IActionResult> GetUserVideoDuplicates([FromRoute] long userId)
+        {
+            var videos = await _videoService.GetDuplicatesAsync(userId);
+
+            // the videos come by their groups already
+            var groups = videos
+                .GroupBy(a => a.DuplicateGroupId!.Value)
+                .Select(a => new VideoDuplicateGroupDto
+                {
+                    Id = a.Key,
+                    FileName = a.First().FileName,
+                    Size = a.First().Size,
+                    Videos = a.Select(ToDto).ToArray()
+                })
+                .ToArray();
+
+            return Ok(groups);
         }
 
         /// <summary>
@@ -243,6 +254,27 @@ namespace PhotoMap.Api.Controllers
             }
 
             return NoContent();
+        }
+
+        private VideoDto ToDto(Video video)
+        {
+            var url = _hostInfo.GetUrl() + "api";
+
+            return new VideoDto
+            {
+                Id = video.Id,
+                PhotoSourceId = video.PhotoSourceId,
+                PreviewUrl = $"{url}/videos/{video.Id}/preview",
+                VideoUrl = $"{url}/videos/{video.Id}",
+                FileName = video.FileName,
+                FolderPath = video.FolderPath,
+                MimeType = video.MimeType,
+                Size = video.Size,
+                DateTimeTaken = video.DateTimeTaken.UtcDateTime,
+                ExifDateTime = video.ExifDateTime?.UtcDateTime,
+                Latitude = video.Latitude,
+                Longitude = video.Longitude
+            };
         }
     }
 }

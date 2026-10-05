@@ -23,12 +23,15 @@ namespace PhotoMap.Api.Database.Configurations
             builder.Property(a => a.PreviewFilePath);
             builder.Property(a => a.PreviewContentType);
             builder.Property(a => a.AddedOn).IsRequired();
+            builder.Property(a => a.DuplicateGroupId);
             builder.ToTable("videos");
 
             // file ID assigned by the photo source (Yandex.Disk resource_id)
             builder.HasIndex(a => new { a.UserId, a.PhotoSourceId, a.ExternalId }).IsUnique();
             // the videos of a user are listed by the date they were taken
             builder.HasIndex(a => new { a.UserId, a.DateTimeTaken });
+            // the duplicates of a user are listed by their groups
+            builder.HasIndex(a => new { a.UserId, a.DuplicateGroupId });
 
             builder.HasOne(a => a.User).WithMany().HasForeignKey(a => a.UserId);
             builder.HasOne(a => a.PhotoSource).WithMany().HasForeignKey(a => a.PhotoSourceId);

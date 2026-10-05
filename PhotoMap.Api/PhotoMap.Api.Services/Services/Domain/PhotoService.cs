@@ -9,13 +9,15 @@ namespace PhotoMap.Api.Services.Services.Domain
         private readonly IPhotoRepository _photoRepository;
         private readonly PhotoYearsCache _yearsCache;
         private readonly PhotoCategorizationSignal _categorizationSignal;
+        private readonly PhotoDuplicatesSignal _duplicatesSignal;
 
         public PhotoService(IPhotoRepository photoRepository, PhotoYearsCache yearsCache,
-            PhotoCategorizationSignal categorizationSignal)
+            PhotoCategorizationSignal categorizationSignal, PhotoDuplicatesSignal duplicatesSignal)
         {
             _photoRepository = photoRepository;
             _yearsCache = yearsCache;
             _categorizationSignal = categorizationSignal;
+            _duplicatesSignal = duplicatesSignal;
         }
 
         public async Task AddRangeAsync(IReadOnlyCollection<Photo> photos)
@@ -29,6 +31,8 @@ namespace PhotoMap.Api.Services.Services.Domain
 
             // the photos are saved in none of the categories, until the categorization gets to them
             _categorizationSignal.Notify();
+            // and in no group of copies, until the duplicates are looked for again
+            _duplicatesSignal.Notify();
         }
 
         public Task<Photo?> GetAsync(long id)
@@ -57,14 +61,19 @@ namespace PhotoMap.Api.Services.Services.Domain
             return _yearsCache.GetOrLoadAsync(userId, () => _photoRepository.GetYearsAsync(userId));
         }
 
+        public Task<IReadOnlyList<Photo>> GetDuplicatesAsync(long userId)
+        {
+            return _photoRepository.GetDuplicatesAsync(userId);
+        }
+
         public Task<bool> MarkAsDeletedAsync(long userId, long photoId)
         {
-            return _photoRepository.SetDeletedOnAsync(userId, photoId, DateTimeOffset.UtcNow);
+            return SetDeletedOnAsync(userId, photoId, DateTimeOffset.UtcNow);
         }
 
         public Task<bool> RestoreAsync(long userId, long photoId)
         {
-            return _photoRepository.SetDeletedOnAsync(userId, photoId, null);
+            return SetDeletedOnAsync(userId, photoId, null);
         }
 
         public async Task<IReadOnlyCollection<string>> DeleteByPhotoSourceAsync(long userId, long photoSourceId)
@@ -77,7 +86,23 @@ namespace PhotoMap.Api.Services.Services.Domain
             {
                 // a delete that failed may still have taken some of the photos
                 _yearsCache.Invalidate(userId);
+                // a photo left alone in its group of copies is no longer a duplicate
+                _duplicatesSignal.Notify();
             }
+        }
+
+        /// <summary>
+        /// A photo marked as deleted leaves its group of copies, and one restored goes back to it.
+        /// </summary>
+        private async Task<bool> SetDeletedOnAsync(long userId, long photoId, DateTimeOffset? deletedOn)
+        {
+            var updated = await _photoRepository.SetDeletedOnAsync(userId, photoId, deletedOn);
+            if (updated)
+            {
+                _duplicatesSignal.Notify();
+            }
+
+            return updated;
         }
     }
 }

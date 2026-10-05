@@ -25,6 +25,7 @@ namespace PhotoMap.Api.Database.Configurations
             builder.Property(a => a.ContentHash);
             builder.Property(a => a.CategoriesVersion).IsRequired();
             builder.Property(a => a.DeletedOn);
+            builder.Property(a => a.DuplicateGroupId);
             builder.ToTable("photos");
 
             // file ID assigned by the photo source (Dropbox file ID, Yandex.Disk resource_id)
@@ -33,6 +34,8 @@ namespace PhotoMap.Api.Database.Configurations
             builder.HasIndex(a => new { a.UserId, a.ContentHash });
             // the photos still to be put in their categories, looked for whenever photos are saved
             builder.HasIndex(a => a.CategoriesVersion);
+            // the duplicates of a user are listed by their groups
+            builder.HasIndex(a => new { a.UserId, a.DuplicateGroupId });
 
             builder.HasOne(a => a.User).WithMany().HasForeignKey(a => a.UserId);
             builder.HasOne(a => a.PhotoSource).WithMany().HasForeignKey(a => a.PhotoSourceId);

@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using PhotoMap.Api.Database;
@@ -12,9 +13,11 @@ using PhotoMap.Api.Domain.Models;
 namespace PhotoMap.Api.Database.Migrations
 {
     [DbContext(typeof(PhotoMapContext))]
-    partial class PhotoMapContextModelSnapshot : ModelSnapshot
+    [Migration("20261005082411_AddVideoDuplicateGroup")]
+    partial class AddVideoDuplicateGroup
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -129,10 +132,6 @@ namespace PhotoMap.Api.Database.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("deleted_on");
 
-                    b.Property<long?>("DuplicateGroupId")
-                        .HasColumnType("bigint")
-                        .HasColumnName("duplicate_group_id");
-
                     b.Property<string>("ExifString")
                         .HasColumnType("text")
                         .HasColumnName("exif_string");
@@ -189,9 +188,6 @@ namespace PhotoMap.Api.Database.Migrations
 
                     b.HasIndex("UserId", "ContentHash")
                         .HasDatabaseName("ix_photos_user_id_content_hash");
-
-                    b.HasIndex("UserId", "DuplicateGroupId")
-                        .HasDatabaseName("ix_photos_user_id_duplicate_group_id");
 
                     b.HasIndex("UserId", "PhotoSourceId", "ExternalId")
                         .IsUnique()

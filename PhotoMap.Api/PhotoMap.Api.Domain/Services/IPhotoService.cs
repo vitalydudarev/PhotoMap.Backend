@@ -21,6 +21,12 @@ namespace PhotoMap.Api.Domain.Services
         Task<IReadOnlyList<int>> GetYearsAsync(long userId);
 
         /// <summary>
+        /// The photos of the user that are copies of one another, by their groups, the groups of the photos taken
+        /// first first, and the photos of a group by their ID. Photos marked as deleted are in no group.
+        /// </summary>
+        Task<IReadOnlyList<Photo>> GetDuplicatesAsync(long userId);
+
+        /// <summary>
         /// Marks a photo of the user as deleted: it is kept, with its files, but only shows among the deleted photos.
         /// </summary>
         /// <returns>false if the user has no such photo.</returns>

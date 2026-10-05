@@ -118,6 +118,47 @@ public class PhotoRepository : IPhotoRepository
         await transaction.CommitAsync();
     }
 
+    public async Task<IReadOnlyList<Photo>> GetDuplicatesAsync(long userId)
+    {
+        var photos = await _context.Photos
+            .AsNoTracking()
+            .Where(a => a.UserId == userId && a.DuplicateGroupId != null)
+            .ToListAsync();
+
+        // the groups are ordered by their first photo, which the database cannot do without a join of its own
+        return photos
+            .GroupBy(a => a.DuplicateGroupId)
+            .OrderBy(a => a.Min(b => b.DateTimeTaken))
+            .ThenBy(a => a.Key)
+            .SelectMany(a => a.OrderBy(b => b.Id))
+            .Select(EntityToModel)
+            .ToList();
+    }
+
+    public async Task<IReadOnlyList<PhotoDuplicateKey>> GetDuplicateKeysAsync()
+    {
+        return await _context.Photos
+            .AsNoTracking()
+            .Select(a => new PhotoDuplicateKey(a.Id, a.UserId, a.ContentHash, a.DeletedOn != null, a.DuplicateGroupId))
+            .ToListAsync();
+    }
+
+    public async Task SetDuplicateGroupsAsync(IReadOnlyDictionary<long, long?> duplicateGroupIdsByPhotoId)
+    {
+        // a statement for each group rather than for each photo
+        foreach (var group in duplicateGroupIdsByPhotoId.GroupBy(a => a.Value, a => a.Key))
+        {
+            var duplicateGroupId = group.Key;
+
+            foreach (var photoIds in group.Chunk(1000))
+            {
+                await _context.Photos
+                    .Where(a => photoIds.Contains(a.Id))
+                    .ExecuteUpdateAsync(a => a.SetProperty(b => b.DuplicateGroupId, duplicateGroupId));
+            }
+        }
+    }
+
     /// <summary>
     /// Marks a photo of the user as deleted, or no longer deleted when <paramref name="deletedOn"/> is null.
     /// </summary>
@@ -212,7 +253,8 @@ public class PhotoRepository : IPhotoRepository
             ContentHash = photoEntity.ContentHash,
             AddedOn = photoEntity.AddedOn,
             PhotoSourceId = photoEntity.PhotoSourceId,
-            DeletedOn = photoEntity.DeletedOn
+            DeletedOn = photoEntity.DeletedOn,
+            DuplicateGroupId = photoEntity.DuplicateGroupId
         };
     }
 

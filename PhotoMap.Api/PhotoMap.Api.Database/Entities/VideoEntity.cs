@@ -19,4 +19,5 @@ public class VideoEntity
     public string? PreviewFilePath { get; set; }
     public string? PreviewContentType { get; set; }
     public required DateTimeOffset AddedOn { get; set; }
+    public long? DuplicateGroupId { get; set; }
 }

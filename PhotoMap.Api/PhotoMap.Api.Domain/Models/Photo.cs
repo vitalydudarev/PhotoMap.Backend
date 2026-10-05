@@ -22,4 +22,10 @@ public class Photo
     /// When the user marked the photo as deleted, null while it is not.
     /// </summary>
     public DateTimeOffset? DeletedOn { get; set; }
+
+    /// <summary>
+    /// The group of the photos of the user this one is a copy of, the ID of the first of them; null when it has none,
+    /// or has not been looked at yet. See <c>PhotoDuplicateFinder</c>.
+    /// </summary>
+    public long? DuplicateGroupId { get; set; }
 }

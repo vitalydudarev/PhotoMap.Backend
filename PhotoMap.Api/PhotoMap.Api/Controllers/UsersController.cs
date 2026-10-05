@@ -85,24 +85,33 @@ namespace PhotoMap.Api.Controllers
             var userPhotos = await _photoService.GetByUserIdAsync(id, filter, top, skip, sort);
             var totalPhotosCount = await _photoService.GetTotalCountByUserIdAsync(id, filter);
             
-            var url = _hostInfo.GetUrl() + "api";
-
-            var values = userPhotos.Select(a => new PhotoDto
-            {
-                DateTimeTaken = a.DateTimeTaken.UtcDateTime,
-                FileName = a.FileName,
-                Id = a.Id,
-                Latitude = a.Latitude,
-                Longitude = a.Longitude,
-                PhotoUrl = $"{url}/photos/{a.Id}",
-                ThumbnailLargeUrl = $"{url}/photos/{a.Id}/thumb/large",
-                ThumbnailSmallUrl = $"{url}/photos/{a.Id}/thumb/small",
-                DeletedOn = a.DeletedOn?.UtcDateTime
-            }).ToArray();
+            var values = userPhotos.Select(ToDto).ToArray();
 
             var response = new PagedResponse<PhotoDto> { Values = values, Limit = top, Offset = skip, Total = totalPhotosCount };
             
             return Ok(response);
+        }
+
+        /// <summary>
+        /// The photos of the user that are copies of one another, with the same contents to the byte, by their
+        /// groups, the groups of the photos taken first first. Photos marked as deleted are in no group. The groups
+        /// are looked for in the background, a photo saved, deleted or restored only a moment ago may not be in its
+        /// group yet.
+        /// </summary>
+        /// <param name="id">The ID of the user.</param>
+        [HttpGet("{id:long}/photos/duplicates")]
+        [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(PhotoDuplicateGroupDto[]))]
+        public async Task<IActionResult> GetUserPhotoDuplicates([FromRoute] long id)
+        {
+            var photos = await _photoService.GetDuplicatesAsync(id);
+
+            // the photos come by their groups already
+            var groups = photos
+                .GroupBy(a => a.DuplicateGroupId!.Value)
+                .Select(a => new PhotoDuplicateGroupDto { Id = a.Key, Photos = a.Select(ToDto).ToArray() })
+                .ToArray();
+
+            return Ok(groups);
         }
 
         /// <summary>
@@ -142,6 +151,25 @@ namespace PhotoMap.Api.Controllers
         public async Task<IActionResult> GetUserPhotoYears([FromRoute] long id)
         {
             return Ok(await _photoService.GetYearsAsync(id));
+        }
+
+        private PhotoDto ToDto(Photo photo)
+        {
+            var url = _hostInfo.GetUrl() + "api";
+
+            return new PhotoDto
+            {
+                DateTimeTaken = photo.DateTimeTaken.UtcDateTime,
+                FileName = photo.FileName,
+                Path = photo.Path,
+                Id = photo.Id,
+                Latitude = photo.Latitude,
+                Longitude = photo.Longitude,
+                PhotoUrl = $"{url}/photos/{photo.Id}",
+                ThumbnailLargeUrl = $"{url}/photos/{photo.Id}/thumb/large",
+                ThumbnailSmallUrl = $"{url}/photos/{photo.Id}/thumb/small",
+                DeletedOn = photo.DeletedOn?.UtcDateTime
+            };
         }
     }
 }

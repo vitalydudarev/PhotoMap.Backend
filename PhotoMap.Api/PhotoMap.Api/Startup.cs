@@ -81,6 +81,10 @@ namespace PhotoMap.Api
             services.AddScoped<IUserPhotoSourceService, UserPhotoSourceService>();
             services.AddScoped<IFailedFileService, FailedFileService>();
             services.AddScoped<IVideoService, VideoService>();
+            services.AddSingleton<VideoDuplicatesSignal>();
+            services.AddScoped<VideoDuplicatesService>();
+            services.AddSingleton<PhotoDuplicatesSignal>();
+            services.AddScoped<PhotoDuplicatesService>();
             
             // repositories
             services.AddScoped<IPhotoRepository, PhotoRepository>();
@@ -112,6 +116,8 @@ namespace PhotoMap.Api
             services.AddWorker(Configuration);
             services.AddHostedService<ProcessedImageBackgroundService>();
             services.AddHostedService<PhotoCategorizationBackgroundService>();
+            services.AddHostedService<DuplicateGroupsBackgroundService<VideoDuplicatesSignal, VideoDuplicatesService>>();
+            services.AddHostedService<DuplicateGroupsBackgroundService<PhotoDuplicatesSignal, PhotoDuplicatesService>>();
             // registered after the image processing services: hosted services stop in reverse order, so processing
             // runs are cancelled (and record their Stopped status) while the rest of the application is still running
             services.AddHostedService(provider => provider.GetRequiredService<BackgroundTaskManager>());
