@@ -16,7 +16,7 @@ namespace PhotoMap.Api.Controllers
     public class UsersController : ControllerBase
     {
         /// <summary>
-        /// The most photos a page holds: the largest page the gallery offers, and the page the map loads by.
+        /// The most photos a page holds: the largest page the gallery offers.
         /// </summary>
         private const int MaxPageSize = 1000;
 
@@ -90,6 +90,20 @@ namespace PhotoMap.Api.Controllers
             var response = new PagedResponse<PhotoDto> { Values = values, Limit = top, Offset = skip, Total = totalPhotosCount };
             
             return Ok(response);
+        }
+
+        /// <summary>
+        /// The photos of the user with a GPS location, all of them, oldest first, for the map. The deleted photos are
+        /// left out.
+        /// </summary>
+        /// <param name="id">The ID of the user.</param>
+        [HttpGet("{id:long}/photos/geotagged")]
+        [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(PhotoDto[]))]
+        public async Task<IActionResult> GetUserGeotaggedPhotos([FromRoute] long id)
+        {
+            var photos = await _photoService.GetGeotaggedAsync(id);
+
+            return Ok(photos.Select(ToDto).ToArray());
         }
 
         /// <summary>

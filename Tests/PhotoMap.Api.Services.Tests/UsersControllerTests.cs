@@ -177,6 +177,26 @@ public class UsersControllerTests
         Assert.Equal([2016, 2019], Assert.IsAssignableFrom<IReadOnlyList<int>>(Assert.IsType<OkObjectResult>(result).Value));
     }
 
+    [Fact]
+    public async Task GetUserGeotaggedPhotos_ShouldReturnThePhotosWithTheirLocationAndUrls()
+    {
+        // Arrange
+        _photoService
+            .Setup(a => a.GetGeotaggedAsync(UserId))
+            .ReturnsAsync([new Photo { Id = 5, UserId = UserId, FileName = "a.jpg", Latitude = 53.9, Longitude = 27.56 }]);
+        var controller = CreateController();
+
+        // Act
+        var result = await controller.GetUserGeotaggedPhotos(UserId);
+
+        // Assert
+        var photo = Assert.Single(Assert.IsType<PhotoDto[]>(Assert.IsType<OkObjectResult>(result).Value));
+        Assert.Equal(5, photo.Id);
+        Assert.Equal(53.9, photo.Latitude);
+        Assert.Equal(27.56, photo.Longitude);
+        Assert.Equal("https://localhost:5001/api/photos/5/thumb/small", photo.ThumbnailSmallUrl);
+    }
+
     private static bool IsFilter(PhotoFilter filter, long[] photoSourceIds, int[] years)
     {
         return filter.PhotoSourceIds.SequenceEqual(photoSourceIds) && filter.Years.SequenceEqual(years) &&

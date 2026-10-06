@@ -10,6 +10,10 @@ public interface IPhotoRepository
     Task<IEnumerable<Photo>> GetByUserIdAsync(long userId, PhotoFilter filter, int top, int skip, PhotoSortOrder sortOrder);
     Task<int> GetTotalCountByUserIdAsync(long userId, PhotoFilter filter);
 
+    /// <returns>The photos of the user with a GPS location, but the deleted ones, oldest first. Only what tells a photo,
+    /// where and when it was taken and its name are read.</returns>
+    Task<IReadOnlyList<Photo>> GetGeotaggedAsync(long userId);
+
     /// <returns>The years, in UTC, the photos of the user were taken in.</returns>
     Task<IEnumerable<int>> GetYearsAsync(long userId);
 

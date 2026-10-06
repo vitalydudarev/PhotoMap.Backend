@@ -17,6 +17,12 @@ namespace PhotoMap.Api.Domain.Services
 
         Task<int> GetTotalCountByUserIdAsync(long userId, PhotoFilter filter);
 
+        /// <summary>
+        /// The photos of the user with a GPS location, but the deleted ones, oldest first, all at once. Only what tells
+        /// a photo, where and when it was taken and its name are read.
+        /// </summary>
+        Task<IReadOnlyList<Photo>> GetGeotaggedAsync(long userId);
+
         /// <returns>The years, in UTC, the photos of the user were taken in, oldest first.</returns>
         Task<IReadOnlyList<int>> GetYearsAsync(long userId);
 
