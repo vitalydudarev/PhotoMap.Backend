@@ -11,6 +11,11 @@ namespace PhotoMap.Api.DTOs
         public DateTime DateTimeTaken { get; set; }
         public double? Latitude { get; set; }
         public double? Longitude { get; set; }
+
+        /// <summary>
+        /// How far off the location may be, in meters, as the camera reported it; null when it did not.
+        /// </summary>
+        public double? HorizontalPositioningError { get; set; }
         public string FileName { get; set; } = null!;
 
         /// <summary>

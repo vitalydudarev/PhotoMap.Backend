@@ -88,6 +88,7 @@ public class PhotoRepository : IPhotoRepository
                 DateTimeTaken = a.DateTimeTaken,
                 Latitude = a.Latitude,
                 Longitude = a.Longitude,
+                HorizontalPositioningError = a.HorizontalPositioningError,
                 HasGps = a.HasGps
             })
             .ToListAsync();
@@ -268,6 +269,7 @@ public class PhotoRepository : IPhotoRepository
             DateTimeTaken = photoEntity.DateTimeTaken,
             Latitude = photoEntity.Latitude,
             Longitude = photoEntity.Longitude,
+            HorizontalPositioningError = photoEntity.HorizontalPositioningError,
             HasGps = photoEntity.HasGps,
             ExifString = photoEntity.ExifString,
             Path = photoEntity.Path,
@@ -291,6 +293,7 @@ public class PhotoRepository : IPhotoRepository
             DateTimeTaken = photo.DateTimeTaken,
             Latitude = photo.Latitude,
             Longitude = photo.Longitude,
+            HorizontalPositioningError = photo.HorizontalPositioningError,
             HasGps = photo.HasGps,
             ExifString = photo.ExifString,
             Path = photo.Path,

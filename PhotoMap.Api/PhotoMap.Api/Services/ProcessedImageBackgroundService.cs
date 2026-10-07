@@ -203,6 +203,7 @@ namespace PhotoMap.Api.Services
                 ExifString = processedImage.ExifString,
                 Latitude = processedImage.Latitude,
                 Longitude = processedImage.Longitude,
+                HorizontalPositioningError = processedImage.HorizontalPositioningError,
                 HasGps = processedImage.Latitude.HasValue && processedImage.Longitude.HasValue
             };
         }

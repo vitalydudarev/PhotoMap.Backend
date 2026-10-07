@@ -179,6 +179,7 @@ namespace PhotoMap.Api.Controllers
                 Id = photo.Id,
                 Latitude = photo.Latitude,
                 Longitude = photo.Longitude,
+                HorizontalPositioningError = photo.HorizontalPositioningError,
                 PhotoUrl = $"{url}/photos/{photo.Id}",
                 ThumbnailLargeUrl = $"{url}/photos/{photo.Id}/thumb/large",
                 ThumbnailSmallUrl = $"{url}/photos/{photo.Id}/thumb/small",

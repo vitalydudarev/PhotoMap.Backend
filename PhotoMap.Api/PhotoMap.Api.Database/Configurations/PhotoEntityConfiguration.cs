@@ -16,6 +16,7 @@ namespace PhotoMap.Api.Database.Configurations
             builder.Property(a => a.DateTimeTaken).IsRequired();
             builder.Property(a => a.Latitude);
             builder.Property(a => a.Longitude);
+            builder.Property(a => a.HorizontalPositioningError);
             builder.Property(a => a.HasGps).IsRequired();
             builder.Property(a => a.ExifString);
             builder.Property(a => a.PhotoSourceId).IsRequired();

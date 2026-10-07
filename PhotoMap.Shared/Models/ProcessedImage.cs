@@ -17,5 +17,11 @@ public class ProcessedImage
     public string? ExifString { get; set; }
     public double? Latitude { get; set; }
     public double? Longitude { get; set; }
+
+    /// <summary>
+    /// How far off the GPS location may be, in meters, from the GPSHPositioningError tag of the EXIF; null when the
+    /// photo has none.
+    /// </summary>
+    public double? HorizontalPositioningError { get; set; }
     public TaskCompletionSource<ProcessingResult>? Processed { get; set; }
 }

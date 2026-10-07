@@ -10,6 +10,12 @@ public class Photo
     public DateTimeOffset DateTimeTaken { get; set; }
     public double? Latitude { get; set; }
     public double? Longitude { get; set; }
+
+    /// <summary>
+    /// How far off the GPS location may be, in meters, from the GPSHPositioningError tag of the EXIF; null when the
+    /// photo has none.
+    /// </summary>
+    public double? HorizontalPositioningError { get; set; }
     public bool HasGps { get; set; }
     public string? ExifString { get; set; }
     public string? Path { get; set; }

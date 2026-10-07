@@ -67,6 +67,7 @@ namespace PhotoMap.Worker.Services.Implementations
                 processedImage.PhotoTakenOn = ExifHelper.GetDate(exif);
                 processedImage.Latitude = ExifHelper.GetLatitude(exif);
                 processedImage.Longitude = ExifHelper.GetLongitude(exif);
+                processedImage.HorizontalPositioningError = exif.Gps?.HorizontalPositioningError;
                 processedImage.ExifString = JsonSerializer.Serialize(exif);
             }
             
