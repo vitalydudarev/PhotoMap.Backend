@@ -22,4 +22,8 @@ public class YandexDiskSettings
     /// How many files of a page are downloaded at a time.
     /// </summary>
     public int MaxParallelDownloads { get; set; } = 4;
+    /// <summary>
+    /// How many files are downloaded at a time into the file storage, apart from the processing.
+    /// </summary>
+    public int MaxParallelFileDownloads { get; set; } = 8;
 }

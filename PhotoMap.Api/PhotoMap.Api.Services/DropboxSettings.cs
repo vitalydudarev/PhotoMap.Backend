@@ -8,4 +8,9 @@ public class DropboxSettings
     /// per connection, but it does rate limit: too many at a time ends in waiting for 429s.
     /// </summary>
     public int MaxParallelDownloads { get; set; } = 4;
+    /// <summary>
+    /// How many files are downloaded at a time into the file storage, apart from the processing. Dropbox rate
+    /// limits all the downloads of the user together, the processing's among them.
+    /// </summary>
+    public int MaxParallelFileDownloads { get; set; } = 8;
 }

@@ -10,6 +10,13 @@ namespace PhotoMap.Shared.Yandex.Disk
     public class ApiClient
     {
         private const string Url = "https://cloud-api.yandex.net/v1/disk";
+
+        /// <summary>
+        /// How long <see cref="OpenDownloadAsync"/> waits for the download to start: for the download URL and the
+        /// headers of the response. The contents are read by the caller, as long as they take.
+        /// </summary>
+        public static readonly TimeSpan DefaultOpenDownloadTimeout = TimeSpan.FromSeconds(30);
+
         private readonly UrlBuilder _urlBuilder;
         private readonly HttpClient _httpClient;
 
@@ -22,6 +29,12 @@ namespace PhotoMap.Shared.Yandex.Disk
             _httpClient.DefaultRequestHeaders.Authorization = AuthenticationHeaderValue.Parse($"OAuth {oAuthToken}");
             _urlBuilder = new UrlBuilder(NamingConvention.SnakeCase);
         }
+
+        /// <summary>
+        /// How long <see cref="OpenDownloadAsync"/> waits for the download to start. The HTTP client is shared with
+        /// the other calls, so the timeout is the call's own rather than the client's.
+        /// </summary>
+        public TimeSpan OpenDownloadTimeout { get; init; } = DefaultOpenDownloadTimeout;
 
         public async Task<Models.Disk> GetDiskAsync(CancellationToken cancellationToken)
         {
@@ -77,24 +90,39 @@ namespace PhotoMap.Shared.Yandex.Disk
         /// and disposes the response.
         /// </summary>
         /// <param name="range">The bytes to download, the whole file when null.</param>
+        /// <exception cref="TimeoutException">The download has not started within <see cref="OpenDownloadTimeout"/>.</exception>
         public async Task<HttpResponseMessage> OpenDownloadAsync(string path, RangeHeaderValue? range, CancellationToken cancellationToken)
         {
-            var downloadUrl = await GetDownloadUrlAsync(path, cancellationToken);
+            using var timeoutCancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeoutCancellationTokenSource.CancelAfter(OpenDownloadTimeout);
 
-            using var request = new HttpRequestMessage(HttpMethod.Get, downloadUrl.Href);
-            request.Headers.Range = range;
+            var timeoutCancellationToken = timeoutCancellationTokenSource.Token;
 
-            var responseMessage = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
-
-            if (!responseMessage.IsSuccessStatusCode)
+            try
             {
-                using (responseMessage)
-                {
-                    throw await CreateApiExceptionAsync(responseMessage, cancellationToken);
-                }
-            }
+                var downloadUrl = await GetDownloadUrlAsync(path, timeoutCancellationToken);
 
-            return responseMessage;
+                using var request = new HttpRequestMessage(HttpMethod.Get, downloadUrl.Href);
+                request.Headers.Range = range;
+
+                var responseMessage = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead,
+                    timeoutCancellationToken);
+
+                if (!responseMessage.IsSuccessStatusCode)
+                {
+                    using (responseMessage)
+                    {
+                        throw await CreateApiExceptionAsync(responseMessage, timeoutCancellationToken);
+                    }
+                }
+
+                return responseMessage;
+            }
+            catch (OperationCanceledException e) when (!cancellationToken.IsCancellationRequested)
+            {
+                // the caller has not cancelled, the timeout has run out
+                throw new TimeoutException($"The download of {path} has not started within {OpenDownloadTimeout.TotalSeconds:0} seconds.", e);
+            }
         }
 
         public async Task<FilesResourceList> GetFlatFilesListAsync(CancellationToken cancellationToken, string? mediaType = null, int limit = 20,

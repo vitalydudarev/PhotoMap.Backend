@@ -41,6 +41,27 @@ public class YandexDiskApiCallsTests
     };
 
     [Fact]
+    public async Task WrapAsync_ShouldFailAtOnce_WhenThePathIsNotFound()
+    {
+        // Arrange
+        var attempts = 0;
+
+        // Act
+        var exception = await Assert.ThrowsAsync<YandexDiskException>(() => YandexDiskApiCalls.WrapAsync<int>(NullLogger.Instance, () =>
+        {
+            attempts++;
+
+            throw new ApiException(new ApiError { Error = "DiskNotFoundError", Description = "Resource not found" },
+                HttpStatusCode.NotFound);
+        }, retryDelay: NoDelay));
+
+        // Assert
+        Assert.Equal(1, attempts);
+        Assert.False(exception.IsAuthError);
+        Assert.Contains("not been found", exception.Message);
+    }
+
+    [Fact]
     public async Task WrapAsync_ShouldFail_WhenTheRetriesAreUsedUp()
     {
         // Arrange

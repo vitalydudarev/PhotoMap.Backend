@@ -70,6 +70,9 @@ namespace PhotoMap.Api
             services.AddScoped<IDownloadServiceFactory, DropboxDownloadServiceFactory>();
             services.AddScoped<IDownloadServiceFactory, YandexDiskDownloadServiceFactory>();
             services.AddScoped<IVideoProcessingService, VideoProcessingService>();
+            services.AddSingleton<SourceDownloadStatuses>();
+            services.AddScoped<ISourceDownloadService, SourceDownloadService>();
+            services.AddScoped<ISourceFilesFactory, SourceFilesFactory>();
 
             // domain services
             services.AddScoped<IPhotoService, PhotoService>();
@@ -80,6 +83,10 @@ namespace PhotoMap.Api
             services.AddScoped<IPhotoSourceService, PhotoSourceService>();
             services.AddScoped<IUserPhotoSourceService, UserPhotoSourceService>();
             services.AddScoped<IFailedFileService, FailedFileService>();
+            services.AddScoped<IFailedDownloadService, FailedDownloadService>();
+            services.AddScoped<IFailedPreviewService, FailedPreviewService>();
+            services.AddSingleton<FailedPreviewsSignal>();
+            services.AddScoped<FailedPreviewsDownloader>();
             services.AddScoped<IVideoService, VideoService>();
             services.AddSingleton<VideoDuplicatesSignal>();
             services.AddScoped<VideoDuplicatesService>();
@@ -116,6 +123,7 @@ namespace PhotoMap.Api
             services.AddWorker(Configuration);
             services.AddHostedService<ProcessedImageBackgroundService>();
             services.AddHostedService<PhotoCategorizationBackgroundService>();
+            services.AddHostedService<FailedPreviewsBackgroundService>();
             services.AddHostedService<DuplicateGroupsBackgroundService<VideoDuplicatesSignal, VideoDuplicatesService>>();
             services.AddHostedService<DuplicateGroupsBackgroundService<PhotoDuplicatesSignal, PhotoDuplicatesService>>();
             // registered after the image processing services: hosted services stop in reverse order, so processing

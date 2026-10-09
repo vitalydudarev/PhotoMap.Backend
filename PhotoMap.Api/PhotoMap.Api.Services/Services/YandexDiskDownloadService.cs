@@ -181,27 +181,27 @@ public sealed class YandexDiskDownloadService : DownloadServiceBase<YandexDiskDo
 
     private async Task<string> GetSourceFolderAsync(CancellationToken cancellationToken)
     {
-        if (_sourceFolder != null)
-        {
-            return _sourceFolder;
-        }
+        return _sourceFolder ??= await GetSourceFolderAsync(_apiClient!, _settings, Logger, cancellationToken);
+    }
 
-        if (_settings.UsePhotoStreamFolder)
+    /// <summary>
+    /// The folder the photos of the disk are processed from, which is also the one its files are downloaded from.
+    /// </summary>
+    public static async Task<string> GetSourceFolderAsync(ApiClient apiClient, YandexDiskSettings settings, ILogger logger,
+        CancellationToken cancellationToken)
+    {
+        if (settings.UsePhotoStreamFolder)
         {
             // the name of the folder depends on the language of the user, e.g. "disk:/Camera Uploads/"
-            var disk = await WrapApiCallAsync(() => _apiClient!.GetDiskAsync(cancellationToken), cancellationToken);
+            var disk = await YandexDiskApiCalls.WrapAsync(logger, () => apiClient.GetDiskAsync(cancellationToken), cancellationToken);
 
-            _sourceFolder = disk.SystemFolders?.Photostream
+            return disk.SystemFolders?.Photostream
                 ?? throw new YandexDiskException("The user has no Photostream folder.");
         }
-        else
-        {
-            _sourceFolder = string.IsNullOrEmpty(_settings.SourceFolder)
-                ? throw new YandexDiskException("The source folder is not set.")
-                : _settings.SourceFolder;
-        }
 
-        return _sourceFolder;
+        return string.IsNullOrEmpty(settings.SourceFolder)
+            ? throw new YandexDiskException("The source folder is not set.")
+            : settings.SourceFolder;
     }
 
     private static IEnumerable<Resource> GetSupportedFiles(IEnumerable<Resource> items)

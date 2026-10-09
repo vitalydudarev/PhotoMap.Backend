@@ -19,6 +19,7 @@ namespace PhotoMap.Api.Database
         public DbSet<UserPhotoSourceStatusEntity> UserPhotoSourcesStatuses { get; set; } = null!;
         public DbSet<UserPhotoSourceEntity> UserPhotoSources { get; set; } = null!;
         public DbSet<FailedFileEntity> FailedFiles { get; set; } = null!;
+        public DbSet<FailedDownloadEntity> FailedDownloads { get; set; } = null!;
         public DbSet<PhotoCategoryEntity> PhotoCategories { get; set; } = null!;
         public DbSet<VideoEntity> Videos { get; set; } = null!;
         public DbSet<UserVideoSourceStatusEntity> UserVideoSourcesStatuses { get; set; } = null!;
@@ -37,6 +38,7 @@ namespace PhotoMap.Api.Database
             modelBuilder.ApplyConfiguration(new UserPhotoSourceEntityConfiguration());
             modelBuilder.ApplyConfiguration(new UserPhotoSourceStatusEntityConfiguration());
             modelBuilder.ApplyConfiguration(new FailedFileEntityConfiguration());
+            modelBuilder.ApplyConfiguration(new FailedDownloadEntityConfiguration());
             modelBuilder.ApplyConfiguration(new PhotoCategoryEntityConfiguration());
             modelBuilder.ApplyConfiguration(new VideoEntityConfiguration());
             modelBuilder.ApplyConfiguration(new UserVideoSourceStatusEntityConfiguration());

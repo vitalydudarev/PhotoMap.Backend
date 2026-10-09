@@ -59,6 +59,51 @@ public class YandexDiskVideoSourceTests
         Assert.Equal([1, 2, 3], await response.Content.ReadAsByteArrayAsync());
     }
 
+    [Fact]
+    public async Task OpenDownloadAsync_ShouldTimeOut_WhenTheDownloadDoesNotStart()
+    {
+        // Arrange
+        var apiClient = new ApiClient("token", new HttpClient(new HangingHandler()))
+        {
+            OpenDownloadTimeout = TimeSpan.FromMilliseconds(100)
+        };
+
+        // Act & Assert
+        await Assert.ThrowsAsync<TimeoutException>(() =>
+            apiClient.OpenDownloadAsync("disk:/Videos/trip.mp4", null, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task OpenDownloadAsync_ShouldBeCancelled_WhenTheCallerCancels()
+    {
+        // Arrange
+        var apiClient = new ApiClient("token", new HttpClient(new HangingHandler()));
+        using var cancellationTokenSource = new CancellationTokenSource(TimeSpan.FromMilliseconds(100));
+
+        // Act & Assert
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            apiClient.OpenDownloadAsync("disk:/Videos/trip.mp4", null, cancellationTokenSource.Token));
+    }
+
+    [Fact]
+    public void OpenDownloadTimeout_ShouldBe30Seconds()
+    {
+        Assert.Equal(TimeSpan.FromSeconds(30), new ApiClient("token", new HttpClient()).OpenDownloadTimeout);
+    }
+
+    /// <summary>
+    /// A server that never answers, until the request is cancelled.
+    /// </summary>
+    private sealed class HangingHandler : HttpMessageHandler
+    {
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            await Task.Delay(Timeout.Infinite, cancellationToken);
+
+            throw new InvalidOperationException("Unreachable.");
+        }
+    }
+
     /// <summary>
     /// The download URL of a path, and the download of a range of the file by it.
     /// </summary>

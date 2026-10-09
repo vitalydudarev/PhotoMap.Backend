@@ -15,7 +15,7 @@ public static class YandexDiskApiCalls
     /// <summary>
     /// Makes the call, again up to <see cref="MaxRetries"/> times when it fails, whatever it fails with, and turns
     /// its errors into <see cref="YandexDiskException"/>. A token Yandex.Disk no longer accepts fails at once, as
-    /// does a cancelled run: neither would go any differently on a retry.
+    /// do a path it does not have and a cancelled run: none of them would go any differently on a retry.
     /// </summary>
     /// <param name="retryDelay">How long to wait before the retry of the attempt given, 2, 4 then 8 seconds when
     /// not given. A rate limit reached waits as long as Yandex.Disk asks for instead, when it does.</param>
@@ -39,6 +39,13 @@ public static class YandexDiskApiCalls
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
                 throw;
+            }
+            catch (ApiException e) when (e.StatusCode == HttpStatusCode.NotFound)
+            {
+                // a path that is not there is not there on a retry either
+                logger.LogError(e, "The resource has not been found");
+
+                throw new YandexDiskException("The resource has not been found: " + e.Message);
             }
             catch (Exception e) when (attempt <= MaxRetries)
             {

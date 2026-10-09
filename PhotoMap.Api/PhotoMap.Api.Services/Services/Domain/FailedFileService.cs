@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using PhotoMap.Api.Database;
 using PhotoMap.Api.Database.Entities;
 using PhotoMap.Api.Domain.Models;
@@ -9,10 +10,17 @@ namespace PhotoMap.Api.Services.Services.Domain;
 public class FailedFileService : IFailedFileService
 {
     private readonly PhotoMapContext _context;
+    private readonly IFileStorage _fileStorage;
+    private readonly FailedPreviewsSignal _failedPreviewsSignal;
+    private readonly ILogger<FailedFileService> _logger;
 
-    public FailedFileService(PhotoMapContext context)
+    public FailedFileService(PhotoMapContext context, IFileStorage fileStorage, FailedPreviewsSignal failedPreviewsSignal,
+        ILogger<FailedFileService> logger)
     {
         _context = context;
+        _fileStorage = fileStorage;
+        _failedPreviewsSignal = failedPreviewsSignal;
+        _logger = logger;
     }
 
     public async Task<IReadOnlyCollection<FailedFile>> GetAsync(long userId, long photoSourceId)
@@ -54,11 +62,14 @@ public class FailedFileService : IFailedFileService
             .Where(a => a.UserId == userId && a.PhotoSourceId == photoSourceId && externalIds.Contains(a.ExternalId))
             .ToDictionaryAsync(a => a.ExternalId);
 
+        var previewFilePaths = new List<string?>();
+
         foreach (var externalId in savedExternalIds)
         {
             if (entities.Remove(externalId, out var entity))
             {
                 _context.FailedFiles.Remove(entity);
+                previewFilePaths.Add(entity.PreviewFilePath);
             }
         }
 
@@ -88,6 +99,13 @@ public class FailedFileService : IFailedFileService
         }
 
         await _context.SaveChangesAsync();
+
+        FailedPreviewFiles.Delete(_fileStorage, _logger, previewFilePaths);
+
+        if (failedFiles.Count > 0)
+        {
+            _failedPreviewsSignal.Notify();
+        }
     }
 
     public async Task DeleteByPhotoSourceAsync(long userId, long photoSourceId)
@@ -99,5 +117,7 @@ public class FailedFileService : IFailedFileService
         _context.FailedFiles.RemoveRange(entities);
 
         await _context.SaveChangesAsync();
+
+        FailedPreviewFiles.Delete(_fileStorage, _logger, entities.Select(a => a.PreviewFilePath));
     }
 }

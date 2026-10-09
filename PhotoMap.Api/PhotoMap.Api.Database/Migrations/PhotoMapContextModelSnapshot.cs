@@ -23,6 +23,100 @@ namespace PhotoMap.Api.Database.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("PhotoMap.Api.Database.Entities.FailedDownloadEntity", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<int>("Attempts")
+                        .HasColumnType("integer")
+                        .HasColumnName("attempts");
+
+                    b.Property<int>("Content")
+                        .HasColumnType("integer")
+                        .HasColumnName("content");
+
+                    b.Property<string>("Error")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("error");
+
+                    b.Property<DateTimeOffset>("FailedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("failed_at");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("file_name");
+
+                    b.Property<string>("Folder")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("text")
+                        .HasDefaultValue("")
+                        .HasColumnName("folder");
+
+                    b.Property<int>("Kind")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(1)
+                        .HasColumnName("kind");
+
+                    b.Property<string>("Path")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("path");
+
+                    b.Property<long>("PhotoSourceId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("photo_source_id");
+
+                    b.Property<DateTimeOffset?>("PreviewAttemptedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("preview_attempted_at");
+
+                    b.Property<int>("PreviewAttempts")
+                        .HasColumnType("integer")
+                        .HasColumnName("preview_attempts");
+
+                    b.Property<string>("PreviewContentType")
+                        .HasColumnType("text")
+                        .HasColumnName("preview_content_type");
+
+                    b.Property<string>("PreviewError")
+                        .HasColumnType("text")
+                        .HasColumnName("preview_error");
+
+                    b.Property<string>("PreviewFilePath")
+                        .HasColumnType("text")
+                        .HasColumnName("preview_file_path");
+
+                    b.Property<long>("Size")
+                        .HasColumnType("bigint")
+                        .HasColumnName("size");
+
+                    b.Property<long>("UserId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_failed_downloads");
+
+                    b.HasIndex("PhotoSourceId")
+                        .HasDatabaseName("ix_failed_downloads_photo_source_id");
+
+                    b.HasIndex("UserId", "PhotoSourceId", "Kind", "Folder", "FileName")
+                        .IsUnique()
+                        .HasDatabaseName("ix_failed_downloads_user_id_photo_source_id_kind_folder_file_n");
+
+                    b.ToTable("failed_downloads", (string)null);
+                });
+
             modelBuilder.Entity("PhotoMap.Api.Database.Entities.FailedFileEntity", b =>
                 {
                     b.Property<long>("Id")
@@ -62,6 +156,26 @@ namespace PhotoMap.Api.Database.Migrations
                     b.Property<long>("PhotoSourceId")
                         .HasColumnType("bigint")
                         .HasColumnName("photo_source_id");
+
+                    b.Property<DateTimeOffset?>("PreviewAttemptedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("preview_attempted_at");
+
+                    b.Property<int>("PreviewAttempts")
+                        .HasColumnType("integer")
+                        .HasColumnName("preview_attempts");
+
+                    b.Property<string>("PreviewContentType")
+                        .HasColumnType("text")
+                        .HasColumnName("preview_content_type");
+
+                    b.Property<string>("PreviewError")
+                        .HasColumnType("text")
+                        .HasColumnName("preview_error");
+
+                    b.Property<string>("PreviewFilePath")
+                        .HasColumnType("text")
+                        .HasColumnName("preview_file_path");
 
                     b.Property<int>("Stage")
                         .HasColumnType("integer")
@@ -452,6 +566,27 @@ namespace PhotoMap.Api.Database.Migrations
                         .HasDatabaseName("ix_videos_user_id_photo_source_id_external_id");
 
                     b.ToTable("videos", (string)null);
+                });
+
+            modelBuilder.Entity("PhotoMap.Api.Database.Entities.FailedDownloadEntity", b =>
+                {
+                    b.HasOne("PhotoMap.Api.Database.Entities.PhotoSourceEntity", "PhotoSource")
+                        .WithMany()
+                        .HasForeignKey("PhotoSourceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_failed_downloads_photo_sources_photo_source_id");
+
+                    b.HasOne("PhotoMap.Api.Database.Entities.UserEntity", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_failed_downloads_users_user_id");
+
+                    b.Navigation("PhotoSource");
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("PhotoMap.Api.Database.Entities.FailedFileEntity", b =>
