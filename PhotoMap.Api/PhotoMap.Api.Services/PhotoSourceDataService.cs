@@ -10,6 +10,7 @@ public class PhotoSourceDataService : IPhotoSourceDataService
     private readonly IUserPhotoSourceService _userPhotoSourceService;
     private readonly IFailedFileService _failedFileService;
     private readonly IPhotoSourceProcessingService _photoSourceProcessingService;
+    private readonly IOtherFoldersProcessingService _otherFoldersProcessingService;
     private readonly IFileStorage _fileStorage;
     private readonly IFrontendNotificationService _frontendNotificationService;
     private readonly ILogger<PhotoSourceDataService> _logger;
@@ -19,6 +20,7 @@ public class PhotoSourceDataService : IPhotoSourceDataService
         IUserPhotoSourceService userPhotoSourceService,
         IFailedFileService failedFileService,
         IPhotoSourceProcessingService photoSourceProcessingService,
+        IOtherFoldersProcessingService otherFoldersProcessingService,
         IFileStorage fileStorage,
         IFrontendNotificationService frontendNotificationService,
         ILogger<PhotoSourceDataService> logger)
@@ -27,21 +29,22 @@ public class PhotoSourceDataService : IPhotoSourceDataService
         _userPhotoSourceService = userPhotoSourceService;
         _failedFileService = failedFileService;
         _photoSourceProcessingService = photoSourceProcessingService;
+        _otherFoldersProcessingService = otherFoldersProcessingService;
         _fileStorage = fileStorage;
         _frontendNotificationService = frontendNotificationService;
         _logger = logger;
     }
 
     /// <summary>
-    /// Deletes the photos of a photo source and what the runs that downloaded them left behind: the thumbnails,
-    /// the status of the source, the state a stopped run resumes from and the files that failed. The photos
+    /// Deletes the photos of a photo source, of the folder it is processed from and of the other folders, and what
+    /// the runs that downloaded them left behind: the thumbnails, the statuses of the source, the state a stopped run resumes from and the files that failed. The photos
     /// themselves stay in the photo source, and the user stays authorized in it, so processing it again downloads
     /// them all anew.
     /// </summary>
     public async Task<bool> DeleteDataAsync(long userId, long sourceId)
     {
         // a run saves photos and its state while it goes, deleting either underneath it would only lose parts
-        if (_photoSourceProcessingService.IsRunning(userId, sourceId))
+        if (IsRunning(userId, sourceId))
         {
             return false;
         }
@@ -56,7 +59,7 @@ public class PhotoSourceDataService : IPhotoSourceDataService
         var userPhotoSources = await _userPhotoSourceService.GetAllUserPhotoSourceIdsAsync();
 
         // checked for all of them first, so that the data is deleted all or not at all
-        if (userPhotoSources.Any(a => _photoSourceProcessingService.IsRunning(a.UserId, a.PhotoSourceId)))
+        if (userPhotoSources.Any(a => IsRunning(a.UserId, a.PhotoSourceId)))
         {
             return false;
         }
@@ -69,6 +72,12 @@ public class PhotoSourceDataService : IPhotoSourceDataService
         return true;
     }
 
+    private bool IsRunning(long userId, long sourceId)
+    {
+        return _photoSourceProcessingService.IsRunning(userId, sourceId) ||
+               _otherFoldersProcessingService.IsRunning(userId, sourceId);
+    }
+
     private async Task DeleteSourceDataAsync(long userId, long sourceId)
     {
         var thumbnailPaths = await _photoService.DeleteByPhotoSourceAsync(userId, sourceId);
@@ -79,6 +88,7 @@ public class PhotoSourceDataService : IPhotoSourceDataService
         }
 
         await _userPhotoSourceService.DeleteUserPhotoStatusAsync(userId, sourceId);
+        await _userPhotoSourceService.DeleteOtherFoldersStatusAsync(userId, sourceId);
         await _userPhotoSourceService.UpdateUserPhotoStateAsync(userId, sourceId, null);
         await _failedFileService.DeleteByPhotoSourceAsync(userId, sourceId);
 
@@ -91,15 +101,18 @@ public class PhotoSourceDataService : IPhotoSourceDataService
     /// The source starts over, which the pages watching it are told so that they do not keep reporting the
     /// counters of runs whose photos are gone.
     /// </summary>
-    private Task NotifyDataDeletedAsync(long userId, long sourceId)
+    private async Task NotifyDataDeletedAsync(long userId, long sourceId)
     {
-        return _frontendNotificationService.SendProgressAsync(new UserPhotoSourceStatus
+        var status = new UserPhotoSourceStatus
         {
             UserId = userId,
             PhotoSourceId = sourceId,
             Status = PhotoSourceStatus.NotStarted,
             LastUpdatedAt = DateTimeOffset.UtcNow
-        });
+        };
+
+        await _frontendNotificationService.SendProgressAsync(status);
+        await _frontendNotificationService.SendOtherFoldersProgressAsync(status);
     }
 
     private void DeleteThumbnail(string thumbnailPath)

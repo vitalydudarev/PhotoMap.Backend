@@ -34,4 +34,11 @@ public class Photo
     /// or has not been looked at yet. See <c>PhotoDuplicateFinder</c>.
     /// </summary>
     public long? DuplicateGroupId { get; set; }
+
+    /// <summary>
+    /// The photo is outside the folder the source is processed from, its thumbnails made from the preview the source
+    /// made of it rather than from the photo itself. Such photos are only listed when asked for, see
+    /// <see cref="PhotoFilter.IncludeOtherFolders"/>.
+    /// </summary>
+    public bool FromOtherFolder { get; set; }
 }

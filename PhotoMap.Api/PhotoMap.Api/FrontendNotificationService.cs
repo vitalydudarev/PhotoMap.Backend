@@ -40,6 +40,18 @@ public class FrontendNotificationService : IFrontendNotificationService
         return SendProgressAsync("VideoProgress", status);
     }
 
+    public Task SendOtherFoldersErrorAsync(long userId, long sourceId, string errorText)
+    {
+        var hubErrorModel = new HubErrorModel(sourceId, errorText);
+
+        return _hubContext.Clients.Group(NotificationHub.GetUserGroupName(userId)).SendAsync("OtherFoldersError", hubErrorModel);
+    }
+
+    public Task SendOtherFoldersProgressAsync(UserPhotoSourceStatus status)
+    {
+        return SendProgressAsync("OtherFoldersProgress", status);
+    }
+
     public Task SendDownloadErrorAsync(long userId, long sourceId, SourceDownloadKind kind, string errorText)
     {
         var hubErrorModel = new HubErrorModel(sourceId, errorText);

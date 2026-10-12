@@ -53,11 +53,12 @@ namespace PhotoMap.Worker.Services.Implementations
                 Thumbs = sizeBytesMap,
                 Path = fileInfo.Path,
                 ExternalId = fileInfo.FileId,
-                ContentHash = Convert.ToHexStringLower(SHA256.HashData(fileContents)),
+                ContentHash = fileInfo.ContentHash ?? Convert.ToHexStringLower(SHA256.HashData(fileContents)),
                 FileCreatedOn = fileInfo.CreatedOn,
                 UserId = request.UserId,
                 PhotoSourceId = request.PhotoSourceId,
                 PhotoSourceName = request.PhotoSourceName,
+                FromOtherFolder = fileInfo.FromOtherFolder,
                 Processed = request.Processed
             };
 
@@ -70,7 +71,14 @@ namespace PhotoMap.Worker.Services.Implementations
                 processedImage.HorizontalPositioningError = exif.Gps?.HorizontalPositioningError;
                 processedImage.ExifString = JsonSerializer.Serialize(exif);
             }
-            
+
+            // a preview made by the photo source may have no location, the one the source has read is taken then
+            if (processedImage.Latitude == null || processedImage.Longitude == null)
+            {
+                processedImage.Latitude = fileInfo.Latitude;
+                processedImage.Longitude = fileInfo.Longitude;
+            }
+
             _logger.LogInformation("Processed image {FileName}", fileInfo.ResourceName);
 
             return processedImage;

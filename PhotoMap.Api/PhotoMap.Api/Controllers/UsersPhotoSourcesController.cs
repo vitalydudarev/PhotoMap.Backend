@@ -20,17 +20,20 @@ namespace PhotoMap.Api.Controllers
         private readonly IPhotoSourceProcessingService _photoSourceProcessingService;
         private readonly IPhotoSourceDataService _photoSourceDataService;
         private readonly IFailedFileService _failedFileService;
+        private readonly IOtherFoldersProcessingService _otherFoldersProcessingService;
 
         public UsersPhotoSourcesController(
             IUserPhotoSourceService userPhotoSourceService,
             IPhotoSourceProcessingService photoSourceProcessingService,
             IPhotoSourceDataService photoSourceDataService,
-            IFailedFileService failedFileService)
+            IFailedFileService failedFileService,
+            IOtherFoldersProcessingService otherFoldersProcessingService)
         {
             _userPhotoSourceService = userPhotoSourceService;
             _photoSourceProcessingService = photoSourceProcessingService;
             _photoSourceDataService = photoSourceDataService;
             _failedFileService = failedFileService;
+            _otherFoldersProcessingService = otherFoldersProcessingService;
         }
 
         [HttpGet]
@@ -106,6 +109,67 @@ namespace PhotoMap.Api.Controllers
         }
 
         /// <summary>
+        /// Starts or stops the processing of the photos of the photo source outside the folder it is processed from,
+        /// which runs apart from the processing of that folder. The thumbnails of the photos are made from the largest
+        /// preview the source makes of each. Starting again skips the photos saved already, so it carries on where it
+        /// left off. Only Yandex.Disk sources have their other folders processed.
+        /// </summary>
+        /// <param name="userId">The ID of the user.</param>
+        /// <param name="sourceId">The ID of the photo source.</param>
+        /// <param name="command">Start or Stop.</param>
+        [HttpPost("{sourceId:long}/other-folders")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status409Conflict)]
+        public async Task<IActionResult> OtherFoldersProcessing(long userId, long sourceId,
+            [FromBody] PhotoSourceProcessingCommands command)
+        {
+            if (!await _otherFoldersProcessingService.SupportsOtherFoldersAsync(sourceId))
+            {
+                return BadRequest("The other folders of the photo source cannot be processed.");
+            }
+
+            if (command != PhotoSourceProcessingCommands.Start && command != PhotoSourceProcessingCommands.Stop)
+            {
+                return BadRequest("The other folders of a photo source are only started and stopped.");
+            }
+
+            var accepted = await _otherFoldersProcessingService.RunCommandAsync(userId, sourceId, command);
+            if (!accepted)
+            {
+                return Conflict("Processing of the other folders of the photo source is already running.");
+            }
+
+            return Ok();
+        }
+
+        /// <summary>
+        /// The status of the processing of the photos of the photo source outside the folder it is processed from,
+        /// with the number of photos processed, failed and in total. A running source saves them periodically, the
+        /// notification hub sends them live.
+        /// </summary>
+        /// <param name="userId">The ID of the user.</param>
+        /// <param name="sourceId">The ID of the photo source.</param>
+        [HttpGet("{sourceId:long}/other-folders/status")]
+        [ProducesResponseType(typeof(PhotoSourceProgressDto), StatusCodes.Status200OK)]
+        public async Task<IActionResult> GetOtherFoldersStatus(long userId, long sourceId)
+        {
+            var status = await _userPhotoSourceService.GetOtherFoldersStatusAsync(userId, sourceId);
+
+            // the other folders of a source that have never been processed have no status saved
+            var dto = new PhotoSourceProgressDto
+            {
+                Status = Enum.Parse<UserPhotoSourceStatusDto>((status?.Status ?? PhotoSourceStatus.NotStarted).ToString()),
+                TotalCount = status?.TotalCount ?? 0,
+                ProcessedCount = status?.ProcessedCount ?? 0,
+                FailedCount = status?.FailedCount ?? 0,
+                LastUpdatedAt = status?.LastUpdatedAt?.UtcDateTime.ToString("o")
+            };
+
+            return Ok(dto);
+        }
+
+        /// <summary>
         /// The files of the photo source that could not be downloaded or processed, in the order they first failed.
         /// The RetryFailed command downloads them again.
         /// </summary>
@@ -130,8 +194,8 @@ namespace PhotoMap.Api.Controllers
         }
 
         /// <summary>
-        /// Deletes the photos imported from the photo source and the processing status and state of the source.
-        /// The user stays authorized in it.
+        /// Deletes the photos imported from the photo source, of the folder it is processed from and of the other
+        /// folders, and the processing statuses and state of the source. The user stays authorized in it.
         /// </summary>
         [HttpDelete("{sourceId:long}/data")]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
@@ -141,7 +205,7 @@ namespace PhotoMap.Api.Controllers
             var deleted = await _photoSourceDataService.DeleteDataAsync(userId, sourceId);
             if (!deleted)
             {
-                return Conflict("Processing of the photo source is running.");
+                return Conflict("Processing of the photo source or of its other folders is running.");
             }
 
             return NoContent();

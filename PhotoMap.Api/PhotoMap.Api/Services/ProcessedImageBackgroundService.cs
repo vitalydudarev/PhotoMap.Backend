@@ -204,7 +204,8 @@ namespace PhotoMap.Api.Services
                 Latitude = processedImage.Latitude,
                 Longitude = processedImage.Longitude,
                 HorizontalPositioningError = processedImage.HorizontalPositioningError,
-                HasGps = processedImage.Latitude.HasValue && processedImage.Longitude.HasValue
+                HasGps = processedImage.Latitude.HasValue && processedImage.Longitude.HasValue,
+                FromOtherFolder = processedImage.FromOtherFolder
             };
         }
 

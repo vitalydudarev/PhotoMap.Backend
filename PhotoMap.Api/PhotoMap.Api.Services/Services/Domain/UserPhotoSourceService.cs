@@ -173,6 +173,56 @@ public class UserPhotoSourceService : IUserPhotoSourceService
         await _context.SaveChangesAsync();
     }
 
+    public async Task<UserPhotoSourceStatus?> GetOtherFoldersStatusAsync(long userId, long photoSourceId)
+    {
+        var entity = await _context.UserOtherFoldersStatuses
+            .AsNoTracking()
+            .FirstOrDefaultAsync(a => a.UserId == userId && a.PhotoSourceId == photoSourceId);
+
+        if (entity == null)
+        {
+            return null;
+        }
+
+        return new UserPhotoSourceStatus
+        {
+            UserId = entity.UserId,
+            PhotoSourceId = entity.PhotoSourceId,
+            Status = entity.Status,
+            TotalCount = entity.TotalCount,
+            ProcessedCount = entity.ProcessedCount,
+            FailedCount = entity.FailedCount,
+            LastUpdatedAt = entity.LastUpdatedAt
+        };
+    }
+
+    public async Task UpdateOtherFoldersStatusAsync(UserPhotoSourceStatus status)
+    {
+        var entity = await _context.UserOtherFoldersStatuses
+            .FirstOrDefaultAsync(a => a.UserId == status.UserId && a.PhotoSourceId == status.PhotoSourceId);
+
+        if (entity == null)
+        {
+            entity = new UserOtherFoldersStatusEntity { UserId = status.UserId, PhotoSourceId = status.PhotoSourceId };
+            _context.UserOtherFoldersStatuses.Add(entity);
+        }
+
+        entity.Status = status.Status;
+        entity.TotalCount = status.TotalCount;
+        entity.ProcessedCount = status.ProcessedCount;
+        entity.FailedCount = status.FailedCount;
+        entity.LastUpdatedAt = status.LastUpdatedAt;
+
+        await _context.SaveChangesAsync();
+    }
+
+    public async Task DeleteOtherFoldersStatusAsync(long userId, long photoSourceId)
+    {
+        await _context.UserOtherFoldersStatuses
+            .Where(a => a.UserId == userId && a.PhotoSourceId == photoSourceId)
+            .ExecuteDeleteAsync();
+    }
+
     public async Task<int> PauseInProgressAsync()
     {
         var entities = await _context.UserPhotoSourcesStatuses
@@ -185,8 +235,18 @@ public class UserPhotoSourceService : IUserPhotoSourceService
             entity.LastUpdatedAt = DateTimeOffset.UtcNow;
         }
 
+        var otherFoldersEntities = await _context.UserOtherFoldersStatuses
+            .Where(a => a.Status == PhotoSourceStatus.InProgress)
+            .ToListAsync();
+
+        foreach (var entity in otherFoldersEntities)
+        {
+            entity.Status = PhotoSourceStatus.Paused;
+            entity.LastUpdatedAt = DateTimeOffset.UtcNow;
+        }
+
         await _context.SaveChangesAsync();
 
-        return entities.Count;
+        return entities.Count + otherFoldersEntities.Count;
     }
 }

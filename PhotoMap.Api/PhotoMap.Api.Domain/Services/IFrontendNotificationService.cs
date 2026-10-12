@@ -18,6 +18,18 @@ public interface IFrontendNotificationService
     Task SendVideoProgressAsync(UserPhotoSourceStatus status);
 
     /// <summary>
+    /// The error the processing of the photos of the photo source outside the folder it is processed from has
+    /// failed with.
+    /// </summary>
+    Task SendOtherFoldersErrorAsync(long userId, long sourceId, string errorText);
+
+    /// <summary>
+    /// The status and counters of the processing of the photos of the photo source outside the folder it is
+    /// processed from.
+    /// </summary>
+    Task SendOtherFoldersProgressAsync(UserPhotoSourceStatus status);
+
+    /// <summary>
     /// The error the download of the files of the photo source of the kind has failed with.
     /// </summary>
     Task SendDownloadErrorAsync(long userId, long sourceId, SourceDownloadKind kind, string errorText);

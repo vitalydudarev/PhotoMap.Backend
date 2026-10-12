@@ -220,6 +220,11 @@ public class PhotoRepository : IPhotoRepository
     {
         var photos = _context.Photos.Where(a => a.UserId == userId);
 
+        if (!filter.IncludeOtherFolders)
+        {
+            photos = photos.Where(a => !a.FromOtherFolder);
+        }
+
         if (filter.PhotoSourceIds.Count > 0)
         {
             photos = photos.Where(a => filter.PhotoSourceIds.Contains(a.PhotoSourceId));
@@ -278,7 +283,8 @@ public class PhotoRepository : IPhotoRepository
             AddedOn = photoEntity.AddedOn,
             PhotoSourceId = photoEntity.PhotoSourceId,
             DeletedOn = photoEntity.DeletedOn,
-            DuplicateGroupId = photoEntity.DuplicateGroupId
+            DuplicateGroupId = photoEntity.DuplicateGroupId,
+            FromOtherFolder = photoEntity.FromOtherFolder
         };
     }
 
@@ -300,7 +306,8 @@ public class PhotoRepository : IPhotoRepository
             ExternalId = photo.ExternalId,
             ContentHash = photo.ContentHash,
             AddedOn = photo.AddedOn,
-            PhotoSourceId = photo.PhotoSourceId
+            PhotoSourceId = photo.PhotoSourceId,
+            FromOtherFolder = photo.FromOtherFolder
         };
     }
 }

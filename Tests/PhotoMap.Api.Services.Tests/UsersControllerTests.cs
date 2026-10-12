@@ -96,6 +96,24 @@ public class UsersControllerTests
         _photoService.Verify(a => a.GetTotalCountByUserIdAsync(UserId, It.Is<PhotoFilter>(f => f.HasGps == gps)));
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task GetUserPhotos_ShouldTakeThePhotosOfTheOtherFolders_OnlyWhenAskedFor(bool allFolders)
+    {
+        // Arrange
+        var controller = CreateController();
+
+        // Act
+        await controller.GetUserPhotos(UserId, 100, 0, allFolders: allFolders);
+
+        // Assert
+        _photoService.Verify(a => a.GetByUserIdAsync(UserId, It.Is<PhotoFilter>(f => f.IncludeOtherFolders == allFolders),
+            100, 0, PhotoSortOrder.Asc));
+        _photoService.Verify(a => a.GetTotalCountByUserIdAsync(UserId,
+            It.Is<PhotoFilter>(f => f.IncludeOtherFolders == allFolders)));
+    }
+
     [Fact]
     public async Task GetUserPhotos_ShouldReturnBadRequest_WhenTheCategoryIsNotOne()
     {

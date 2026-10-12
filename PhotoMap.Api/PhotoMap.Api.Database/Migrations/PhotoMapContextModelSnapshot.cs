@@ -260,6 +260,10 @@ namespace PhotoMap.Api.Database.Migrations
                         .HasColumnType("text")
                         .HasColumnName("file_name");
 
+                    b.Property<bool>("FromOtherFolder")
+                        .HasColumnType("boolean")
+                        .HasColumnName("from_other_folder");
+
                     b.Property<bool>("HasGps")
                         .HasColumnType("boolean")
                         .HasColumnName("has_gps");
@@ -371,6 +375,45 @@ namespace PhotoMap.Api.Database.Migrations
                         .HasName("pk_users");
 
                     b.ToTable("users", (string)null);
+                });
+
+            modelBuilder.Entity("PhotoMap.Api.Database.Entities.UserOtherFoldersStatusEntity", b =>
+                {
+                    b.Property<long>("UserId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("user_id");
+
+                    b.Property<long>("PhotoSourceId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("photo_source_id");
+
+                    b.Property<int>("FailedCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("failed_count");
+
+                    b.Property<DateTimeOffset?>("LastUpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_updated_at");
+
+                    b.Property<int>("ProcessedCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("processed_count");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer")
+                        .HasColumnName("status");
+
+                    b.Property<int>("TotalCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("total_count");
+
+                    b.HasKey("UserId", "PhotoSourceId")
+                        .HasName("pk_users_other_folders_status");
+
+                    b.HasIndex("PhotoSourceId")
+                        .HasDatabaseName("ix_users_other_folders_status_photo_source_id");
+
+                    b.ToTable("users_other_folders_status", (string)null);
                 });
 
             modelBuilder.Entity("PhotoMap.Api.Database.Entities.UserPhotoSourceEntity", b =>
@@ -637,6 +680,27 @@ namespace PhotoMap.Api.Database.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("fk_photos_users_user_id");
+
+                    b.Navigation("PhotoSource");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("PhotoMap.Api.Database.Entities.UserOtherFoldersStatusEntity", b =>
+                {
+                    b.HasOne("PhotoMap.Api.Database.Entities.PhotoSourceEntity", "PhotoSource")
+                        .WithMany()
+                        .HasForeignKey("PhotoSourceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_users_other_folders_status_photo_sources_photo_source_id");
+
+                    b.HasOne("PhotoMap.Api.Database.Entities.UserEntity", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_users_other_folders_status_users_user_id");
 
                     b.Navigation("PhotoSource");
 

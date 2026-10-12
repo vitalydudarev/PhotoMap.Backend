@@ -23,6 +23,7 @@ namespace PhotoMap.Api.Database
         public DbSet<PhotoCategoryEntity> PhotoCategories { get; set; } = null!;
         public DbSet<VideoEntity> Videos { get; set; } = null!;
         public DbSet<UserVideoSourceStatusEntity> UserVideoSourcesStatuses { get; set; } = null!;
+        public DbSet<UserOtherFoldersStatusEntity> UserOtherFoldersStatuses { get; set; } = null!;
 
         public PhotoMapContext(IConfiguration? configuration, DbContextOptions<PhotoMapContext> options)
             : base(options)
@@ -42,6 +43,7 @@ namespace PhotoMap.Api.Database
             modelBuilder.ApplyConfiguration(new PhotoCategoryEntityConfiguration());
             modelBuilder.ApplyConfiguration(new VideoEntityConfiguration());
             modelBuilder.ApplyConfiguration(new UserVideoSourceStatusEntityConfiguration());
+            modelBuilder.ApplyConfiguration(new UserOtherFoldersStatusEntityConfiguration());
         }
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)

@@ -60,6 +60,8 @@ namespace PhotoMap.Api.Controllers
         /// <c>Deleted</c> takes the photos marked as deleted, which every other category leaves out. Photos of every
         /// category but <c>Deleted</c> when not given.</param>
         /// <param name="gps">Whether the photos have a GPS location. The photos with and without one when not given.</param>
+        /// <param name="allFolders">Whether the photos outside the folders the sources are processed from are taken
+        /// too, the ones of the other folders of Yandex.Disk. Only the photos of those folders when not given.</param>
         [HttpGet("{id:long}/photos")]
         [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(PagedResponse<PhotoDto>))]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -70,7 +72,8 @@ namespace PhotoMap.Api.Controllers
             [FromQuery] long[]? source = null,
             [FromQuery] int[]? year = null,
             [FromQuery] PhotoCategory[]? category = null,
-            [FromQuery] bool? gps = null)
+            [FromQuery] bool? gps = null,
+            [FromQuery] bool allFolders = false)
         {
             // a number binds to the enum whether it names a category or not
             if (category != null && !category.All(Enum.IsDefined))
@@ -80,7 +83,7 @@ namespace PhotoMap.Api.Controllers
                 return ValidationProblem(ModelState);
             }
 
-            var filter = new PhotoFilter(source ?? [], year ?? [], category ?? [], gps);
+            var filter = new PhotoFilter(source ?? [], year ?? [], category ?? [], gps, allFolders);
 
             var userPhotos = await _photoService.GetByUserIdAsync(id, filter, top, skip, sort);
             var totalPhotosCount = await _photoService.GetTotalCountByUserIdAsync(id, filter);

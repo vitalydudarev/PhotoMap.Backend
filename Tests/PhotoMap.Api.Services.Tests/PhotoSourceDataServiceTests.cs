@@ -15,6 +15,7 @@ public class PhotoSourceDataServiceTests
     private readonly Mock<IUserPhotoSourceService> _userPhotoSourceService = new();
     private readonly Mock<IFailedFileService> _failedFileService = new();
     private readonly Mock<IPhotoSourceProcessingService> _processingService = new();
+    private readonly Mock<IOtherFoldersProcessingService> _otherFoldersProcessingService = new();
     private readonly Mock<IFileStorage> _fileStorage = new();
     private readonly Mock<IFrontendNotificationService> _frontendNotificationService = new();
 
@@ -44,6 +45,7 @@ public class PhotoSourceDataServiceTests
         _fileStorage.Verify(a => a.Delete("Dropbox/1/thumbs/photo_256.jpg"));
         _fileStorage.Verify(a => a.Delete("Dropbox/1/thumbs/photo_640.jpg"));
         _userPhotoSourceService.Verify(a => a.DeleteUserPhotoStatusAsync(UserId, SourceId));
+        _userPhotoSourceService.Verify(a => a.DeleteOtherFoldersStatusAsync(UserId, SourceId));
 
         // the source resumes from its state, which has to go with the photos it was downloading
         _userPhotoSourceService.Verify(a => a.UpdateUserPhotoStateAsync(UserId, SourceId, null));
@@ -65,6 +67,25 @@ public class PhotoSourceDataServiceTests
         _frontendNotificationService.Verify(a => a.SendProgressAsync(It.Is<UserPhotoSourceStatus>(b =>
             b.PhotoSourceId == SourceId && b.Status == PhotoSourceStatus.NotStarted && b.ProcessedCount == 0 &&
             b.TotalCount == 0)));
+        _frontendNotificationService.Verify(a => a.SendOtherFoldersProgressAsync(It.Is<UserPhotoSourceStatus>(b =>
+            b.PhotoSourceId == SourceId && b.Status == PhotoSourceStatus.NotStarted)));
+    }
+
+    [Fact]
+    public async Task DeleteDataAsync_ShouldDeleteNothing_WhileTheOtherFoldersOfTheSourceAreBeingProcessed()
+    {
+        // Arrange
+        _otherFoldersProcessingService.Setup(a => a.IsRunning(UserId, SourceId)).Returns(true);
+
+        var service = CreateService();
+
+        // Act
+        var deleted = await service.DeleteDataAsync(UserId, SourceId);
+
+        // Assert
+        Assert.False(deleted);
+
+        _photoService.VerifyNoOtherCalls();
     }
 
     [Fact]
@@ -158,7 +179,7 @@ public class PhotoSourceDataServiceTests
     private PhotoSourceDataService CreateService()
     {
         return new PhotoSourceDataService(_photoService.Object, _userPhotoSourceService.Object,
-            _failedFileService.Object, _processingService.Object, _fileStorage.Object, _frontendNotificationService.Object,
+            _failedFileService.Object, _processingService.Object, _otherFoldersProcessingService.Object, _fileStorage.Object, _frontendNotificationService.Object,
             NullLogger<PhotoSourceDataService>.Instance);
     }
 }
