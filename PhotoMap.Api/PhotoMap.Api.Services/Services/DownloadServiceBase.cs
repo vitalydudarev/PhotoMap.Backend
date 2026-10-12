@@ -63,6 +63,7 @@ public abstract class DownloadServiceBase<TState> : IDownloadService where TStat
         CreateClient();
 
         var failedFiles = await _failedFileService.GetAsync(Parameters.UserId, Parameters.SourceId);
+        Parameters.Progress.RetryTotalCount = failedFiles.Count;
 
         foreach (var page in failedFiles.Chunk(PageSize))
         {
@@ -157,6 +158,7 @@ public abstract class DownloadServiceBase<TState> : IDownloadService where TStat
         }
         catch (PhotoSourceException e) when (!e.IsAuthError)
         {
+            Parameters.Progress.FileFailedAgain();
             _pageFailures.DownloadFailed(failedFile.ExternalId, failedFile.Path, failedFile.FileName, e.Message);
 
             return null;

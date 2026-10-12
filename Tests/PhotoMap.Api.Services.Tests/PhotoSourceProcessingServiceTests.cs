@@ -21,6 +21,7 @@ public class PhotoSourceProcessingServiceTests
     private readonly Mock<IUserPhotoSourceService> _userPhotoSourceService = new();
     private readonly List<UserPhotoSourceStatus> _reportedStatuses = [];
     private readonly Mock<IDownloadService> _downloadService = new();
+    private readonly Mock<IFrontendNotificationService> _frontendNotificationService = new();
 
     [Fact]
     public async Task RunCommandAsync_ShouldContinueTheCountersOfAStoppedRun()
@@ -119,6 +120,50 @@ public class PhotoSourceProcessingServiceTests
         _downloadService.Verify(a => a.DownloadAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
+    [Fact]
+    public async Task RunCommandAsync_ShouldSendHowFarTheRetryHasGot_ApartFromTheCountersOfTheSource()
+    {
+        // Arrange
+        SetUpUserPhotoSource(processedCount: 39, failedCount: 2, state: null);
+
+        var retries = new List<RetryProgress>();
+        _frontendNotificationService
+            .Setup(a => a.SendProgressAsync(It.IsAny<UserPhotoSourceStatus>(), It.IsAny<RetryProgress>()))
+            .Callback<UserPhotoSourceStatus, RetryProgress>((_, retry) => retries.Add(retry))
+            .Returns(Task.CompletedTask);
+
+        var service = CreateService(out var runTask);
+        _downloadService
+            .Setup(a => a.RetryFailedAsync(It.IsAny<CancellationToken>()))
+            .Returns(ProcessedFilesAsync(ProcessingResult.Success, ProcessingResult.Failed("Corrupt image")));
+
+        // Act
+        await service.RunCommandAsync(UserId, SourceId, PhotoSourceProcessingCommands.RetryFailed);
+        await runTask();
+
+        // Assert: both files have been retried, the one saved and the one failing again
+        Assert.Equal(new RetryProgress(0, 2, 1), retries.Last());
+        _frontendNotificationService.Verify(a => a.SendProgressAsync(It.IsAny<UserPhotoSourceStatus>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task RunCommandAsync_ShouldSendNoRetry_WhenTheRunListsTheSource()
+    {
+        // Arrange
+        SetUpUserPhotoSource(processedCount: 0, failedCount: 0, state: null);
+
+        var service = CreateService(out var runTask);
+
+        // Act
+        await service.RunCommandAsync(UserId, SourceId, PhotoSourceProcessingCommands.Start);
+        await runTask();
+
+        // Assert
+        _frontendNotificationService.Verify(a => a.SendProgressAsync(It.IsAny<UserPhotoSourceStatus>()), Times.AtLeastOnce);
+        _frontendNotificationService.Verify(
+            a => a.SendProgressAsync(It.IsAny<UserPhotoSourceStatus>(), It.IsAny<RetryProgress>()), Times.Never);
+    }
+
     private void SetUpUserPhotoSource(int processedCount, int failedCount, string? state)
     {
         _userPhotoSourceService
@@ -195,7 +240,7 @@ public class PhotoSourceProcessingServiceTests
             .Returns(new ChannelMessageQueue<ProcessImageRequest>());
         serviceProvider.Setup(a => a.GetService(typeof(IFileStorage))).Returns(new Mock<IFileStorage>().Object);
         serviceProvider.Setup(a => a.GetService(typeof(IFrontendNotificationService)))
-            .Returns(new Mock<IFrontendNotificationService>().Object);
+            .Returns(_frontendNotificationService.Object);
         serviceProvider.Setup(a => a.GetService(typeof(ILogger<PhotoSourceProcessingService>)))
             .Returns(NullLogger<PhotoSourceProcessingService>.Instance);
         serviceProvider.Setup(a => a.GetService(typeof(IPhotoSourceDownloadServiceFactory))).Returns(downloadServiceFactory);

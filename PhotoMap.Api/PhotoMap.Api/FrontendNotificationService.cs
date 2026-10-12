@@ -28,6 +28,11 @@ public class FrontendNotificationService : IFrontendNotificationService
         return SendProgressAsync("Progress", status);
     }
 
+    public Task SendProgressAsync(UserPhotoSourceStatus status, RetryProgress retry)
+    {
+        return SendProgressAsync("Progress", status, new HubRetryModel(retry.Total, retry.Retried, retry.Recovered));
+    }
+
     public Task SendVideoErrorAsync(long userId, long sourceId, string errorText)
     {
         var hubErrorModel = new HubErrorModel(sourceId, errorText);
@@ -65,10 +70,10 @@ public class FrontendNotificationService : IFrontendNotificationService
         return SendProgressAsync(kind == SourceDownloadKind.ChosenFolder ? "FolderDownloadProgress" : "DownloadProgress", status);
     }
 
-    private Task SendProgressAsync(string method, UserPhotoSourceStatus status)
+    private Task SendProgressAsync(string method, UserPhotoSourceStatus status, HubRetryModel? retry = null)
     {
         var hubProgressModel = new HubProgressModel(status.PhotoSourceId, status.Status.ToString(), status.ProcessedCount,
-            status.FailedCount, status.TotalCount);
+            status.FailedCount, status.TotalCount) { Retry = retry };
 
         return _hubContext.Clients.Group(NotificationHub.GetUserGroupName(status.UserId)).SendAsync(method, hubProgressModel);
     }

@@ -115,7 +115,7 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
 
         try
         {
-            await ReportStatusAsync(serviceScopeFactory, logger, userId, sourceId, PhotoSourceStatus.InProgress, progress);
+            await ReportStatusAsync(serviceScopeFactory, logger, userId, sourceId, PhotoSourceStatus.InProgress, progress, retryFailed);
 
             downloadService = scope.ServiceProvider.GetRequiredService<IPhotoSourceDownloadServiceFactory>()
                 .GetService(photoSource, parameters);
@@ -126,7 +126,7 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
                 progress.TotalCount = await downloadService.GetTotalFileCountAsync();
             }
 
-            reportingTask = ReportStatusPeriodicallyAsync(serviceScopeFactory, logger, userId, sourceId, progress,
+            reportingTask = ReportStatusPeriodicallyAsync(serviceScopeFactory, logger, userId, sourceId, progress, retryFailed,
                 reportingCancellationTokenSource.Token);
 
             var downloadedFiles = retryFailed
@@ -198,12 +198,13 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
                 await downloadService.DisposeAsync();
             }
 
-            await ReportStatusAsync(serviceScopeFactory, logger, userId, sourceId, status, progress);
+            await ReportStatusAsync(serviceScopeFactory, logger, userId, sourceId, status, progress, retryFailed);
         }
     }
 
     /// <summary>
-    /// A file retried had been counted as failed, it is only counted again when it is saved this time.
+    /// A file retried had been counted as failed, it is only counted again when it is saved this time; either way it
+    /// counts as retried.
     /// </summary>
     private static void CountProcessedFile(ProcessingProgress progress, ProcessingResult result, bool retryFailed)
     {
@@ -218,7 +219,11 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
                 progress.FileProcessed();
             }
         }
-        else if (!retryFailed)
+        else if (retryFailed)
+        {
+            progress.FileFailedAgain();
+        }
+        else
         {
             progress.FileFailed();
         }
@@ -240,6 +245,7 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
         long userId,
         long sourceId,
         ProcessingProgress progress,
+        bool retryFailed,
         CancellationToken cancellationToken)
     {
         using var timer = new PeriodicTimer(StatusReportInterval);
@@ -248,7 +254,8 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
         {
             while (await timer.WaitForNextTickAsync(cancellationToken))
             {
-                await ReportStatusAsync(serviceScopeFactory, logger, userId, sourceId, PhotoSourceStatus.InProgress, progress);
+                await ReportStatusAsync(serviceScopeFactory, logger, userId, sourceId, PhotoSourceStatus.InProgress, progress,
+                    retryFailed);
             }
         }
         catch (OperationCanceledException)
@@ -258,8 +265,8 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
     }
 
     /// <summary>
-    /// Saves the status and counters to the database and sends them to the frontend. Failures are only logged,
-    /// they must not stop the processing.
+    /// Saves the status and counters to the database and sends them to the frontend, with how far a retry of the
+    /// failed files has got. Failures are only logged, they must not stop the processing.
     /// </summary>
     private static async Task ReportStatusAsync(
         IServiceScopeFactory serviceScopeFactory,
@@ -267,7 +274,8 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
         long userId,
         long sourceId,
         PhotoSourceStatus status,
-        ProcessingProgress progress)
+        ProcessingProgress progress,
+        bool retryFailed)
     {
         try
         {
@@ -287,7 +295,15 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
             };
 
             await userPhotoSourceService.UpdateUserPhotoStatusAsync(userPhotoSourceStatus);
-            await frontendNotificationService.SendProgressAsync(userPhotoSourceStatus);
+            if (retryFailed)
+            {
+                await frontendNotificationService.SendProgressAsync(userPhotoSourceStatus,
+                    new RetryProgress(progress.RetryTotalCount, progress.RetriedCount, progress.RecoveredCount));
+            }
+            else
+            {
+                await frontendNotificationService.SendProgressAsync(userPhotoSourceStatus);
+            }
         }
         catch (Exception e)
         {

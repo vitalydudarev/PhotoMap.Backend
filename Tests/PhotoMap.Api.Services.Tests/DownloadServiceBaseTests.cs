@@ -151,6 +151,9 @@ public class DownloadServiceBaseTests
         // Assert
         Assert.Equal(["recovered"], downloadedFiles);
         Assert.Equal(0, _progress.FailedCount);
+        // the file that failed to download again is retried, the one downloaded is counted once it is processed
+        Assert.Equal(2, _progress.RetryTotalCount);
+        Assert.Equal(1, _progress.RetriedCount);
 
         _failedFileService.Verify(a => a.RecordAsync(UserId, SourceId,
             It.Is<IReadOnlyCollection<FailedFile>>(b => b.Single().ExternalId == "still-broken"),
