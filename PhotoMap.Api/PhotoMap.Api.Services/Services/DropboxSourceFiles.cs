@@ -35,7 +35,7 @@ public sealed class DropboxSourceFiles : ISourceFiles
 
     public int MaxParallelDownloads => Math.Max(_settings.MaxParallelFileDownloads, 1);
 
-    public async Task<IReadOnlyList<SourceFile>> ListAsync(SourceDownloadContent content, string? folder,
+    public async Task<IReadOnlyList<SourceFile>> ListAsync(SourceDownloadContent content, string? folder, bool includeSubfolders,
         CancellationToken cancellationToken)
     {
         if (folder != null)
@@ -44,7 +44,8 @@ public sealed class DropboxSourceFiles : ISourceFiles
         }
 
         var files = new List<SourceFile>();
-        var listFolderResult = await _dropboxClient.Files.ListFolderAsync(_settings.SourceFolder, limit: ListPageSize);
+        var listFolderResult = await _dropboxClient.Files.ListFolderAsync(_settings.SourceFolder, recursive: includeSubfolders,
+            limit: ListPageSize);
 
         while (true)
         {

@@ -1,7 +1,9 @@
+using System.Runtime.CompilerServices;
 using Microsoft.Extensions.Logging;
 using PhotoMap.Api.Domain.Models;
 using PhotoMap.Api.Services.Exceptions;
 using PhotoMap.Shared.Yandex.Disk;
+using PhotoMap.Shared.Yandex.Disk.Models;
 
 namespace PhotoMap.Api.Services.Services;
 
@@ -27,40 +29,71 @@ public sealed class YandexDiskSourceFiles : ISourceFiles
 
     public int MaxParallelDownloads => Math.Max(_settings.MaxParallelFileDownloads, 1);
 
-    public async Task<IReadOnlyList<SourceFile>> ListAsync(SourceDownloadContent content, string? folder,
+    /// <summary>
+    /// The folders within the folder are listed one after another, each as it is found, a folder before the ones
+    /// within it.
+    /// </summary>
+    public async Task<IReadOnlyList<SourceFile>> ListAsync(SourceDownloadContent content, string? folder, bool includeSubfolders,
         CancellationToken cancellationToken)
     {
         var sourceFolder = folder
             ?? await YandexDiskDownloadService.GetSourceFolderAsync(_apiClient, _settings, _logger, cancellationToken);
 
         var files = new List<SourceFile>();
+        var folders = new Queue<string>([sourceFolder]);
+
+        while (folders.TryDequeue(out var folderToList))
+        {
+            await foreach (var item in ListFolderAsync(folderToList, cancellationToken))
+            {
+                if (item.Type == "dir")
+                {
+                    if (includeSubfolders)
+                    {
+                        folders.Enqueue(item.Path);
+                    }
+
+                    continue;
+                }
+
+                var fileContent = item.Type == "file" ? DownloadableFormats.GetContent(item.Name, item.MediaType) : null;
+                if (fileContent != null && content.HasFlag(fileContent.Value))
+                {
+                    files.Add(new SourceFile(item.Name, item.Path, item.Size, fileContent.Value));
+                }
+            }
+        }
+
+        return files;
+    }
+
+    /// <summary>
+    /// The files and folders directly within the folder, a page at a time.
+    /// </summary>
+    private async IAsyncEnumerable<Resource> ListFolderAsync(string folder,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
         var offset = 0;
 
         while (true)
         {
             var resource = await YandexDiskApiCalls.WrapAsync(_logger,
-                () => _apiClient.GetResourceAsync(sourceFolder, cancellationToken, offset, PageSize, SortOrder), cancellationToken);
-            var page = resource.Embedded ?? throw new YandexDiskException($"{sourceFolder} is not a folder.");
+                () => _apiClient.GetResourceAsync(folder, cancellationToken, offset, PageSize, SortOrder), cancellationToken);
+            var page = resource.Embedded ?? throw new YandexDiskException($"{folder} is not a folder.");
             var items = page.Items ?? [];
 
-            foreach (var item in items.Where(a => a.Type == "file"))
+            foreach (var item in items)
             {
-                var fileContent = DownloadableFormats.GetContent(item.Name, item.MediaType);
-                if (fileContent != null && content.HasFlag(fileContent.Value))
-                {
-                    files.Add(new SourceFile(item.Name, item.Path, item.Size, fileContent.Value));
-                }
+                yield return item;
             }
 
             offset += items.Length;
 
             if (items.Length < PageSize || offset >= page.Total)
             {
-                break;
+                yield break;
             }
         }
-
-        return files;
     }
 
     public async Task CopyToAsync(SourceFile file, Stream destination, CancellationToken cancellationToken)

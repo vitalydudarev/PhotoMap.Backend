@@ -16,8 +16,11 @@ public interface ISourceFiles : IDisposable
     /// Lists the files of the folder, the photos, the videos or both.
     /// </summary>
     /// <param name="folder">The folder to list, the one the photos are processed from when null.</param>
+    /// <param name="includeSubfolders">Whether the files of the folders within the folder, at any depth, are listed
+    /// as well.</param>
     /// <exception cref="NotSupportedException">A folder is given to a source whose folders cannot be chosen.</exception>
-    Task<IReadOnlyList<SourceFile>> ListAsync(SourceDownloadContent content, string? folder, CancellationToken cancellationToken);
+    Task<IReadOnlyList<SourceFile>> ListAsync(SourceDownloadContent content, string? folder, bool includeSubfolders,
+        CancellationToken cancellationToken);
 
     /// <summary>
     /// Downloads the file into the stream, as its contents come.

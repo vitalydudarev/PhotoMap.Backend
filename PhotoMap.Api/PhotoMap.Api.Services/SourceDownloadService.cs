@@ -184,7 +184,10 @@ public class SourceDownloadService : ISourceDownloadService
 
             var files = run.RetryFailed
                 ? (await failedDownloadService.GetAsync(run.UserId, run.SourceId, run.Kind)).Select(ToSourceFile).ToList()
-                : await sourceFiles.ListAsync(run.Content, run.Folder, cancellationToken);
+                // a chosen folder is downloaded whole, with its subfolders; the processing of the photos takes the
+                // files of its folder only, so does the download of it
+                : await sourceFiles.ListAsync(run.Content, run.Folder, includeSubfolders: run.Kind == SourceDownloadKind.ChosenFolder,
+                    cancellationToken);
 
             var (downloadedFiles, missingFiles) = SplitDownloaded(fileStorage, run, files);
             alreadyDownloadedCount = downloadedFiles.Count;

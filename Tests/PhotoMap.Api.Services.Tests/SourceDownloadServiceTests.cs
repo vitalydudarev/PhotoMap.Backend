@@ -266,6 +266,41 @@ public class SourceDownloadServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task StartFolderAsync_ShouldDownloadTheSubfoldersToo_KeepingTheirStructure()
+    {
+        // Arrange: files of the same name at different depths
+        _sourceFiles.Add("IMG_0001.jpg", [1], folder: "disk:/Photos");
+        _sourceFiles.Add("IMG_0001.jpg", [2], folder: "disk:/Photos/2020");
+        _sourceFiles.Add("IMG_0001.jpg", [3], folder: "disk:/Photos/2020/Trip/Day 1");
+        _sourceFiles.Add("broken.mp4", [4], SourceDownloadContent.Videos, fails: true, folder: "disk:/Photos/2020/Trip");
+        _sourceFiles.Add("IMG_0002.jpg", [5], folder: "disk:/Other");
+
+        var service = CreateService();
+
+        // Act
+        await service.StartFolderAsync(UserId, YandexDiskSourceId, "/Photos", SourceDownloadContent.All);
+        await _startedRun!(CancellationToken.None);
+
+        // Assert
+        Assert.True(_sourceFiles.ListedSubfolders);
+        Assert.Equal([1], await File.ReadAllBytesAsync(FolderStoredPath("Photos", "IMG_0001.jpg")));
+        Assert.Equal([2], await File.ReadAllBytesAsync(FolderStoredPath("Photos", "2020", "IMG_0001.jpg")));
+        Assert.Equal([3], await File.ReadAllBytesAsync(FolderStoredPath("Photos", "2020", "Trip", "Day 1", "IMG_0001.jpg")));
+        Assert.False(Directory.Exists(FolderStoredPath("Other")));
+
+        var failed = Assert.Single(_recorded.SelectMany(a => a.Failed));
+        Assert.Equal("disk:/Photos/2020/Trip", failed.Folder);
+
+        Assert.Equal(
+            ["disk:/Photos", "disk:/Photos/2020", "disk:/Photos/2020/Trip/Day 1"],
+            _recorded.Skip(1).SelectMany(a => a.DownloadedKeys).Select(a => a.Folder).Order());
+
+        var status = service.GetStatus(UserId, YandexDiskSourceId, SourceDownloadKind.ChosenFolder)!;
+        Assert.Equal("disk:/Photos", status.Folder);
+        Assert.Equal(4, status.TotalCount);
+    }
+
+    [Fact]
     public async Task StartFolderAsync_ShouldSkipTheFilesOfTheFolderDownloadedAlready()
     {
         // Arrange
@@ -402,6 +437,7 @@ public class SourceDownloadServiceTests : IDisposable
 
         // Assert
         Assert.Equal(SourceDownloadContent.Videos, _sourceFiles.ListedContent);
+        Assert.False(_sourceFiles.ListedSubfolders);
     }
 
     [Fact]
@@ -715,6 +751,7 @@ public class SourceDownloadServiceTests : IDisposable
         public int MaxParallelDownloads => 2;
         public SourceDownloadContent? ListedContent { get; private set; }
         public string? ListedFolder { get; private set; }
+        public bool? ListedSubfolders { get; private set; }
         public IEnumerable<string> Downloaded => _downloaded;
         public string? AuthErrorOn { get; set; }
 
@@ -738,13 +775,17 @@ public class SourceDownloadServiceTests : IDisposable
             }
         }
 
-        public Task<IReadOnlyList<SourceFile>> ListAsync(SourceDownloadContent content, string? folder,
+        public Task<IReadOnlyList<SourceFile>> ListAsync(SourceDownloadContent content, string? folder, bool includeSubfolders,
             CancellationToken cancellationToken)
         {
             ListedContent = content;
             ListedFolder = folder;
+            ListedSubfolders = includeSubfolders;
 
-            var files = _files.Where(a => content.HasFlag(a.Content) && YandexDiskPaths.GetFolder(a.Path) == (folder ?? ProcessingFolder));
+            var listedFolder = folder ?? ProcessingFolder;
+            var files = _files.Where(a => content.HasFlag(a.Content) &&
+                                          (YandexDiskPaths.GetFolder(a.Path) == listedFolder ||
+                                           includeSubfolders && a.Path.StartsWith(listedFolder.TrimEnd('/') + "/")));
 
             return Task.FromResult<IReadOnlyList<SourceFile>>(files.ToList());
         }

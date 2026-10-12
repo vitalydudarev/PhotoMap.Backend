@@ -21,8 +21,9 @@ public interface ISourceDownloadService
     Task<bool> StartAsync(long userId, long sourceId, SourceDownloadContent content);
 
     /// <summary>
-    /// Starts downloading the files of a folder of the photo source the user has chosen, as
-    /// <see cref="StartAsync"/> does those of the folder the photos are processed from.
+    /// Starts downloading the files of a folder of the photo source the user has chosen, and of the folders within
+    /// it at any depth, as <see cref="StartAsync"/> does those of the folder the photos are processed from. The files
+    /// keep the folders they are in on the source.
     /// </summary>
     /// <param name="folder">The folder, as <see cref="Services.YandexDiskPaths.NormalizeFolder"/> takes it.</param>
     /// <returns>false if the download of the kind is already running.</returns>

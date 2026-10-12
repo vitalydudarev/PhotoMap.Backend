@@ -57,9 +57,9 @@ namespace PhotoMap.Api.Controllers
         }
 
         /// <summary>
-        /// Starts downloading the files of a folder of the photo source, as the folder its photos are processed from
-        /// is downloaded. Only the folders of Yandex.Disk can be chosen. The files are saved in the folders of the
-        /// path of the folder.
+        /// Starts downloading the files of a folder of the photo source and of its subfolders, as the folder its
+        /// photos are processed from is downloaded. Only the folders of Yandex.Disk can be chosen. The files are
+        /// saved in the folders of their paths, the structure of the folders the same as on the source.
         /// </summary>
         /// <param name="userId">The ID of the user.</param>
         /// <param name="sourceId">The ID of the photo source.</param>
