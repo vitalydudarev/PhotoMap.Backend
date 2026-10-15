@@ -99,18 +99,16 @@ public class OtherFoldersProcessingServiceTests
     }
 
     [Fact]
-    public async Task Run_ShouldProcessThePreviewsOfThePhotosOutsideThePhotostream_SkippingTheOnesSavedAlready()
+    public async Task Run_ShouldProcessTheOriginalsOfThePhotosOutsideThePhotostream_SkippingTheOnesSavedAlready()
     {
         // Arrange
         var handler = new FakeDiskHandler(
         [
             CreateResource("in-photostream", "disk:/Camera Uploads/a.jpg"),
             CreateResource("in-subfolder", "disk:/Camera Uploads/2020/b.jpg"),
-            CreateResource("heic", "disk:/Photos/c.heic", exif: new { date_time = "2019-06-01T10:00:00+00:00", gps_latitude = 55.75,
-                gps_longitude = 37.61 }, sha256: "ABCDEF"),
+            CreateResource("heic", "disk:/Photos/c.heic", exif: new { date_time = "2019-06-01T10:00:00+00:00" }),
             CreateResource("saved", "disk:/Photos/saved.jpg"),
-            CreateResource("unsupported", "disk:/Photos/d.svg"),
-            CreateResource("no-preview", "disk:/Photos/e.jpg", withPreview: false)
+            CreateResource("unsupported", "disk:/Photos/d.svg")
         ]);
 
         _photoService
@@ -129,25 +127,21 @@ public class OtherFoldersProcessingServiceTests
         Assert.Equal(["heic", "in-subfolder"], requests.Select(a => a.DownloadedFileInfo.FileId).Order());
         Assert.All(requests, a => Assert.True(a.DownloadedFileInfo.FromOtherFolder));
         Assert.All(requests, a => Assert.StartsWith("/storage/Bin/1/2/", a.FileName));
-        Assert.Equal(["https://downloader.test/preview/heic", "https://downloader.test/preview/in-subfolder"],
-            handler.DownloadedPreviews.Order());
+        Assert.Equal(["disk:/Camera Uploads/2020/b.jpg", "disk:/Photos/c.heic"], handler.DownloadedFiles.Order());
 
         var heic = requests.Single(a => a.DownloadedFileInfo.FileId == "heic").DownloadedFileInfo;
         Assert.Equal("disk:/Photos/c.heic", heic.Path);
-        Assert.Equal(55.75, heic.Latitude);
-        Assert.Equal(37.61, heic.Longitude);
-        Assert.Equal("abcdef", heic.ContentHash);
         Assert.Equal(new DateTime(2019, 6, 1, 10, 0, 0, DateTimeKind.Utc), heic.CreatedOn!.Value.ToUniversalTime());
 
         var lastStatus = _reportedStatuses.Last();
         Assert.Equal(PhotoSourceStatus.Done, lastStatus.Status);
-        Assert.Equal(4, lastStatus.TotalCount);
+        Assert.Equal(3, lastStatus.TotalCount);
         Assert.Equal(3, lastStatus.ProcessedCount);
-        Assert.Equal(1, lastStatus.FailedCount);
+        Assert.Equal(0, lastStatus.FailedCount);
     }
 
     [Fact]
-    public async Task Run_ShouldCountAPhotoFailed_WhenItsPreviewFailsProcessing()
+    public async Task Run_ShouldCountAPhotoFailed_WhenItFailsProcessing()
     {
         // Arrange
         var handler = new FakeDiskHandler([CreateResource("broken", "disk:/Photos/broken.jpg")]);
@@ -188,8 +182,6 @@ public class OtherFoldersProcessingServiceTests
 
         // Assert
         Assert.Equal(resource.Created, fileInfo.CreatedOn);
-        Assert.Null(fileInfo.Latitude);
-        Assert.Null(fileInfo.ContentHash);
         Assert.True(fileInfo.FromOtherFolder);
     }
 
@@ -236,8 +228,7 @@ public class OtherFoldersProcessingServiceTests
             Options.Create(new PhotoProcessingSettings { Sizes = [256, 640] }));
     }
 
-    private static object CreateResource(string resourceId, string path, object? exif = null, string? sha256 = null,
-        bool withPreview = true)
+    private static object CreateResource(string resourceId, string path, object? exif = null)
     {
         return new
         {
@@ -247,11 +238,7 @@ public class OtherFoldersProcessingServiceTests
             media_type = "image",
             resource_id = resourceId,
             created = new DateTime(2020, 1, 1, 0, 0, 0, DateTimeKind.Utc),
-            exif,
-            sha256,
-            sizes = withPreview
-                ? new[] { new { name = "XXXL", url = $"https://downloader.test/preview/{resourceId}" } }
-                : []
+            exif
         };
     }
 
@@ -279,19 +266,20 @@ public class OtherFoldersProcessingServiceTests
 
     /// <summary>
     /// A disk whose Photostream is <c>disk:/Camera Uploads/</c>, with the images given on the first page of the flat
-    /// list of files, and the previews of them.
+    /// list of files, and the files themselves.
     /// </summary>
     private sealed class FakeDiskHandler(object[] images) : HttpMessageHandler
     {
-        private readonly List<string> _downloadedPreviews = [];
+        private readonly List<string> _downloadedFiles = [];
 
-        public IReadOnlyList<string> DownloadedPreviews
+        /// <summary>The paths of the files downloaded.</summary>
+        public IReadOnlyList<string> DownloadedFiles
         {
             get
             {
-                lock (_downloadedPreviews)
+                lock (_downloadedFiles)
                 {
-                    return _downloadedPreviews.ToList();
+                    return _downloadedFiles.ToList();
                 }
             }
         }
@@ -302,12 +290,19 @@ public class OtherFoldersProcessingServiceTests
 
             if (uri.Host == "downloader.test")
             {
-                lock (_downloadedPreviews)
+                lock (_downloadedFiles)
                 {
-                    _downloadedPreviews.Add(uri.ToString());
+                    _downloadedFiles.Add(HttpUtility.ParseQueryString(uri.Query)["path"]!);
                 }
 
                 return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent([1, 2, 3]) });
+            }
+
+            if (uri.AbsolutePath.EndsWith("/resources/download"))
+            {
+                var path = HttpUtility.ParseQueryString(uri.Query)["path"]!;
+
+                return Json(new { href = $"https://downloader.test/file?path={HttpUtility.UrlEncode(path)}", method = "GET" });
             }
 
             if (uri.AbsolutePath.EndsWith("/resources/files"))

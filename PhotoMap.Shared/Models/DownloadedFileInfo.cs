@@ -8,22 +8,7 @@ public class DownloadedFileInfo
     public string FileId { get; set; }
 
     /// <summary>
-    /// The GPS location the photo source has read from the photo, taken when the downloaded file has none of its
-    /// own, as a preview the source has made of the photo may not.
-    /// </summary>
-    public double? Latitude { get; init; }
-
-    /// <inheritdoc cref="Latitude"/>
-    public double? Longitude { get; init; }
-
-    /// <summary>
-    /// The SHA-256 of the contents of the original file, as the photo source tells it, for a file downloaded that is
-    /// not the original: the photo then has the same hash as if the original had been downloaded.
-    /// </summary>
-    public string? ContentHash { get; init; }
-
-    /// <summary>
-    /// The file is a preview of a photo outside the folder the source is processed from.
+    /// The file is a photo outside the folder the source is processed from.
     /// </summary>
     public bool FromOtherFolder { get; init; }
 

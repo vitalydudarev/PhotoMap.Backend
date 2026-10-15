@@ -5,8 +5,7 @@ using PhotoMap.Shared.Yandex.Disk.Models;
 namespace PhotoMap.Api.Services.Services;
 
 /// <summary>
-/// The photos of a Yandex.Disk outside the folder it is processed from, wherever they are on it, and the preview
-/// images Yandex.Disk makes of them.
+/// The photos of a Yandex.Disk outside the folder it is processed from, wherever they are on it.
 /// </summary>
 public class YandexDiskOtherFolderPhotos
 {
@@ -58,21 +57,11 @@ public class YandexDiskOtherFolderPhotos
     }
 
     /// <summary>
-    /// The URL of the largest preview image of the photo, null when Yandex.Disk has made none (yet).
+    /// Downloads the photo itself, with its EXIF, as the photos of the folder the disk is processed from are.
     /// </summary>
-    public static string? GetPreviewUrl(Resource photo)
+    public Task<byte[]> DownloadPhotoAsync(Resource photo, CancellationToken cancellationToken)
     {
-        return YandexDiskVideoSource.GetPreviewUrl(photo) ?? photo.Preview;
-    }
-
-    /// <summary>
-    /// Downloads the preview image as it is served, a JPEG whatever the format of the photo.
-    /// </summary>
-    public async Task<byte[]> DownloadPreviewAsync(string previewUrl, CancellationToken cancellationToken)
-    {
-        var (contents, _) = await YandexDiskApiCalls.WrapAsync(_logger,
-            () => _apiClient.DownloadByUrlAsync(previewUrl, cancellationToken), cancellationToken);
-
-        return contents;
+        return YandexDiskApiCalls.WrapAsync(_logger, () => _apiClient.DownloadFileAsync(photo.Path, cancellationToken),
+            cancellationToken);
     }
 }

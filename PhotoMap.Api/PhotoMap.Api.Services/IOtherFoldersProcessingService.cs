@@ -3,8 +3,7 @@ using PhotoMap.Api.Services.Services;
 namespace PhotoMap.Api.Services;
 
 /// <summary>
-/// Imports the photos of a photo source outside the folder it is processed from, by a run of its own: their thumbnails
-/// are made from the largest preview the source makes of each, rather than from the photo itself. Only Yandex.Disk
+/// Imports the photos of a photo source outside the folder it is processed from, by a run of its own. Only Yandex.Disk
 /// sources have their other folders imported.
 /// </summary>
 public interface IOtherFoldersProcessingService

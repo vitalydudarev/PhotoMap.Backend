@@ -25,7 +25,7 @@ public class ProcessedImage
     public double? HorizontalPositioningError { get; set; }
 
     /// <summary>
-    /// The image is a preview of a photo outside the folder the source is processed from.
+    /// The image is a photo outside the folder the source is processed from.
     /// </summary>
     public bool FromOtherFolder { get; set; }
     public TaskCompletionSource<ProcessingResult>? Processed { get; set; }

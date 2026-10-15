@@ -21,7 +21,7 @@ public class OtherFoldersProcessingService : IOtherFoldersProcessingService
     private static readonly TimeSpan StatusReportInterval = TimeSpan.FromSeconds(2);
 
     /// <summary>
-    /// How many photos have their previews downloaded and processed before the next ones start, which is how much of
+    /// How many photos are downloaded and processed before the next ones start, which is how much of
     /// a stopped run is downloaded again when it resumes.
     /// </summary>
     private const int SaveEvery = 100;
@@ -77,9 +77,8 @@ public class OtherFoldersProcessingService : IOtherFoldersProcessingService
     }
 
     /// <summary>
-    /// What the photo is saved with: where and when it was taken as Yandex.Disk has read them from the photo, as the
-    /// preview may have no EXIF, and the hash of the photo itself, so that it is found a copy of the same photo saved
-    /// from its original.
+    /// What the photo is saved with, as a photo of the folder the source is processed from is: where and when it was
+    /// taken, and its hash, are read from the photo downloaded.
     /// </summary>
     public static DownloadedFileInfo CreateFileInfo(Resource resource)
     {
@@ -88,9 +87,6 @@ public class OtherFoldersProcessingService : IOtherFoldersProcessingService
 
         return new DownloadedFileInfo(resource.Name, resource.Path, createdOn, resource.ResourceId)
         {
-            Latitude = resource.Exif?.GpsLatitude,
-            Longitude = resource.Exif?.GpsLongitude,
-            ContentHash = string.IsNullOrEmpty(resource.Sha256) ? null : resource.Sha256.ToLowerInvariant(),
             FromOtherFolder = true
         };
     }
@@ -125,8 +121,8 @@ public class OtherFoldersProcessingService : IOtherFoldersProcessingService
     /// <summary>
     /// Runs in the background, with its own service scope: the scope of the request that started it is disposed
     /// by the time the run proceeds. Every photo of the disk outside the folder it is processed from is listed, and
-    /// the ones not saved yet have their preview downloaded, several at a time, and processed as a downloaded photo
-    /// is. A photo that fails is not saved, so the next run tries it again.
+    /// the ones not saved yet are downloaded, several at a time, and processed as the photos of that folder are. A
+    /// photo that fails is not saved, so the next run tries it again.
     /// </summary>
     private static async Task DoWork(OtherFoldersRun run, IServiceScopeFactory serviceScopeFactory, CancellationToken cancellationToken)
     {
@@ -179,7 +175,7 @@ public class OtherFoldersProcessingService : IOtherFoldersProcessingService
 
                 await Parallel.ForEachAsync(chunk, parallelOptions, async (resource, token) =>
                 {
-                    var processed = await EnqueuePreviewOrSkipAsync(otherFolderPhotos, fileStorage, requestQueue, logger, run,
+                    var processed = await EnqueuePhotoOrSkipAsync(otherFolderPhotos, fileStorage, requestQueue, logger, run,
                         resource, token);
                     if (processed != null)
                     {
@@ -233,28 +229,20 @@ public class OtherFoldersProcessingService : IOtherFoldersProcessingService
     }
 
     /// <summary>
-    /// Downloads the preview of the photo and hands it over to be processed. A photo whose preview cannot be had is
-    /// skipped, unless Yandex.Disk no longer accepts the token, which fails every other photo as well.
+    /// Downloads the photo and hands it over to be processed. A photo that cannot be downloaded is skipped, unless
+    /// Yandex.Disk no longer accepts the token, which fails every other photo as well.
     /// </summary>
     /// <returns>What the processing of the photo ends with, null when it is skipped.</returns>
-    private static async Task<Task<ProcessingResult>?> EnqueuePreviewOrSkipAsync(YandexDiskOtherFolderPhotos otherFolderPhotos,
+    private static async Task<Task<ProcessingResult>?> EnqueuePhotoOrSkipAsync(YandexDiskOtherFolderPhotos otherFolderPhotos,
         IFileStorage fileStorage, IMessageQueue<ProcessImageRequest> requestQueue, ILogger logger, OtherFoldersRun run,
         Resource resource, CancellationToken cancellationToken)
     {
-        var previewUrl = YandexDiskOtherFolderPhotos.GetPreviewUrl(resource);
-        if (previewUrl == null)
-        {
-            logger.LogWarning("{FileName} has no preview, skipping it", resource.Path);
-
-            return null;
-        }
-
         try
         {
-            var contents = await otherFolderPhotos.DownloadPreviewAsync(previewUrl, cancellationToken);
+            var contents = await otherFolderPhotos.DownloadPhotoAsync(resource, cancellationToken);
             if (contents.Length == 0)
             {
-                logger.LogWarning("The preview of {FileName} has been downloaded empty, skipping it", resource.Path);
+                logger.LogWarning("{FileName} has been downloaded empty, skipping it", resource.Path);
 
                 return null;
             }
@@ -286,7 +274,7 @@ public class OtherFoldersProcessingService : IOtherFoldersProcessingService
         }
         catch (IOException e)
         {
-            logger.LogError(e, "Failed to store the preview of {FileName}", resource.Path);
+            logger.LogError(e, "Failed to store {FileName}", resource.Path);
 
             return null;
         }

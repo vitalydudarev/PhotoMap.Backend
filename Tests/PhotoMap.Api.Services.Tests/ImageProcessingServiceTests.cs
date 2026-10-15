@@ -17,15 +17,12 @@ public class ImageProcessingServiceTests : IDisposable
     }
 
     [Fact]
-    public void ProcessImage_ShouldTakeTheLocationAndHashTheSourceTells_ForAPreviewWithoutThem()
+    public void ProcessImage_ShouldMarkThePhoto_WhenItIsFromAnotherFolder()
     {
-        // Arrange: a preview without EXIF, of a photo Yandex.Disk has read the location and the hash of
+        // Arrange
         var service = new ImageProcessingService(NullLogger<ImageProcessingService>.Instance, new Mock<IExifExtractor>().Object);
-        var request = CreateRequest(new DownloadedFileInfo("c.heic", "disk:/Photos/c.heic", DateTime.UtcNow, "id")
+        var request = CreateRequest(new DownloadedFileInfo("c.jpg", "disk:/Photos/c.jpg", DateTime.UtcNow, "id")
         {
-            Latitude = 55.75,
-            Longitude = 37.61,
-            ContentHash = "abcdef",
             FromOtherFolder = true
         });
 
@@ -33,15 +30,12 @@ public class ImageProcessingServiceTests : IDisposable
         var processedImage = service.ProcessImage(request);
 
         // Assert
-        Assert.Equal(55.75, processedImage.Latitude);
-        Assert.Equal(37.61, processedImage.Longitude);
-        Assert.Equal("abcdef", processedImage.ContentHash);
         Assert.True(processedImage.FromOtherFolder);
         Assert.Equal([256], processedImage.Thumbs.Keys);
     }
 
     [Fact]
-    public void ProcessImage_ShouldHashTheFile_WhenTheSourceTellsNoHash()
+    public void ProcessImage_ShouldHashTheFile()
     {
         // Arrange
         var service = new ImageProcessingService(NullLogger<ImageProcessingService>.Instance, new Mock<IExifExtractor>().Object);
