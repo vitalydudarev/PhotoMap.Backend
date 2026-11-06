@@ -112,6 +112,10 @@ public abstract class DownloadServiceBase<TState> : IDownloadService where TStat
         await WaitUntilProcessedAsync(pageFiles, cancellationToken);
 
         await _pageFailures.RecordAsync(_failedFileService, Parameters.UserId, Parameters.SourceId, pageFiles);
+
+        // the failed files recorded are what the failed count is, however many times the run has counted them
+        Parameters.Progress.SetFailedCount(
+            await _failedFileService.CountAsync(Parameters.UserId, Parameters.SourceId, fromOtherUploads: false));
     }
 
     /// <summary>

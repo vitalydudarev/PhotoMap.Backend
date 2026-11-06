@@ -22,6 +22,7 @@ public class PhotoSourceProcessingServiceTests
     private readonly List<UserPhotoSourceStatus> _reportedStatuses = [];
     private readonly Mock<IDownloadService> _downloadService = new();
     private readonly Mock<IFrontendNotificationService> _frontendNotificationService = new();
+    private readonly Mock<IFailedFileService> _failedFileService = new();
 
     [Fact]
     public async Task RunCommandAsync_ShouldContinueTheCountersOfAStoppedRun()
@@ -39,6 +40,24 @@ public class PhotoSourceProcessingServiceTests
         Assert.NotEmpty(_reportedStatuses);
         Assert.All(_reportedStatuses, a => Assert.Equal(39, a.ProcessedCount));
         Assert.All(_reportedStatuses, a => Assert.Equal(1, a.FailedCount));
+    }
+
+    [Fact]
+    public async Task RunCommandAsync_ShouldCountTheFilesRecordedAsFailed_RatherThanTheFailuresTheEarlierRunsCounted()
+    {
+        // Arrange: the earlier runs counted 7 failures of the 5 files that have failed, some of them twice
+        SetUpUserPhotoSource(processedCount: 39, failedCount: 7, state: null, recordedFailures: 5);
+
+        var service = CreateService(out var runTask);
+
+        // Act
+        await service.RunCommandAsync(UserId, SourceId, PhotoSourceProcessingCommands.Start);
+        await runTask();
+
+        // Assert
+        Assert.NotEmpty(_reportedStatuses);
+        Assert.All(_reportedStatuses, a => Assert.Equal(5, a.FailedCount));
+        Assert.All(_reportedStatuses, a => Assert.Equal(39, a.ProcessedCount));
     }
 
     [Fact]
@@ -164,8 +183,13 @@ public class PhotoSourceProcessingServiceTests
             a => a.SendProgressAsync(It.IsAny<UserPhotoSourceStatus>(), It.IsAny<RetryProgress>()), Times.Never);
     }
 
-    private void SetUpUserPhotoSource(int processedCount, int failedCount, string? state)
+    /// <param name="recordedFailures">The files recorded as failed, the failed count by default.</param>
+    private void SetUpUserPhotoSource(int processedCount, int failedCount, string? state, int? recordedFailures = null)
     {
+        _failedFileService
+            .Setup(a => a.CountAsync(UserId, SourceId, false))
+            .ReturnsAsync(recordedFailures ?? failedCount);
+
         _userPhotoSourceService
             .Setup(a => a.GetAuthResultAsync(UserId, SourceId))
             .ReturnsAsync(new UserAuthResult { Token = "token", TokenExpiresOn = DateTimeOffset.UtcNow.AddHours(1) });
@@ -245,6 +269,7 @@ public class PhotoSourceProcessingServiceTests
             .Returns(NullLogger<PhotoSourceProcessingService>.Instance);
         serviceProvider.Setup(a => a.GetService(typeof(IPhotoSourceDownloadServiceFactory))).Returns(downloadServiceFactory);
         serviceProvider.Setup(a => a.GetService(typeof(IUserPhotoSourceService))).Returns(_userPhotoSourceService.Object);
+        serviceProvider.Setup(a => a.GetService(typeof(IFailedFileService))).Returns(_failedFileService.Object);
         serviceProvider.Setup(a => a.GetService(typeof(IHostApplicationLifetime))).Returns(applicationLifetime.Object);
 
         var serviceScope = new Mock<IServiceScope>();

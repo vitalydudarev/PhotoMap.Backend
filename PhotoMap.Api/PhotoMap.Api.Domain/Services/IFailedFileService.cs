@@ -11,6 +11,12 @@ public interface IFailedFileService
     Task<IReadOnlyCollection<FailedFile>> GetOtherUploadsAsync(long userId, long photoSourceId);
 
     /// <summary>
+    /// How many camera uploads, or other uploads, of the photo source have failed and are not saved yet. The failed
+    /// count of their processing is this count, each file counted once however many times it has failed.
+    /// </summary>
+    Task<int> CountAsync(long userId, long photoSourceId, bool fromOtherUploads);
+
+    /// <summary>
     /// Records the outcome of a page of files: the failed ones are added, or their attempts counted when they had
     /// failed before, and the saved ones are no longer failed.
     /// </summary>

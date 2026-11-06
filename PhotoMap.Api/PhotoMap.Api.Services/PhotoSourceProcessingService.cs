@@ -134,7 +134,7 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
             // a retry carries on the counters of the runs the photos failed in, a run lists the photos to count them
             var progress = kind == RunKind.RetryFailedOtherUploads
                 ? await CreateOtherUploadsProgressAsync(userId, sourceId)
-                : new ProcessingProgress(0, 0);
+                : new ProcessingProgress(0, await CountFailedFilesAsync(userId, sourceId, fromOtherUploads: true));
 
             work = cancellationToken => DoOtherUploadsWork(run, authResult.Token, settings, progress, serviceScopeFactory,
                 cancellationToken);
@@ -239,6 +239,11 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
 
                 List<OtherUpload> photosToSave;
 
+                // the failed photos recorded are what the failed count is, however many times the runs have counted
+                // them: a photo fails again in a chunk listed again after a stop, or in every run until it is retried
+                async Task SyncFailedCountAsync() =>
+                    progress.SetFailedCount(await failedFileService.CountAsync(run.UserId, run.SourceId, fromOtherUploads: true));
+
                 if (retryFailed)
                 {
                     var failedFiles = await failedFileService.GetOtherUploadsAsync(run.UserId, run.SourceId);
@@ -257,8 +262,13 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
                     var savedExternalIds = await photoService.GetSavedExternalIdsAsync(run.UserId, run.SourceId,
                         photos.Select(a => a.ResourceId));
 
-                    // the photos saved by earlier runs count as processed, a run resumed carries on from them
-                    progress = new ProcessingProgress(savedExternalIds.Count, 0) { TotalCount = photos.Count };
+                    // the photos saved by earlier runs count as processed, a run resumed carries on from them; the ones
+                    // recorded as failed count as failed until they are saved
+                    progress = new ProcessingProgress(savedExternalIds.Count,
+                        await failedFileService.CountAsync(run.UserId, run.SourceId, fromOtherUploads: true))
+                    {
+                        TotalCount = photos.Count
+                    };
 
                     photosToSave = photos
                         .Where(a => !savedExternalIds.Contains(a.ResourceId))
@@ -288,6 +298,7 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
                         .WaitAsync(cancellationToken);
 
                     await RecordChunkAsync(failedFileService, progress, run, attempts, retryFailed);
+                    await SyncFailedCountAsync();
                 }
             },
             cancellationToken);
@@ -600,13 +611,15 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
     /// <summary>
     /// Continues the counters of the previous runs of the source, so that a run resumed after it was stopped
     /// carries on from the file it had reached instead of appearing to start over. A source that has never been
-    /// processed has no counters to continue.
+    /// processed has no counters to continue. The failed count is the files recorded as failed, which the counter
+    /// saved may have run ahead of.
     /// </summary>
     private async Task<ProcessingProgress> CreateProgressAsync(long userId, long sourceId)
     {
         var status = await _userPhotoSourceService.GetUserPhotoStatusAsync(userId, sourceId);
 
-        return new ProcessingProgress(status?.ProcessedCount ?? 0, status?.FailedCount ?? 0)
+        return new ProcessingProgress(status?.ProcessedCount ?? 0,
+            await CountFailedFilesAsync(userId, sourceId, fromOtherUploads: false))
         {
             TotalCount = status?.TotalCount ?? 0
         };
@@ -619,10 +632,23 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
     {
         var status = await _userPhotoSourceService.GetOtherUploadsStatusAsync(userId, sourceId);
 
-        return new ProcessingProgress(status?.ProcessedCount ?? 0, status?.FailedCount ?? 0)
+        return new ProcessingProgress(status?.ProcessedCount ?? 0,
+            await CountFailedFilesAsync(userId, sourceId, fromOtherUploads: true))
         {
             TotalCount = status?.TotalCount ?? 0
         };
+    }
+
+    /// <summary>
+    /// The files of the source recorded as failed, each once however many times it has failed: the failed count of
+    /// its processing. The failed files are read with a scope of their own, the service outlives the requests.
+    /// </summary>
+    private async Task<int> CountFailedFilesAsync(long userId, long sourceId, bool fromOtherUploads)
+    {
+        using var scope = _serviceScopeFactory.CreateScope();
+
+        return await scope.ServiceProvider.GetRequiredService<IFailedFileService>()
+            .CountAsync(userId, sourceId, fromOtherUploads);
     }
 
     private async Task<UserAuthResult> GetAuthResultAsync(long userId, long sourceId)

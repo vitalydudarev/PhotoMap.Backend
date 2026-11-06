@@ -98,6 +98,8 @@ namespace PhotoMap.Api.Controllers
         public async Task<IActionResult> GetCameraUploadsStatus(long userId, long sourceId)
         {
             var status = await _userPhotoSourceService.GetUserPhotoStatusAsync(userId, sourceId);
+            // the files recorded as failed, each once: the counter saved by the runs may have counted one more than once
+            var failedCount = await _failedFileService.CountAsync(userId, sourceId, fromOtherUploads: false);
 
             // a source that has never been processed has no status saved
             var dto = new PhotoSourceProgressDto
@@ -105,7 +107,7 @@ namespace PhotoMap.Api.Controllers
                 Status = Enum.Parse<UserPhotoSourceStatusDto>((status?.Status ?? PhotoSourceStatus.NotStarted).ToString()),
                 TotalCount = status?.TotalCount ?? 0,
                 ProcessedCount = status?.ProcessedCount ?? 0,
-                FailedCount = status?.FailedCount ?? 0,
+                FailedCount = failedCount,
                 LastUpdatedAt = status?.LastUpdatedAt?.UtcDateTime.ToString("o")
             };
 
@@ -154,6 +156,8 @@ namespace PhotoMap.Api.Controllers
         public async Task<IActionResult> GetOtherUploadsStatus(long userId, long sourceId)
         {
             var status = await _userPhotoSourceService.GetOtherUploadsStatusAsync(userId, sourceId);
+            // the files recorded as failed, each once: the counter saved by the runs may have counted one more than once
+            var failedCount = await _failedFileService.CountAsync(userId, sourceId, fromOtherUploads: true);
 
             // the other uploads of a source that have never been processed have no status saved
             var dto = new PhotoSourceProgressDto
@@ -161,7 +165,7 @@ namespace PhotoMap.Api.Controllers
                 Status = Enum.Parse<UserPhotoSourceStatusDto>((status?.Status ?? PhotoSourceStatus.NotStarted).ToString()),
                 TotalCount = status?.TotalCount ?? 0,
                 ProcessedCount = status?.ProcessedCount ?? 0,
-                FailedCount = status?.FailedCount ?? 0,
+                FailedCount = failedCount,
                 LastUpdatedAt = status?.LastUpdatedAt?.UtcDateTime.ToString("o")
             };
 
@@ -178,18 +182,20 @@ namespace PhotoMap.Api.Controllers
         {
             var failedFiles = await _failedFileService.GetAsync(userId, sourceId);
 
-            var dtos = failedFiles.Select(a => new FailedFileDto
-            {
-                ExternalId = a.ExternalId,
-                Path = a.Path,
-                FileName = a.FileName,
-                Stage = a.Stage.ToString(),
-                Error = a.Error,
-                Attempts = a.Attempts,
-                FailedAt = a.FailedAt.UtcDateTime.ToString("o")
-            });
+            return Ok(failedFiles.Select(ToDto));
+        }
 
-            return Ok(dtos);
+        /// <summary>
+        /// The other uploads of the photo source that could not be downloaded or processed, in the order they first
+        /// failed. The RetryFailed command of the other uploads downloads them again.
+        /// </summary>
+        [HttpGet("{sourceId:long}/other-uploads/failed-files")]
+        [ProducesResponseType(typeof(IEnumerable<FailedFileDto>), StatusCodes.Status200OK)]
+        public async Task<IActionResult> GetOtherUploadsFailedFiles(long userId, long sourceId)
+        {
+            var failedFiles = await _failedFileService.GetOtherUploadsAsync(userId, sourceId);
+
+            return Ok(failedFiles.Select(ToDto));
         }
 
         /// <summary>
@@ -250,6 +256,20 @@ namespace PhotoMap.Api.Controllers
             }
 
             return NoContent();
+        }
+
+        private static FailedFileDto ToDto(FailedFile failedFile)
+        {
+            return new FailedFileDto
+            {
+                ExternalId = failedFile.ExternalId,
+                Path = failedFile.Path,
+                FileName = failedFile.FileName,
+                Stage = failedFile.Stage.ToString(),
+                Error = failedFile.Error,
+                Attempts = failedFile.Attempts,
+                FailedAt = failedFile.FailedAt.UtcDateTime.ToString("o")
+            };
         }
     }
 }

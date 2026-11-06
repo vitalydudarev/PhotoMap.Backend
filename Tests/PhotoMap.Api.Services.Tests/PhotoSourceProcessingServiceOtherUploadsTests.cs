@@ -37,6 +37,9 @@ public class PhotoSourceProcessingServiceOtherUploadsTests
     private readonly List<UserPhotoSourceStatus> _reportedStatuses = [];
     private Func<CancellationToken, Task>? _startedRun;
 
+    /// <summary>The other uploads recorded as failed, as the database keeps them: each once.</summary>
+    private readonly HashSet<string> _recordedFailures = [];
+
     public PhotoSourceProcessingServiceOtherUploadsTests()
     {
         _photoSourceService
@@ -59,6 +62,18 @@ public class PhotoSourceProcessingServiceOtherUploadsTests
         _fileStorage
             .Setup(a => a.SaveAsync(It.IsAny<string>(), It.IsAny<byte[]>()))
             .ReturnsAsync((string fileName, byte[] _) => "/storage/" + fileName);
+        _failedFileService
+            .Setup(a => a.RecordAsync(UserId, YandexDiskSourceId, It.IsAny<IReadOnlyCollection<FailedFile>>(),
+                It.IsAny<IReadOnlyCollection<string>>()))
+            .Callback<long, long, IReadOnlyCollection<FailedFile>, IReadOnlyCollection<string>>((_, _, failed, saved) =>
+            {
+                _recordedFailures.UnionWith(failed.Select(a => a.ExternalId));
+                _recordedFailures.ExceptWith(saved);
+            })
+            .Returns(Task.CompletedTask);
+        _failedFileService
+            .Setup(a => a.CountAsync(UserId, YandexDiskSourceId, true))
+            .ReturnsAsync(() => _recordedFailures.Count);
     }
 
     [Fact]
@@ -274,6 +289,7 @@ public class PhotoSourceProcessingServiceOtherUploadsTests
                 CreateFailedFile("recovered", "disk:/Photos/recovered.jpg"),
                 CreateFailedFile("still-broken", "disk:/Photos/still-broken.jpg")
             ]);
+        _recordedFailures.UnionWith(["recovered", "still-broken"]);
         _userPhotoSourceService
             .Setup(a => a.GetOtherUploadsStatusAsync(UserId, YandexDiskSourceId))
             .ReturnsAsync(new UserPhotoSourceStatus
@@ -334,6 +350,7 @@ public class PhotoSourceProcessingServiceOtherUploadsTests
         _failedFileService
             .Setup(a => a.GetOtherUploadsAsync(UserId, YandexDiskSourceId))
             .ReturnsAsync([CreateFailedFile("gone", "disk:/Photos/gone.jpg")]);
+        _recordedFailures.Add("gone");
         _userPhotoSourceService
             .Setup(a => a.GetOtherUploadsStatusAsync(UserId, YandexDiskSourceId))
             .ReturnsAsync(new UserPhotoSourceStatus
@@ -363,6 +380,31 @@ public class PhotoSourceProcessingServiceOtherUploadsTests
             It.Is<IReadOnlyCollection<FailedFile>>(b => b.Single().ExternalId == "gone" &&
                                                         b.Single().Stage == FileFailureStage.Download),
             It.Is<IReadOnlyCollection<string>>(b => b.Count == 0)));
+    }
+
+    [Fact]
+    public async Task Run_ShouldCountThePhotosRecordedAsFailed_TheOnesOfEarlierRunsNotReachedYetAmongThem()
+    {
+        // Arrange: two photos failed in earlier runs, one of them is saved this time and one is gone from the disk
+        _recordedFailures.UnionWith(["fixed", "gone"]);
+
+        var handler = new FakeDiskHandler([CreateResource("fixed", "disk:/Photos/fixed.jpg")]);
+
+        _photoService
+            .Setup(a => a.GetSavedExternalIdsAsync(UserId, YandexDiskSourceId, It.IsAny<IEnumerable<string>>()))
+            .ReturnsAsync(new HashSet<string>());
+
+        var service = CreateService(handler);
+
+        // Act
+        await service.RunOtherUploadsCommandAsync(UserId, YandexDiskSourceId, PhotoSourceProcessingCommands.Start);
+
+        await RunWithWorkerAsync([]);
+
+        // Assert: the failed count is the table of the failed photos, the one gone stays in it
+        Assert.Equal(2, _reportedStatuses.First().FailedCount);
+        Assert.Equal(1, _reportedStatuses.Last().FailedCount);
+        Assert.Equal(1, _reportedStatuses.Last().ProcessedCount);
     }
 
     [Fact]

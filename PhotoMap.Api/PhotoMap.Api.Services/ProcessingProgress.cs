@@ -26,6 +26,12 @@ public sealed class ProcessingProgress
     public void FileFailed() => Interlocked.Increment(ref _failedCount);
 
     /// <summary>
+    /// Sets the failed count to the files recorded as failed, which a run counting each failure as it comes runs
+    /// ahead of: a file that fails again, in a chunk listed again after a stop, would be counted twice.
+    /// </summary>
+    public void SetFailedCount(int failedCount) => Volatile.Write(ref _failedCount, failedCount);
+
+    /// <summary>
     /// The failed files a run retrying them takes, 0 for any other run.
     /// </summary>
     public int RetryTotalCount

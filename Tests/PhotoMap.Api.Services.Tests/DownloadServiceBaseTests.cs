@@ -17,6 +17,25 @@ public class DownloadServiceBaseTests
     private readonly Mock<IFailedFileService> _failedFileService = new();
     private readonly ProcessingProgress _progress = new(0, 0);
 
+    /// <summary>The files recorded as failed, as the database keeps them: each once.</summary>
+    private readonly HashSet<string> _recordedFailures = [];
+
+    public DownloadServiceBaseTests()
+    {
+        _failedFileService
+            .Setup(a => a.RecordAsync(UserId, SourceId, It.IsAny<IReadOnlyCollection<FailedFile>>(),
+                It.IsAny<IReadOnlyCollection<string>>()))
+            .Callback<long, long, IReadOnlyCollection<FailedFile>, IReadOnlyCollection<string>>((_, _, failed, saved) =>
+            {
+                _recordedFailures.UnionWith(failed.Select(a => a.ExternalId));
+                _recordedFailures.ExceptWith(saved);
+            })
+            .Returns(Task.CompletedTask);
+        _failedFileService
+            .Setup(a => a.CountAsync(UserId, SourceId, false))
+            .ReturnsAsync(() => _recordedFailures.Count);
+    }
+
     [Fact]
     public async Task DownloadAsync_ShouldCountAndRecordFileThatFailsToDownload_AndGoOn()
     {
@@ -82,6 +101,7 @@ public class DownloadServiceBaseTests
         _failedFileService
             .Setup(a => a.GetAsync(UserId, SourceId))
             .ReturnsAsync([CreateFailedFile("empty")]);
+        _recordedFailures.Add("empty");
 
         var service = CreateService(new Dictionary<string, Exception?> { ["empty"] = null },
             emptyDownloads: new Dictionary<string, int> { ["empty"] = 2 });
@@ -95,6 +115,25 @@ public class DownloadServiceBaseTests
         _failedFileService.Verify(a => a.RecordAsync(UserId, SourceId,
             It.Is<IReadOnlyCollection<FailedFile>>(b => b.Single().ExternalId == "empty"),
             It.Is<IReadOnlyCollection<string>>(b => b.Count == 0)));
+    }
+
+    [Fact]
+    public async Task DownloadAsync_ShouldCountAFileOnce_WhenItFailsAgainInAChunkListedAgain()
+    {
+        // Arrange: a run stopped in the middle of the chunk counted the file failed before the chunk was recorded
+        _progress.FileFailed();
+
+        var service = CreateService(new Dictionary<string, Exception?>
+        {
+            ["ok"] = null,
+            ["broken"] = new DropboxException("Not found.")
+        });
+
+        // Act: the chunk is listed again, and the file fails again
+        await ProcessAllAsync(service.DownloadAsync(CancellationToken.None));
+
+        // Assert
+        Assert.Equal(1, _progress.FailedCount);
     }
 
     [Fact]
@@ -138,6 +177,7 @@ public class DownloadServiceBaseTests
         _failedFileService
             .Setup(a => a.GetAsync(UserId, SourceId))
             .ReturnsAsync([CreateFailedFile("recovered"), CreateFailedFile("still-broken")]);
+        _recordedFailures.UnionWith(["recovered", "still-broken"]);
 
         var service = CreateService(new Dictionary<string, Exception?>
         {
@@ -150,7 +190,8 @@ public class DownloadServiceBaseTests
 
         // Assert
         Assert.Equal(["recovered"], downloadedFiles);
-        Assert.Equal(0, _progress.FailedCount);
+        // the file failing again is still the one failed file, however the run has counted it
+        Assert.Equal(1, _progress.FailedCount);
         // the file that failed to download again is retried, the one downloaded is counted once it is processed
         Assert.Equal(2, _progress.RetryTotalCount);
         Assert.Equal(1, _progress.RetriedCount);

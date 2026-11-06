@@ -33,6 +33,12 @@ public class FailedFileService : IFailedFileService
         return GetAsync(userId, photoSourceId, fromOtherUploads: true);
     }
 
+    public Task<int> CountAsync(long userId, long photoSourceId, bool fromOtherUploads)
+    {
+        return _context.FailedFiles.CountAsync(a =>
+            a.UserId == userId && a.PhotoSourceId == photoSourceId && a.FromOtherUploads == fromOtherUploads);
+    }
+
     private async Task<IReadOnlyCollection<FailedFile>> GetAsync(long userId, long photoSourceId, bool fromOtherUploads)
     {
         return await _context.FailedFiles
