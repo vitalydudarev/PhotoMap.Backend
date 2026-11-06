@@ -12,6 +12,11 @@ public class YandexDiskOtherUploads
     private const string ImageMediaType = "image";
     private const int PageSize = 500;
 
+    /// <summary>
+    /// The photos of this folder, and of the folders within it, are not other uploads, they are left out.
+    /// </summary>
+    private const string ExcludedFolder = "disk:/Фотокамера/";
+
     private readonly ApiClient _apiClient;
     private readonly ILogger _logger;
 
@@ -25,7 +30,8 @@ public class YandexDiskOtherUploads
     /// Lists every photo of the disk of the formats processed, each once, but the ones right in the folder given: the
     /// photos of the folders within it are listed. The flat list of files cannot be sorted, so a run lists all of them
     /// and skips the ones saved already, rather than resume from an offset that new photos may have shifted. For the
-    /// same reason a photo can come on two pages, the second time it is left out.
+    /// same reason a photo can come on two pages, the second time it is left out. The photos of
+    /// <see cref="ExcludedFolder"/>, and of the folders within it, are left out too.
     /// </summary>
     /// <param name="excludedFolder">The folder the disk is processed from, such as <c>disk:/Camera Uploads/</c>.</param>
     public async Task<IReadOnlyList<Resource>> ListPhotosAsync(string excludedFolder, CancellationToken cancellationToken)
@@ -44,6 +50,7 @@ public class YandexDiskOtherUploads
             photos.AddRange(items.Where(a => a.Type == "file" &&
                                              SupportedImageFormats.IsSupported(a.Name) &&
                                              !string.Equals(YandexDiskPaths.GetFolder(a.Path), folder, StringComparison.Ordinal) &&
+                                             !a.Path.StartsWith(ExcludedFolder, StringComparison.Ordinal) &&
                                              resourceIds.Add(a.ResourceId)));
             offset += items.Length;
 

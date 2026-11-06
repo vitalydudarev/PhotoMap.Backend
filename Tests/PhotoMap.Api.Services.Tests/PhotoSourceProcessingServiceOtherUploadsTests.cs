@@ -141,6 +141,36 @@ public class PhotoSourceProcessingServiceOtherUploadsTests
     }
 
     [Fact]
+    public async Task Run_ShouldLeaveOutThePhotosOfTheФотокамераFolder()
+    {
+        // Arrange
+        var handler = new FakeDiskHandler(
+        [
+            CreateResource("photo-camera", "disk:/Фотокамера/a.jpg"),
+            CreateResource("photo-camera-subfolder", "disk:/Фотокамера/2020/b.jpg"),
+            CreateResource("other", "disk:/Photos/c.jpg"),
+            CreateResource("similar-folder", "disk:/Фотокамера 2/d.jpg")
+        ]);
+
+        _photoService
+            .Setup(a => a.GetSavedExternalIdsAsync(UserId, YandexDiskSourceId, It.IsAny<IEnumerable<string>>()))
+            .ReturnsAsync(new HashSet<string>());
+
+        var requests = new List<ProcessImageRequest>();
+        var service = CreateService(handler);
+
+        // Act
+        await service.RunOtherUploadsCommandAsync(UserId, YandexDiskSourceId, PhotoSourceProcessingCommands.Start);
+
+        await RunWithWorkerAsync(requests);
+
+        // Assert
+        Assert.Equal(["other", "similar-folder"], requests.Select(a => a.DownloadedFileInfo.FileId).Order());
+        Assert.Equal(["disk:/Photos/c.jpg", "disk:/Фотокамера 2/d.jpg"], handler.DownloadedFiles.Order());
+        Assert.Equal(2, _reportedStatuses.Last().TotalCount);
+    }
+
+    [Fact]
     public async Task Run_ShouldCountAPhotoFailed_WhenItFailsProcessing()
     {
         // Arrange
