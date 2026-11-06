@@ -80,6 +80,24 @@ public class YandexDiskApiCallsTests
     }
 
     [Fact]
+    public async Task WrapAsync_ShouldRetryAsManyTimesAsGiven()
+    {
+        // Arrange
+        var attempts = 0;
+
+        // Act & Assert
+        await Assert.ThrowsAsync<YandexDiskException>(() => YandexDiskApiCalls.WrapAsync<int>(NullLogger.Instance, () =>
+        {
+            attempts++;
+
+            throw new HttpRequestException("Connection reset");
+        }, retryDelay: NoDelay, maxRetries: YandexDiskSourceFiles.DownloadMaxRetries));
+
+        // the first attempt and 2 retries
+        Assert.Equal(3, attempts);
+    }
+
+    [Fact]
     public async Task WrapAsync_ShouldNotRetry_WhenTheTokenIsNotAccepted()
     {
         // Arrange

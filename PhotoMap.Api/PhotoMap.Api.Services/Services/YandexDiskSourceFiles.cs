@@ -16,6 +16,17 @@ public sealed class YandexDiskSourceFiles : ISourceFiles
     private const int PageSize = 10000;
     private const string SortOrder = "created";
 
+    /// <summary>
+    /// How long the download of a file waits to start, for its download URL and the headers of the response, before
+    /// the attempt fails. Reading the contents takes as long as it does.
+    /// </summary>
+    public static readonly TimeSpan DownloadTimeout = TimeSpan.FromSeconds(10);
+
+    /// <summary>
+    /// How many times the download of a file is tried again when it fails.
+    /// </summary>
+    public const int DownloadMaxRetries = 2;
+
     private readonly ApiClient _apiClient;
     private readonly YandexDiskSettings _settings;
     private readonly ILogger _logger;
@@ -96,10 +107,15 @@ public sealed class YandexDiskSourceFiles : ISourceFiles
         }
     }
 
+    /// <summary>
+    /// The download waits <see cref="DownloadTimeout"/> to start, given the API client the factory creates, and is
+    /// tried again up to <see cref="DownloadMaxRetries"/> times.
+    /// </summary>
     public async Task CopyToAsync(SourceFile file, Stream destination, CancellationToken cancellationToken)
     {
         using var response = await YandexDiskApiCalls.WrapAsync(_logger,
-            () => _apiClient.OpenDownloadAsync(file.Path, null, cancellationToken), cancellationToken);
+            () => _apiClient.OpenDownloadAsync(file.Path, null, cancellationToken), cancellationToken,
+            maxRetries: DownloadMaxRetries);
 
         await response.Content.CopyToAsync(destination, cancellationToken);
     }

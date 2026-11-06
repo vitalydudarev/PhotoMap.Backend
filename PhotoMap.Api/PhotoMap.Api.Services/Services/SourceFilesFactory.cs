@@ -48,7 +48,10 @@ public class SourceFilesFactory : ISourceFilesFactory
             var settings = new YandexDiskSettings();
 
             // Yandex.Disk tokens are not refreshed, the user authorizes again when the token has expired
-            var apiClient = new ApiClient(authResult.Token, _httpClientFactory.CreateClient("yandexDiskClient"));
+            var apiClient = new ApiClient(authResult.Token, _httpClientFactory.CreateClient("yandexDiskClient"))
+            {
+                OpenDownloadTimeout = YandexDiskSourceFiles.DownloadTimeout
+            };
 
             return new YandexDiskSourceFiles(apiClient, settings, _logger);
         }

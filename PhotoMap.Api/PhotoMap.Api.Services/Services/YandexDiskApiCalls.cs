@@ -10,17 +10,21 @@ namespace PhotoMap.Api.Services.Services;
 /// </summary>
 public static class YandexDiskApiCalls
 {
-    private const int MaxRetries = 3;
+    /// <summary>
+    /// How many times a call is made again when it fails, unless the caller says otherwise.
+    /// </summary>
+    public const int DefaultMaxRetries = 3;
 
     /// <summary>
-    /// Makes the call, again up to <see cref="MaxRetries"/> times when it fails, whatever it fails with, and turns
+    /// Makes the call, again up to <see cref="DefaultMaxRetries"/> times when it fails, or as many as given, whatever it fails with, and turns
     /// its errors into <see cref="YandexDiskException"/>. A token Yandex.Disk no longer accepts fails at once, as
     /// do a path it does not have and a cancelled run: none of them would go any differently on a retry.
     /// </summary>
     /// <param name="retryDelay">How long to wait before the retry of the attempt given, 2, 4 then 8 seconds when
     /// not given. A rate limit reached waits as long as Yandex.Disk asks for instead, when it does.</param>
+    /// <param name="maxRetries">How many times the call is made again when it fails.</param>
     public static async Task<T> WrapAsync<T>(ILogger logger, Func<Task<T>> apiCall, CancellationToken cancellationToken = default,
-        Func<int, TimeSpan>? retryDelay = null)
+        Func<int, TimeSpan>? retryDelay = null, int maxRetries = DefaultMaxRetries)
     {
         retryDelay ??= attempt => TimeSpan.FromSeconds(Math.Pow(2, attempt));
 
@@ -47,7 +51,7 @@ public static class YandexDiskApiCalls
 
                 throw new YandexDiskException("The resource has not been found: " + e.Message);
             }
-            catch (Exception e) when (attempt <= MaxRetries)
+            catch (Exception e) when (attempt <= maxRetries)
             {
                 // without this the file would be counted as failed and skipped until the next run
                 var delay = e is ApiException { StatusCode: HttpStatusCode.TooManyRequests, RetryAfter: { } retryAfter }
@@ -55,7 +59,7 @@ public static class YandexDiskApiCalls
                     : retryDelay(attempt);
 
                 logger.LogWarning(e, "Calling API failed: {ErrorMessage}, retrying in {RetryDelay} (attempt {Attempt} of {MaxAttempts})",
-                    e.Message, delay, attempt, MaxRetries);
+                    e.Message, delay, attempt, maxRetries);
 
                 await Task.Delay(delay, cancellationToken);
             }
