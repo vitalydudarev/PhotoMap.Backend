@@ -35,6 +35,12 @@ public interface IFrontendNotificationService
     Task SendOtherUploadsProgressAsync(UserPhotoSourceStatus status);
 
     /// <summary>
+    /// The status and counters of the other uploads of the photo source while a run retries the ones that failed,
+    /// with how far the retry has got.
+    /// </summary>
+    Task SendOtherUploadsProgressAsync(UserPhotoSourceStatus status, RetryProgress retry);
+
+    /// <summary>
     /// The error the download of the files of the photo source of the kind has failed with.
     /// </summary>
     Task SendDownloadErrorAsync(long userId, long sourceId, SourceDownloadKind kind, string errorText);

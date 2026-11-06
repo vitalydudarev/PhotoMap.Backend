@@ -23,10 +23,20 @@ public class FailedFileService : IFailedFileService
         _logger = logger;
     }
 
-    public async Task<IReadOnlyCollection<FailedFile>> GetAsync(long userId, long photoSourceId)
+    public Task<IReadOnlyCollection<FailedFile>> GetAsync(long userId, long photoSourceId)
+    {
+        return GetAsync(userId, photoSourceId, fromOtherUploads: false);
+    }
+
+    public Task<IReadOnlyCollection<FailedFile>> GetOtherUploadsAsync(long userId, long photoSourceId)
+    {
+        return GetAsync(userId, photoSourceId, fromOtherUploads: true);
+    }
+
+    private async Task<IReadOnlyCollection<FailedFile>> GetAsync(long userId, long photoSourceId, bool fromOtherUploads)
     {
         return await _context.FailedFiles
-            .Where(a => a.UserId == userId && a.PhotoSourceId == photoSourceId)
+            .Where(a => a.UserId == userId && a.PhotoSourceId == photoSourceId && a.FromOtherUploads == fromOtherUploads)
             .OrderBy(a => a.Id)
             .AsNoTracking()
             .Select(a => new FailedFile
@@ -39,7 +49,8 @@ public class FailedFileService : IFailedFileService
                 Stage = a.Stage,
                 Error = a.Error,
                 Attempts = a.Attempts,
-                FailedAt = a.FailedAt
+                FailedAt = a.FailedAt,
+                FromOtherUploads = a.FromOtherUploads
             })
             .ToListAsync();
     }
@@ -96,6 +107,7 @@ public class FailedFileService : IFailedFileService
             entity.Error = failedFile.Error;
             entity.Attempts++;
             entity.FailedAt = failedFile.FailedAt;
+            entity.FromOtherUploads = failedFile.FromOtherUploads;
         }
 
         await _context.SaveChangesAsync();
@@ -108,11 +120,20 @@ public class FailedFileService : IFailedFileService
         }
     }
 
-    public async Task DeleteByPhotoSourceAsync(long userId, long photoSourceId)
+    public Task DeleteByPhotoSourceAsync(long userId, long photoSourceId)
     {
-        var entities = await _context.FailedFiles
-            .Where(a => a.UserId == userId && a.PhotoSourceId == photoSourceId)
-            .ToListAsync();
+        return DeleteAsync(_context.FailedFiles.Where(a => a.UserId == userId && a.PhotoSourceId == photoSourceId));
+    }
+
+    public Task DeleteByPhotoSourceAsync(long userId, long photoSourceId, bool fromOtherUploads)
+    {
+        return DeleteAsync(_context.FailedFiles.Where(a =>
+            a.UserId == userId && a.PhotoSourceId == photoSourceId && a.FromOtherUploads == fromOtherUploads));
+    }
+
+    private async Task DeleteAsync(IQueryable<FailedFileEntity> failedFiles)
+    {
+        var entities = await failedFiles.ToListAsync();
 
         _context.FailedFiles.RemoveRange(entities);
 

@@ -14,7 +14,7 @@ public interface IPhotoSourceDataService
 
     /// <summary>
     /// Deletes only the other uploads of the photo source, the photos of the other uploads, with the status of
-    /// their processing. The camera uploads stay.
+    /// their processing and their failed files. The camera uploads stay.
     /// </summary>
     /// <returns>false if the other uploads are being processed, nothing is deleted then.</returns>
     Task<bool> DeleteOtherUploadsDataAsync(long userId, long sourceId);

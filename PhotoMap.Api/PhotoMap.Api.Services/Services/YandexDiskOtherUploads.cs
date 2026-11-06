@@ -64,6 +64,15 @@ public class YandexDiskOtherUploads
     }
 
     /// <summary>
+    /// Looks a photo up by its path again, to retry one that failed with the details the listing gave.
+    /// </summary>
+    public Task<Resource> GetPhotoAsync(string path, CancellationToken cancellationToken)
+    {
+        return YandexDiskApiCalls.WrapAsync(_logger, () => _apiClient.GetResourceAsync(path, cancellationToken, limit: 1),
+            cancellationToken);
+    }
+
+    /// <summary>
     /// Downloads the photo itself, with its EXIF, as the photos of the folder the disk is processed from are.
     /// </summary>
     public Task<byte[]> DownloadPhotoAsync(Resource photo, CancellationToken cancellationToken)

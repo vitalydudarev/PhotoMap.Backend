@@ -57,6 +57,11 @@ public class FrontendNotificationService : IFrontendNotificationService
         return SendProgressAsync("OtherUploadsProgress", status);
     }
 
+    public Task SendOtherUploadsProgressAsync(UserPhotoSourceStatus status, RetryProgress retry)
+    {
+        return SendProgressAsync("OtherUploadsProgress", status, new HubRetryModel(retry.Total, retry.Retried, retry.Recovered));
+    }
+
     public Task SendDownloadErrorAsync(long userId, long sourceId, SourceDownloadKind kind, string errorText)
     {
         var hubErrorModel = new HubErrorModel(sourceId, errorText);

@@ -113,14 +113,14 @@ namespace PhotoMap.Api.Controllers
         }
 
         /// <summary>
-        /// Starts or stops the processing of the other uploads of the photo source: the photos outside the folder it
-        /// is processed from, which runs apart from the processing of the camera uploads. The thumbnails of the photos are made from the largest
-        /// preview the source makes of each. Starting again skips the photos saved already, so it carries on where it
-        /// left off. Only Yandex.Disk sources have their other uploads processed.
+        /// Starts, stops or retries the failed photos of the processing of the other uploads of the photo source: the
+        /// photos outside the folder it is processed from, which runs apart from the processing of the camera uploads.
+        /// Starting again skips the photos saved already, so it carries on where it left off. Only Yandex.Disk sources
+        /// have their other uploads processed.
         /// </summary>
         /// <param name="userId">The ID of the user.</param>
         /// <param name="sourceId">The ID of the photo source.</param>
-        /// <param name="command">Start or Stop.</param>
+        /// <param name="command">Start, Stop or RetryFailed.</param>
         [HttpPost("{sourceId:long}/other-uploads")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -131,11 +131,6 @@ namespace PhotoMap.Api.Controllers
             if (!await _photoSourceProcessingService.SupportsOtherUploadsAsync(sourceId))
             {
                 return BadRequest("The photo source has no other uploads.");
-            }
-
-            if (command != PhotoSourceProcessingCommands.Start && command != PhotoSourceProcessingCommands.Stop)
-            {
-                return BadRequest("The other uploads of a photo source are only started and stopped.");
             }
 
             var accepted = await _photoSourceProcessingService.RunOtherUploadsCommandAsync(userId, sourceId, command);

@@ -20,4 +20,9 @@ public class FailedFile
     /// </summary>
     public int Attempts { get; set; }
     public DateTimeOffset FailedAt { get; set; }
+    /// <summary>
+    /// The file is one of the other uploads of the source, outside the folder of its camera uploads, which a run of
+    /// its own processes and retries.
+    /// </summary>
+    public bool FromOtherUploads { get; set; }
 }

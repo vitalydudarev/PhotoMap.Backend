@@ -150,7 +150,8 @@ public class PhotoSourceDataServiceTests
         _userPhotoSourceService.Verify(a => a.DeleteUserPhotoStatusAsync(UserId, SourceId));
         _userPhotoSourceService.Verify(a => a.UpdateUserPhotoStateAsync(UserId, SourceId, null));
         _userPhotoSourceService.Verify(a => a.DeleteOtherUploadsStatusAsync(UserId, SourceId), Times.Never);
-        _failedFileService.Verify(a => a.DeleteByPhotoSourceAsync(UserId, SourceId));
+        _failedFileService.Verify(a => a.DeleteByPhotoSourceAsync(UserId, SourceId, false));
+        _failedFileService.VerifyNoOtherCalls();
         _frontendNotificationService.Verify(a => a.SendProgressAsync(It.Is<UserPhotoSourceStatus>(b =>
             b.PhotoSourceId == SourceId && b.Status == PhotoSourceStatus.NotStarted)));
         _frontendNotificationService.Verify(a => a.SendOtherUploadsProgressAsync(It.IsAny<UserPhotoSourceStatus>()),
@@ -212,7 +213,7 @@ public class PhotoSourceDataServiceTests
         _userPhotoSourceService.Verify(a => a.DeleteOtherUploadsStatusAsync(UserId, SourceId));
         _userPhotoSourceService.VerifyNoOtherCalls();
 
-        // the failed files are of the camera uploads, whose run retries them
+        _failedFileService.Verify(a => a.DeleteByPhotoSourceAsync(UserId, SourceId, true));
         _failedFileService.VerifyNoOtherCalls();
         _frontendNotificationService.Verify(a => a.SendOtherUploadsProgressAsync(It.Is<UserPhotoSourceStatus>(b =>
             b.PhotoSourceId == SourceId && b.Status == PhotoSourceStatus.NotStarted)));

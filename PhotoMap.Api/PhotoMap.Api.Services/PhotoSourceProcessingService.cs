@@ -70,10 +70,10 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
 
     public async Task<bool> RunOtherUploadsCommandAsync(long userId, long sourceId, PhotoSourceProcessingCommands command)
     {
-        // a photo of the other uploads that failed is not saved, so the next run tries it again with the rest
         return command switch
         {
             PhotoSourceProcessingCommands.Start => await StartAsync(userId, sourceId, RunKind.OtherUploads),
+            PhotoSourceProcessingCommands.RetryFailed => await StartAsync(userId, sourceId, RunKind.RetryFailedOtherUploads),
             PhotoSourceProcessingCommands.Stop => Stop(userId, sourceId, RunKind.OtherUploads),
             _ => throw new Exception("Unsupported command.")
         };
@@ -106,8 +106,8 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
         return true;
     }
 
-    /// <param name="kind">A retry of the failed files is the same task as a regular run of the source, so that the
-    /// two do not run at the same time. The other uploads run apart from them.</param>
+    /// <param name="kind">A retry of the failed files is the same task as a regular run of the files it retries, so
+    /// that the two do not run at the same time. The other uploads run apart from the camera uploads.</param>
     private async Task<bool> StartAsync(long userId, long sourceId, RunKind kind)
     {
         var taskName = GetTaskName(userId, sourceId, kind);
@@ -117,7 +117,7 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
         }
 
         var photoSource = await _photoSourceService.GetByIdAsync(sourceId);
-        if (kind == RunKind.OtherUploads && !IsYandexDisk(photoSource))
+        if (IsOtherUploads(kind) && !IsYandexDisk(photoSource))
         {
             throw new InvalidOperationException($"The other uploads of photo source {photoSource.Name} cannot be processed.");
         }
@@ -127,11 +127,17 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
         var serviceScopeFactory = _serviceScopeFactory;
 
         Func<CancellationToken, Task> work;
-        if (kind == RunKind.OtherUploads)
+        if (IsOtherUploads(kind))
         {
             var settings = new YandexDiskSettings();
 
-            work = cancellationToken => DoOtherUploadsWork(run, authResult.Token, settings, serviceScopeFactory, cancellationToken);
+            // a retry carries on the counters of the runs the photos failed in, a run lists the photos to count them
+            var progress = kind == RunKind.RetryFailedOtherUploads
+                ? await CreateOtherUploadsProgressAsync(userId, sourceId)
+                : new ProcessingProgress(0, 0);
+
+            work = cancellationToken => DoOtherUploadsWork(run, authResult.Token, settings, progress, serviceScopeFactory,
+                cancellationToken);
         }
         else
         {
@@ -208,19 +214,21 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
 
     /// <summary>
     /// Every photo of the disk outside the folder it is processed from is listed, and the ones not saved yet are
-    /// downloaded, several at a time, and processed as the photos of that folder are. A photo that fails is not
-    /// saved, so the next run tries it again.
+    /// downloaded, several at a time, and processed as the photos of that folder are. A retry takes only the photos
+    /// that failed in earlier runs instead, looked up by their paths again. The photos that fail are recorded, and
+    /// the ones saved are no longer failed, as each chunk of them has been processed.
     /// </summary>
     private static async Task DoOtherUploadsWork(ProcessingRun run, string token, YandexDiskSettings settings,
-        IServiceScopeFactory serviceScopeFactory, CancellationToken cancellationToken)
+        ProcessingProgress progress, IServiceScopeFactory serviceScopeFactory, CancellationToken cancellationToken)
     {
-        var progress = new ProcessingProgress(0, 0);
+        var retryFailed = run.Kind == RunKind.RetryFailedOtherUploads;
 
-        // the progress is replaced once the photos are listed, the reports take the current one
+        // the progress of a run is replaced once the photos are listed, the reports take the current one
         await RunWithStatusAsync(run, serviceScopeFactory, () => progress,
             async (services, logger) =>
             {
                 var photoService = services.GetRequiredService<IPhotoService>();
+                var failedFileService = services.GetRequiredService<IFailedFileService>();
                 var fileStorage = services.GetRequiredService<IFileStorage>();
                 var requestQueue = services.GetRequiredService<IMessageQueue<ProcessImageRequest>>();
                 var httpClientFactory = services.GetRequiredService<IHttpClientFactory>();
@@ -229,18 +237,37 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
                 var apiClient = new ApiClient(token, httpClientFactory.CreateClient("yandexDiskClient"));
                 var otherUploads = new YandexDiskOtherUploads(apiClient, logger);
 
-                var sourceFolder = await YandexDiskDownloadService.GetSourceFolderAsync(apiClient, settings, logger, cancellationToken);
-                var photos = await otherUploads.ListPhotosAsync(sourceFolder, cancellationToken);
-                var savedExternalIds = await photoService.GetSavedExternalIdsAsync(run.UserId, run.SourceId,
-                    photos.Select(a => a.ResourceId));
+                List<OtherUpload> photosToSave;
 
-                // the photos saved by earlier runs count as processed, a run resumed carries on from them
-                progress = new ProcessingProgress(savedExternalIds.Count, 0) { TotalCount = photos.Count };
+                if (retryFailed)
+                {
+                    var failedFiles = await failedFileService.GetOtherUploadsAsync(run.UserId, run.SourceId);
 
-                var photosToSave = photos.Where(a => !savedExternalIds.Contains(a.ResourceId)).ToList();
+                    // the photos retried are counted as failed already, the counters of the earlier runs stay
+                    progress.RetryTotalCount = failedFiles.Count;
+                    photosToSave = failedFiles.Select(a => new OtherUpload(a.ExternalId, a.Path, a.FileName, null)).ToList();
 
-                logger.LogInformation("{PhotoCount} of {TotalCount} photos outside {SourceFolder} of {PhotoSourceName} to save for user {UserId}",
-                    photosToSave.Count, photos.Count, sourceFolder, run.PhotoSourceName, run.UserId);
+                    logger.LogInformation("{PhotoCount} failed photos of the other uploads of {PhotoSourceName} to retry for user {UserId}",
+                        photosToSave.Count, run.PhotoSourceName, run.UserId);
+                }
+                else
+                {
+                    var sourceFolder = await YandexDiskDownloadService.GetSourceFolderAsync(apiClient, settings, logger, cancellationToken);
+                    var photos = await otherUploads.ListPhotosAsync(sourceFolder, cancellationToken);
+                    var savedExternalIds = await photoService.GetSavedExternalIdsAsync(run.UserId, run.SourceId,
+                        photos.Select(a => a.ResourceId));
+
+                    // the photos saved by earlier runs count as processed, a run resumed carries on from them
+                    progress = new ProcessingProgress(savedExternalIds.Count, 0) { TotalCount = photos.Count };
+
+                    photosToSave = photos
+                        .Where(a => !savedExternalIds.Contains(a.ResourceId))
+                        .Select(a => new OtherUpload(a.ResourceId, a.Path, a.Name, a))
+                        .ToList();
+
+                    logger.LogInformation("{PhotoCount} of {TotalCount} photos outside {SourceFolder} of {PhotoSourceName} to save for user {UserId}",
+                        photosToSave.Count, photos.Count, sourceFolder, run.PhotoSourceName, run.UserId);
+                }
 
                 var parallelOptions = new ParallelOptions
                 {
@@ -250,32 +277,58 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
 
                 foreach (var chunk in photosToSave.Chunk(OtherUploadsSaveEvery))
                 {
-                    var processedTasks = new ConcurrentBag<Task<ProcessingResult>>();
+                    var attempts = new ConcurrentBag<OtherUploadAttempt>();
 
-                    await Parallel.ForEachAsync(chunk, parallelOptions, async (resource, token) =>
-                    {
-                        var processed = await EnqueuePhotoOrSkipAsync(otherUploads, fileStorage, requestQueue, logger, run,
-                            resource, token);
-                        if (processed != null)
-                        {
-                            processedTasks.Add(processed);
-                        }
-                        else
-                        {
-                            progress.FileFailed();
-                        }
-                    });
+                    await Parallel.ForEachAsync(chunk, parallelOptions, async (photo, token) =>
+                        attempts.Add(await EnqueuePhotoOrSkipAsync(otherUploads, fileStorage, requestQueue, logger, run,
+                            photo, token)));
 
                     // the photos of the chunk are saved before the next ones start, so that a stopped run loses no more
-                    var results = await Task.WhenAll(processedTasks).WaitAsync(cancellationToken);
+                    await Task.WhenAll(attempts.Where(a => a.Processed != null).Select(a => a.Processed!))
+                        .WaitAsync(cancellationToken);
 
-                    foreach (var result in results)
-                    {
-                        CountProcessedFile(progress, result, retryFailed: false);
-                    }
+                    await RecordChunkAsync(failedFileService, progress, run, attempts, retryFailed);
                 }
             },
             cancellationToken);
+    }
+
+    /// <summary>
+    /// Counts the photos of a chunk, all of them processed or failed, and records the ones that failed, for a retry
+    /// to take, while the ones saved are no longer failed.
+    /// </summary>
+    private static Task RecordChunkAsync(IFailedFileService failedFileService, ProcessingProgress progress,
+        ProcessingRun run, IEnumerable<OtherUploadAttempt> attempts, bool retryFailed)
+    {
+        var failedFiles = new List<FailedFile>();
+        var savedExternalIds = new List<string>();
+
+        foreach (var attempt in attempts)
+        {
+            var result = attempt.Processed?.Result ?? ProcessingResult.Failed(attempt.Error ?? "Downloading failed.");
+
+            CountProcessedFile(progress, result, retryFailed);
+
+            if (result.Succeeded)
+            {
+                savedExternalIds.Add(attempt.Photo.ExternalId);
+            }
+            else
+            {
+                failedFiles.Add(new FailedFile
+                {
+                    ExternalId = attempt.Photo.ExternalId,
+                    Path = attempt.Photo.Path,
+                    FileName = attempt.Photo.FileName,
+                    Stage = attempt.Stage,
+                    Error = result.Error ?? "Processing failed.",
+                    FailedAt = DateTimeOffset.UtcNow,
+                    FromOtherUploads = true
+                });
+            }
+        }
+
+        return failedFileService.RecordAsync(run.UserId, run.SourceId, failedFiles, savedExternalIds);
     }
 
     /// <summary>
@@ -324,7 +377,7 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
         {
             status = PhotoSourceStatus.Failed;
 
-            if (run.Kind == RunKind.OtherUploads)
+            if (IsOtherUploads(run.Kind))
             {
                 logger.LogError(e, "Processing of the other uploads of {PhotoSourceName} for user {UserId} failed",
                     run.PhotoSourceName, run.UserId);
@@ -349,42 +402,65 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
     }
 
     /// <summary>
-    /// Downloads the photo and hands it over to be processed. A photo that cannot be downloaded is skipped, unless
-    /// Yandex.Disk no longer accepts the token, which fails every other photo as well.
+    /// Downloads the photo, looked up by its path first when it is retried, and hands it over to be processed. A photo
+    /// that cannot be downloaded or stored is skipped, unless Yandex.Disk no longer accepts the token, which fails
+    /// every other photo as well.
     /// </summary>
-    /// <returns>What the processing of the photo ends with, null when it is skipped.</returns>
-    private static async Task<Task<ProcessingResult>?> EnqueuePhotoOrSkipAsync(YandexDiskOtherUploads otherUploads,
+    private static async Task<OtherUploadAttempt> EnqueuePhotoOrSkipAsync(YandexDiskOtherUploads otherUploads,
         IFileStorage fileStorage, IMessageQueue<ProcessImageRequest> requestQueue, ILogger logger, ProcessingRun run,
-        Resource resource, CancellationToken cancellationToken)
+        OtherUpload photo, CancellationToken cancellationToken)
     {
+        byte[] contents;
+        Resource resource;
+
         try
         {
-            var contents = await otherUploads.DownloadPhotoAsync(resource, cancellationToken);
-            if (contents.Length == 0)
-            {
-                logger.LogWarning("{FileName} has been downloaded empty, skipping it", resource.Path);
-
-                return null;
-            }
-
-            var fileName = await StoreDownloadedFileAsync(fileStorage, run, resource.Name, contents);
-            var processed = new TaskCompletionSource<ProcessingResult>(TaskCreationOptions.RunContinuationsAsynchronously);
-
-            await requestQueue.EnqueueAsync(CreateRequest(run, CreateFileInfo(resource), fileName, processed), cancellationToken);
-
-            return processed.Task;
+            resource = photo.Resource ?? await GetFailedPhotoAsync(otherUploads, photo, cancellationToken);
+            contents = await otherUploads.DownloadPhotoAsync(resource, cancellationToken);
         }
         catch (PhotoSourceException e) when (!e.IsAuthError)
         {
             // the error has been logged
-            return null;
+            return OtherUploadAttempt.Failed(photo, FileFailureStage.Download, e.Message);
+        }
+
+        if (contents.Length == 0)
+        {
+            logger.LogWarning("{FileName} has been downloaded empty, skipping it", photo.Path);
+
+            return OtherUploadAttempt.Failed(photo, FileFailureStage.Download, "The photo has been downloaded empty.");
+        }
+
+        string fileName;
+
+        try
+        {
+            fileName = await StoreDownloadedFileAsync(fileStorage, run, resource.Name, contents);
         }
         catch (IOException e)
         {
-            logger.LogError(e, "Failed to store {FileName}", resource.Path);
+            logger.LogError(e, "Failed to store {FileName}", photo.Path);
 
-            return null;
+            return OtherUploadAttempt.Failed(photo, FileFailureStage.Processing, "Failed to store the downloaded file: " + e.Message);
         }
+
+        var processed = new TaskCompletionSource<ProcessingResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        await requestQueue.EnqueueAsync(CreateRequest(run, CreateFileInfo(resource), fileName, processed), cancellationToken);
+
+        return new OtherUploadAttempt(photo, processed.Task, FileFailureStage.Processing, null);
+    }
+
+    /// <exception cref="PhotoSourceException">The photo could not be looked up.</exception>
+    private static Task<Resource> GetFailedPhotoAsync(YandexDiskOtherUploads otherUploads, OtherUpload photo,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrEmpty(photo.Path))
+        {
+            throw new YandexDiskException("Yandex.Disk files are downloaded by path, the path is missing.");
+        }
+
+        return otherUploads.GetPhotoAsync(photo.Path, cancellationToken);
     }
 
     /// <returns>The name the file is stored under.</returns>
@@ -498,6 +574,11 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
                     await userPhotoSourceService.UpdateOtherUploadsStatusAsync(userPhotoSourceStatus);
                     await frontendNotificationService.SendOtherUploadsProgressAsync(userPhotoSourceStatus);
                     break;
+                case RunKind.RetryFailedOtherUploads:
+                    await userPhotoSourceService.UpdateOtherUploadsStatusAsync(userPhotoSourceStatus);
+                    await frontendNotificationService.SendOtherUploadsProgressAsync(userPhotoSourceStatus,
+                        new RetryProgress(progress.RetryTotalCount, progress.RetriedCount, progress.RecoveredCount));
+                    break;
                 case RunKind.RetryFailed:
                     await userPhotoSourceService.UpdateUserPhotoStatusAsync(userPhotoSourceStatus);
                     await frontendNotificationService.SendProgressAsync(userPhotoSourceStatus,
@@ -531,6 +612,19 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
         };
     }
 
+    /// <summary>
+    /// Continues the counters of the earlier runs of the other uploads, which a retry of their failed photos changes.
+    /// </summary>
+    private async Task<ProcessingProgress> CreateOtherUploadsProgressAsync(long userId, long sourceId)
+    {
+        var status = await _userPhotoSourceService.GetOtherUploadsStatusAsync(userId, sourceId);
+
+        return new ProcessingProgress(status?.ProcessedCount ?? 0, status?.FailedCount ?? 0)
+        {
+            TotalCount = status?.TotalCount ?? 0
+        };
+    }
+
     private async Task<UserAuthResult> GetAuthResultAsync(long userId, long sourceId)
     {
         var authResult = await _userPhotoSourceService.GetAuthResultAsync(userId, sourceId);
@@ -549,7 +643,7 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
 
     private static string GetTaskName(long userId, long sourceId, RunKind kind)
     {
-        return kind == RunKind.OtherUploads
+        return IsOtherUploads(kind)
             ? $"OtherUploads-UserId={userId}-SourceId={sourceId}"
             : $"UserId={userId}-SourceId={sourceId}";
     }
@@ -563,7 +657,30 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
         RetryFailed,
 
         /// <summary>The photos of a Yandex.Disk source outside the folder it is processed from.</summary>
-        OtherUploads
+        OtherUploads,
+
+        /// <summary>The photos of the other uploads that failed in earlier runs.</summary>
+        RetryFailedOtherUploads
+    }
+
+    private static bool IsOtherUploads(RunKind kind)
+    {
+        return kind is RunKind.OtherUploads or RunKind.RetryFailedOtherUploads;
+    }
+
+    /// <summary>
+    /// A photo of the other uploads to save: listed, or failed in an earlier run, when it is looked up by its path.
+    /// </summary>
+    private sealed record OtherUpload(string ExternalId, string? Path, string FileName, Resource? Resource);
+
+    /// <param name="Processed">What the processing of the photo ends with, null when it has failed before.</param>
+    /// <param name="Stage">What the photo fails at, when it fails.</param>
+    /// <param name="Error">Why the photo has failed before being processed.</param>
+    private sealed record OtherUploadAttempt(OtherUpload Photo, Task<ProcessingResult>? Processed, FileFailureStage Stage,
+        string? Error)
+    {
+        public static OtherUploadAttempt Failed(OtherUpload photo, FileFailureStage stage, string error) =>
+            new(photo, null, stage, error);
     }
 
     private sealed record ProcessingRun(long UserId, long SourceId, string PhotoSourceName, int[] Sizes, RunKind Kind);

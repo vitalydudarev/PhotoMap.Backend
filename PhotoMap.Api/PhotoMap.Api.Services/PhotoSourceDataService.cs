@@ -62,7 +62,7 @@ public class PhotoSourceDataService : IPhotoSourceDataService
 
         await _userPhotoSourceService.DeleteUserPhotoStatusAsync(userId, sourceId);
         await _userPhotoSourceService.UpdateUserPhotoStateAsync(userId, sourceId, null);
-        await _failedFileService.DeleteByPhotoSourceAsync(userId, sourceId);
+        await _failedFileService.DeleteByPhotoSourceAsync(userId, sourceId, fromOtherUploads: false);
 
         _logger.LogInformation("Deleted the camera uploads of photo source {SourceId} of user {UserId}", sourceId,
             userId);
@@ -82,6 +82,7 @@ public class PhotoSourceDataService : IPhotoSourceDataService
         await DeletePhotosAsync(_photoService.DeleteByPhotoSourceAsync(userId, sourceId, fromOtherUploads: true));
 
         await _userPhotoSourceService.DeleteOtherUploadsStatusAsync(userId, sourceId);
+        await _failedFileService.DeleteByPhotoSourceAsync(userId, sourceId, fromOtherUploads: true);
 
         _logger.LogInformation("Deleted the other uploads of photo source {SourceId} of user {UserId}", sourceId,
             userId);
