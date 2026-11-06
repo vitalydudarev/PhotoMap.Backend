@@ -4,9 +4,9 @@ using PhotoMap.Api.Database.Entities;
 
 namespace PhotoMap.Api.Database.Configurations
 {
-    public class UserOtherFoldersStatusEntityConfiguration : IEntityTypeConfiguration<UserOtherFoldersStatusEntity>
+    public class UserOtherUploadsStatusEntityConfiguration : IEntityTypeConfiguration<UserOtherUploadsStatusEntity>
     {
-        public void Configure(EntityTypeBuilder<UserOtherFoldersStatusEntity> builder)
+        public void Configure(EntityTypeBuilder<UserOtherUploadsStatusEntity> builder)
         {
             builder.HasKey(a => new { a.UserId, a.PhotoSourceId });
             builder.Property(a => a.UserId).IsRequired();
@@ -15,7 +15,7 @@ namespace PhotoMap.Api.Database.Configurations
             builder.Property(a => a.ProcessedCount);
             builder.Property(a => a.FailedCount);
             builder.Property(a => a.LastUpdatedAt);
-            builder.ToTable("users_other_folders_status");
+            builder.ToTable("users_other_uploads_status");
 
             builder.HasOne(a => a.User).WithMany().HasForeignKey(a => a.UserId);
             builder.HasOne(a => a.PhotoSource).WithMany().HasForeignKey(a => a.PhotoSourceId);

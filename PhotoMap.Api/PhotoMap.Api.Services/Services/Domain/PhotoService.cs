@@ -122,10 +122,10 @@ namespace PhotoMap.Api.Services.Services.Domain
         }
 
         public Task<IReadOnlyCollection<string>> DeleteByPhotoSourceAsync(long userId, long photoSourceId,
-            bool fromOtherFolder)
+            bool fromOtherUploads)
         {
             return DeleteAsync(userId,
-                () => _photoRepository.DeleteByPhotoSourceAsync(userId, photoSourceId, fromOtherFolder));
+                () => _photoRepository.DeleteByPhotoSourceAsync(userId, photoSourceId, fromOtherUploads));
         }
 
         private async Task<IReadOnlyCollection<string>> DeleteAsync(long userId,

@@ -10,7 +10,7 @@ public class DownloadedFileInfo
     /// <summary>
     /// The file is a photo outside the folder the source is processed from.
     /// </summary>
-    public bool FromOtherFolder { get; init; }
+    public bool FromOtherUploads { get; init; }
 
     public DownloadedFileInfo(string resourceName, string path, DateTime? createdOn, string fileId)
     {

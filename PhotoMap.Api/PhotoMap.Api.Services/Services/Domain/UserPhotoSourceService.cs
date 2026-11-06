@@ -173,9 +173,9 @@ public class UserPhotoSourceService : IUserPhotoSourceService
         await _context.SaveChangesAsync();
     }
 
-    public async Task<UserPhotoSourceStatus?> GetOtherFoldersStatusAsync(long userId, long photoSourceId)
+    public async Task<UserPhotoSourceStatus?> GetOtherUploadsStatusAsync(long userId, long photoSourceId)
     {
-        var entity = await _context.UserOtherFoldersStatuses
+        var entity = await _context.UserOtherUploadsStatuses
             .AsNoTracking()
             .FirstOrDefaultAsync(a => a.UserId == userId && a.PhotoSourceId == photoSourceId);
 
@@ -196,15 +196,15 @@ public class UserPhotoSourceService : IUserPhotoSourceService
         };
     }
 
-    public async Task UpdateOtherFoldersStatusAsync(UserPhotoSourceStatus status)
+    public async Task UpdateOtherUploadsStatusAsync(UserPhotoSourceStatus status)
     {
-        var entity = await _context.UserOtherFoldersStatuses
+        var entity = await _context.UserOtherUploadsStatuses
             .FirstOrDefaultAsync(a => a.UserId == status.UserId && a.PhotoSourceId == status.PhotoSourceId);
 
         if (entity == null)
         {
-            entity = new UserOtherFoldersStatusEntity { UserId = status.UserId, PhotoSourceId = status.PhotoSourceId };
-            _context.UserOtherFoldersStatuses.Add(entity);
+            entity = new UserOtherUploadsStatusEntity { UserId = status.UserId, PhotoSourceId = status.PhotoSourceId };
+            _context.UserOtherUploadsStatuses.Add(entity);
         }
 
         entity.Status = status.Status;
@@ -216,9 +216,9 @@ public class UserPhotoSourceService : IUserPhotoSourceService
         await _context.SaveChangesAsync();
     }
 
-    public async Task DeleteOtherFoldersStatusAsync(long userId, long photoSourceId)
+    public async Task DeleteOtherUploadsStatusAsync(long userId, long photoSourceId)
     {
-        await _context.UserOtherFoldersStatuses
+        await _context.UserOtherUploadsStatuses
             .Where(a => a.UserId == userId && a.PhotoSourceId == photoSourceId)
             .ExecuteDeleteAsync();
     }
@@ -235,11 +235,11 @@ public class UserPhotoSourceService : IUserPhotoSourceService
             entity.LastUpdatedAt = DateTimeOffset.UtcNow;
         }
 
-        var otherFoldersEntities = await _context.UserOtherFoldersStatuses
+        var otherUploadsEntities = await _context.UserOtherUploadsStatuses
             .Where(a => a.Status == PhotoSourceStatus.InProgress)
             .ToListAsync();
 
-        foreach (var entity in otherFoldersEntities)
+        foreach (var entity in otherUploadsEntities)
         {
             entity.Status = PhotoSourceStatus.Paused;
             entity.LastUpdatedAt = DateTimeOffset.UtcNow;
@@ -247,6 +247,6 @@ public class UserPhotoSourceService : IUserPhotoSourceService
 
         await _context.SaveChangesAsync();
 
-        return entities.Count + otherFoldersEntities.Count;
+        return entities.Count + otherUploadsEntities.Count;
     }
 }

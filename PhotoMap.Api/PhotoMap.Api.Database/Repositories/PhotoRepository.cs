@@ -305,10 +305,10 @@ public class PhotoRepository : IPhotoRepository
     }
 
     public Task<IReadOnlyCollection<string>> DeleteByPhotoSourceAsync(long userId, long photoSourceId,
-        bool fromOtherFolder)
+        bool fromOtherUploads)
     {
         return DeleteAsync(_context.Photos.Where(a =>
-            a.UserId == userId && a.PhotoSourceId == photoSourceId && a.FromOtherFolder == fromOtherFolder));
+            a.UserId == userId && a.PhotoSourceId == photoSourceId && a.FromOtherUploads == fromOtherUploads));
     }
 
     private static async Task<IReadOnlyCollection<string>> DeleteAsync(IQueryable<PhotoEntity> photos)
@@ -330,9 +330,9 @@ public class PhotoRepository : IPhotoRepository
     {
         var photos = _context.Photos.Where(a => a.UserId == userId);
 
-        if (!filter.IncludeOtherFolders)
+        if (!filter.IncludeOtherUploads)
         {
-            photos = photos.Where(a => !a.FromOtherFolder);
+            photos = photos.Where(a => !a.FromOtherUploads);
         }
 
         if (filter.PhotoSourceIds.Count > 0)
@@ -402,7 +402,7 @@ public class PhotoRepository : IPhotoRepository
             PhotoSourceId = photoEntity.PhotoSourceId,
             DeletedOn = photoEntity.DeletedOn,
             DuplicateGroupId = photoEntity.DuplicateGroupId,
-            FromOtherFolder = photoEntity.FromOtherFolder,
+            FromOtherUploads = photoEntity.FromOtherUploads,
             // only loaded along with the photos of the gallery
             Tags = photoEntity.Tags
                 .Where(a => a.Tag != null)
@@ -431,7 +431,7 @@ public class PhotoRepository : IPhotoRepository
             ContentHash = photo.ContentHash,
             AddedOn = photo.AddedOn,
             PhotoSourceId = photo.PhotoSourceId,
-            FromOtherFolder = photo.FromOtherFolder
+            FromOtherUploads = photo.FromOtherUploads
         };
     }
 }

@@ -67,9 +67,9 @@ namespace PhotoMap.Api.Domain.Services
 
         /// <summary>
         /// Deletes only the camera uploads of the photo source, the photos of the folder it is processed from, or
-        /// only its other uploads, the photos of the other folders.
+        /// only its other uploads, the photos of the other uploads.
         /// </summary>
         /// <returns>The thumbnail files of the deleted photos.</returns>
-        Task<IReadOnlyCollection<string>> DeleteByPhotoSourceAsync(long userId, long photoSourceId, bool fromOtherFolder);
+        Task<IReadOnlyCollection<string>> DeleteByPhotoSourceAsync(long userId, long photoSourceId, bool fromOtherUploads);
     }
 }

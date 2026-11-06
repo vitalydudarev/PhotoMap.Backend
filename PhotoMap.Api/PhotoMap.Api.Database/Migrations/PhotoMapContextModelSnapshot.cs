@@ -260,9 +260,9 @@ namespace PhotoMap.Api.Database.Migrations
                         .HasColumnType("text")
                         .HasColumnName("file_name");
 
-                    b.Property<bool>("FromOtherFolder")
+                    b.Property<bool>("FromOtherUploads")
                         .HasColumnType("boolean")
-                        .HasColumnName("from_other_folder");
+                        .HasColumnName("from_other_uploads");
 
                     b.Property<bool>("HasGps")
                         .HasColumnType("boolean")
@@ -426,7 +426,7 @@ namespace PhotoMap.Api.Database.Migrations
                     b.ToTable("users", (string)null);
                 });
 
-            modelBuilder.Entity("PhotoMap.Api.Database.Entities.UserOtherFoldersStatusEntity", b =>
+            modelBuilder.Entity("PhotoMap.Api.Database.Entities.UserOtherUploadsStatusEntity", b =>
                 {
                     b.Property<long>("UserId")
                         .HasColumnType("bigint")
@@ -457,12 +457,12 @@ namespace PhotoMap.Api.Database.Migrations
                         .HasColumnName("total_count");
 
                     b.HasKey("UserId", "PhotoSourceId")
-                        .HasName("pk_users_other_folders_status");
+                        .HasName("pk_users_other_uploads_status");
 
                     b.HasIndex("PhotoSourceId")
-                        .HasDatabaseName("ix_users_other_folders_status_photo_source_id");
+                        .HasDatabaseName("ix_users_other_uploads_status_photo_source_id");
 
-                    b.ToTable("users_other_folders_status", (string)null);
+                    b.ToTable("users_other_uploads_status", (string)null);
                 });
 
             modelBuilder.Entity("PhotoMap.Api.Database.Entities.UserPhotoSourceEntity", b =>
@@ -768,21 +768,21 @@ namespace PhotoMap.Api.Database.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("PhotoMap.Api.Database.Entities.UserOtherFoldersStatusEntity", b =>
+            modelBuilder.Entity("PhotoMap.Api.Database.Entities.UserOtherUploadsStatusEntity", b =>
                 {
                     b.HasOne("PhotoMap.Api.Database.Entities.PhotoSourceEntity", "PhotoSource")
                         .WithMany()
                         .HasForeignKey("PhotoSourceId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
-                        .HasConstraintName("fk_users_other_folders_status_photo_sources_photo_source_id");
+                        .HasConstraintName("fk_users_other_uploads_status_photo_sources_photo_source_id");
 
                     b.HasOne("PhotoMap.Api.Database.Entities.UserEntity", "User")
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
-                        .HasConstraintName("fk_users_other_folders_status_users_user_id");
+                        .HasConstraintName("fk_users_other_uploads_status_users_user_id");
 
                     b.Navigation("PhotoSource");
 

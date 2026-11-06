@@ -99,7 +99,7 @@ public class UsersControllerTests
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public async Task GetUserPhotos_ShouldTakeThePhotosOfTheOtherFolders_OnlyWhenAskedFor(bool allFolders)
+    public async Task GetUserPhotos_ShouldTakeThePhotosOfTheOtherUploads_OnlyWhenAskedFor(bool allFolders)
     {
         // Arrange
         var controller = CreateController();
@@ -108,10 +108,10 @@ public class UsersControllerTests
         await controller.GetUserPhotos(UserId, 100, 0, allFolders: allFolders);
 
         // Assert
-        _photoService.Verify(a => a.GetByUserIdAsync(UserId, It.Is<PhotoFilter>(f => f.IncludeOtherFolders == allFolders),
+        _photoService.Verify(a => a.GetByUserIdAsync(UserId, It.Is<PhotoFilter>(f => f.IncludeOtherUploads == allFolders),
             100, 0, PhotoSortOrder.Asc));
         _photoService.Verify(a => a.GetTotalCountByUserIdAsync(UserId,
-            It.Is<PhotoFilter>(f => f.IncludeOtherFolders == allFolders)));
+            It.Is<PhotoFilter>(f => f.IncludeOtherUploads == allFolders)));
     }
 
     [Fact]

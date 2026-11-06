@@ -10,8 +10,8 @@ namespace PhotoMap.Api.Domain.Models;
 /// <param name="Categories">The categories the photos are in, any of them. <see cref="PhotoCategory.Other"/> takes
 /// the photos in none of the categories, <see cref="PhotoCategory.Deleted"/> the photos marked as deleted.</param>
 /// <param name="HasGps">Whether the photos have a GPS location, or null for the photos with and without one.</param>
-/// <param name="IncludeOtherFolders">Whether the photos outside the folders the sources are processed from are taken
-/// too, see <see cref="Photo.FromOtherFolder"/>.</param>
+/// <param name="IncludeOtherUploads">Whether the photos outside the folders the sources are processed from are taken
+/// too, see <see cref="Photo.FromOtherUploads"/>.</param>
 /// <param name="TagIds">The tags the photos have, any of them. With <paramref name="Untagged"/>, the photos with no tag
 /// are taken too.</param>
 /// <param name="Untagged">Whether the photos with no tag are taken, along with those of <paramref name="TagIds"/>;
@@ -21,7 +21,7 @@ public record PhotoFilter(
     IReadOnlyCollection<int> Years,
     IReadOnlyCollection<PhotoCategory> Categories,
     bool? HasGps = null,
-    bool IncludeOtherFolders = false,
+    bool IncludeOtherUploads = false,
     IReadOnlyCollection<long>? TagIds = null,
     bool Untagged = false)
 {

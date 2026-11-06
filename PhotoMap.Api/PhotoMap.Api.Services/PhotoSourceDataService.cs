@@ -33,7 +33,7 @@ public class PhotoSourceDataService : IPhotoSourceDataService
     }
 
     /// <summary>
-    /// Deletes the photos of a photo source, of the folder it is processed from and of the other folders, and what
+    /// Deletes the photos of a photo source, of the folder it is processed from and of the other uploads, and what
     /// the runs that downloaded them left behind: the thumbnails, the statuses of the source, the state a stopped run resumes from and the files that failed. The photos
     /// themselves stay in the photo source, and the user stays authorized in it, so processing it again downloads
     /// them all anew.
@@ -58,7 +58,7 @@ public class PhotoSourceDataService : IPhotoSourceDataService
             return false;
         }
 
-        await DeletePhotosAsync(_photoService.DeleteByPhotoSourceAsync(userId, sourceId, fromOtherFolder: false));
+        await DeletePhotosAsync(_photoService.DeleteByPhotoSourceAsync(userId, sourceId, fromOtherUploads: false));
 
         await _userPhotoSourceService.DeleteUserPhotoStatusAsync(userId, sourceId);
         await _userPhotoSourceService.UpdateUserPhotoStateAsync(userId, sourceId, null);
@@ -74,19 +74,19 @@ public class PhotoSourceDataService : IPhotoSourceDataService
 
     public async Task<bool> DeleteOtherUploadsDataAsync(long userId, long sourceId)
     {
-        if (_photoSourceProcessingService.IsOtherFoldersRunning(userId, sourceId))
+        if (_photoSourceProcessingService.IsOtherUploadsRunning(userId, sourceId))
         {
             return false;
         }
 
-        await DeletePhotosAsync(_photoService.DeleteByPhotoSourceAsync(userId, sourceId, fromOtherFolder: true));
+        await DeletePhotosAsync(_photoService.DeleteByPhotoSourceAsync(userId, sourceId, fromOtherUploads: true));
 
-        await _userPhotoSourceService.DeleteOtherFoldersStatusAsync(userId, sourceId);
+        await _userPhotoSourceService.DeleteOtherUploadsStatusAsync(userId, sourceId);
 
         _logger.LogInformation("Deleted the other uploads of photo source {SourceId} of user {UserId}", sourceId,
             userId);
 
-        await _frontendNotificationService.SendOtherFoldersProgressAsync(NotStarted(userId, sourceId));
+        await _frontendNotificationService.SendOtherUploadsProgressAsync(NotStarted(userId, sourceId));
 
         return true;
     }
@@ -112,7 +112,7 @@ public class PhotoSourceDataService : IPhotoSourceDataService
     private bool IsRunning(long userId, long sourceId)
     {
         return _photoSourceProcessingService.IsRunning(userId, sourceId) ||
-               _photoSourceProcessingService.IsOtherFoldersRunning(userId, sourceId);
+               _photoSourceProcessingService.IsOtherUploadsRunning(userId, sourceId);
     }
 
     private async Task DeleteSourceDataAsync(long userId, long sourceId)
@@ -120,7 +120,7 @@ public class PhotoSourceDataService : IPhotoSourceDataService
         await DeletePhotosAsync(_photoService.DeleteByPhotoSourceAsync(userId, sourceId));
 
         await _userPhotoSourceService.DeleteUserPhotoStatusAsync(userId, sourceId);
-        await _userPhotoSourceService.DeleteOtherFoldersStatusAsync(userId, sourceId);
+        await _userPhotoSourceService.DeleteOtherUploadsStatusAsync(userId, sourceId);
         await _userPhotoSourceService.UpdateUserPhotoStateAsync(userId, sourceId, null);
         await _failedFileService.DeleteByPhotoSourceAsync(userId, sourceId);
 
@@ -138,7 +138,7 @@ public class PhotoSourceDataService : IPhotoSourceDataService
         var status = NotStarted(userId, sourceId);
 
         await _frontendNotificationService.SendProgressAsync(status);
-        await _frontendNotificationService.SendOtherFoldersProgressAsync(status);
+        await _frontendNotificationService.SendOtherUploadsProgressAsync(status);
     }
 
     private static UserPhotoSourceStatus NotStarted(long userId, long sourceId)

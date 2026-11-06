@@ -39,7 +39,7 @@ public class PhotoEntity
     /// <summary>
     /// The photo is outside the folder the source is processed from.
     /// </summary>
-    public bool FromOtherFolder { get; set; }
+    public bool FromOtherUploads { get; set; }
 
     /// <summary>
     /// The version of the rules the photo was put in its categories by, 0 until it has been.

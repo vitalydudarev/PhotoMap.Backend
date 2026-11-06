@@ -116,7 +116,7 @@ namespace PhotoMap.Api.Controllers
         /// Starts or stops the processing of the other uploads of the photo source: the photos outside the folder it
         /// is processed from, which runs apart from the processing of the camera uploads. The thumbnails of the photos are made from the largest
         /// preview the source makes of each. Starting again skips the photos saved already, so it carries on where it
-        /// left off. Only Yandex.Disk sources have their other folders processed.
+        /// left off. Only Yandex.Disk sources have their other uploads processed.
         /// </summary>
         /// <param name="userId">The ID of the user.</param>
         /// <param name="sourceId">The ID of the photo source.</param>
@@ -128,7 +128,7 @@ namespace PhotoMap.Api.Controllers
         public async Task<IActionResult> OtherUploadsProcessing(long userId, long sourceId,
             [FromBody] PhotoSourceProcessingCommands command)
         {
-            if (!await _photoSourceProcessingService.SupportsOtherFoldersAsync(sourceId))
+            if (!await _photoSourceProcessingService.SupportsOtherUploadsAsync(sourceId))
             {
                 return BadRequest("The photo source has no other uploads.");
             }
@@ -138,7 +138,7 @@ namespace PhotoMap.Api.Controllers
                 return BadRequest("The other uploads of a photo source are only started and stopped.");
             }
 
-            var accepted = await _photoSourceProcessingService.RunOtherFoldersCommandAsync(userId, sourceId, command);
+            var accepted = await _photoSourceProcessingService.RunOtherUploadsCommandAsync(userId, sourceId, command);
             if (!accepted)
             {
                 return Conflict("Processing of the other uploads of the photo source is already running.");
@@ -158,9 +158,9 @@ namespace PhotoMap.Api.Controllers
         [ProducesResponseType(typeof(PhotoSourceProgressDto), StatusCodes.Status200OK)]
         public async Task<IActionResult> GetOtherUploadsStatus(long userId, long sourceId)
         {
-            var status = await _userPhotoSourceService.GetOtherFoldersStatusAsync(userId, sourceId);
+            var status = await _userPhotoSourceService.GetOtherUploadsStatusAsync(userId, sourceId);
 
-            // the other folders of a source that have never been processed have no status saved
+            // the other uploads of a source that have never been processed have no status saved
             var dto = new PhotoSourceProgressDto
             {
                 Status = Enum.Parse<UserPhotoSourceStatusDto>((status?.Status ?? PhotoSourceStatus.NotStarted).ToString()),
@@ -216,7 +216,7 @@ namespace PhotoMap.Api.Controllers
         }
 
         /// <summary>
-        /// Deletes the other uploads imported from the photo source, the photos of its other folders, with the
+        /// Deletes the other uploads imported from the photo source, the photos of its other uploads, with the
         /// status of their processing. The camera uploads stay, and the user stays authorized in the source.
         /// </summary>
         [HttpDelete("{sourceId:long}/other-uploads/data")]
@@ -225,7 +225,7 @@ namespace PhotoMap.Api.Controllers
         [ProducesResponseType(StatusCodes.Status409Conflict)]
         public async Task<IActionResult> DeleteOtherUploadsData(long userId, long sourceId)
         {
-            if (!await _photoSourceProcessingService.SupportsOtherFoldersAsync(sourceId))
+            if (!await _photoSourceProcessingService.SupportsOtherUploadsAsync(sourceId))
             {
                 return BadRequest("The photo source has no other uploads.");
             }

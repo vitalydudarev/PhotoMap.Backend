@@ -27,6 +27,6 @@ public class ProcessedImage
     /// <summary>
     /// The image is a photo outside the folder the source is processed from.
     /// </summary>
-    public bool FromOtherFolder { get; set; }
+    public bool FromOtherUploads { get; set; }
     public TaskCompletionSource<ProcessingResult>? Processed { get; set; }
 }

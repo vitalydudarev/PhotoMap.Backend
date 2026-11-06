@@ -61,7 +61,7 @@ namespace PhotoMap.Api.Controllers
         /// category but <c>Deleted</c> when not given.</param>
         /// <param name="gps">Whether the photos have a GPS location. The photos with and without one when not given.</param>
         /// <param name="allFolders">Whether the photos outside the folders the sources are processed from are taken
-        /// too, the ones of the other folders of Yandex.Disk. Only the photos of those folders when not given.</param>
+        /// too, the ones of the other uploads of Yandex.Disk. Only the photos of those folders when not given.</param>
         /// <param name="tag">The IDs of the tags the photos have, any of them, repeated for each one, such as
         /// <c>tag=4&amp;tag=9</c>. The photos with and without tags when neither this nor <c>untagged</c> is
         /// given.</param>

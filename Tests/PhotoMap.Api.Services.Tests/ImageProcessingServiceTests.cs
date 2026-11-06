@@ -17,20 +17,20 @@ public class ImageProcessingServiceTests : IDisposable
     }
 
     [Fact]
-    public void ProcessImage_ShouldMarkThePhoto_WhenItIsFromAnotherFolder()
+    public void ProcessImage_ShouldMarkThePhoto_WhenItIsOfTheOtherUploads()
     {
         // Arrange
         var service = new ImageProcessingService(NullLogger<ImageProcessingService>.Instance, new Mock<IExifExtractor>().Object);
         var request = CreateRequest(new DownloadedFileInfo("c.jpg", "disk:/Photos/c.jpg", DateTime.UtcNow, "id")
         {
-            FromOtherFolder = true
+            FromOtherUploads = true
         });
 
         // Act
         var processedImage = service.ProcessImage(request);
 
         // Assert
-        Assert.True(processedImage.FromOtherFolder);
+        Assert.True(processedImage.FromOtherUploads);
         Assert.Equal([256], processedImage.Thumbs.Keys);
     }
 
@@ -47,7 +47,7 @@ public class ImageProcessingServiceTests : IDisposable
         // Assert
         Assert.Equal(64, processedImage.ContentHash.Length);
         Assert.Null(processedImage.Latitude);
-        Assert.False(processedImage.FromOtherFolder);
+        Assert.False(processedImage.FromOtherUploads);
     }
 
     public void Dispose()

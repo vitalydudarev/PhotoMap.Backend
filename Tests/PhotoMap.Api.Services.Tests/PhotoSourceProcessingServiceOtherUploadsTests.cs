@@ -18,7 +18,7 @@ using PhotoMap.Shared.Yandex.Disk.Models;
 
 namespace PhotoMap.Api.Services.Tests;
 
-public class PhotoSourceProcessingServiceOtherFoldersTests
+public class PhotoSourceProcessingServiceOtherUploadsTests
 {
     private const long UserId = 1;
     private const long DropboxSourceId = 1;
@@ -36,7 +36,7 @@ public class PhotoSourceProcessingServiceOtherFoldersTests
     private readonly List<UserPhotoSourceStatus> _reportedStatuses = [];
     private Func<CancellationToken, Task>? _startedRun;
 
-    public PhotoSourceProcessingServiceOtherFoldersTests()
+    public PhotoSourceProcessingServiceOtherUploadsTests()
     {
         _photoSourceService
             .Setup(a => a.GetByIdAsync(DropboxSourceId))
@@ -48,7 +48,7 @@ public class PhotoSourceProcessingServiceOtherFoldersTests
             .Setup(a => a.GetAuthResultAsync(UserId, It.IsAny<long>()))
             .ReturnsAsync(new UserAuthResult { Token = "token", TokenExpiresOn = DateTimeOffset.UtcNow.AddDays(1) });
         _userPhotoSourceService
-            .Setup(a => a.UpdateOtherFoldersStatusAsync(It.IsAny<UserPhotoSourceStatus>()))
+            .Setup(a => a.UpdateOtherUploadsStatusAsync(It.IsAny<UserPhotoSourceStatus>()))
             .Callback<UserPhotoSourceStatus>(_reportedStatuses.Add)
             .Returns(Task.CompletedTask);
         _backgroundTaskManager
@@ -61,30 +61,30 @@ public class PhotoSourceProcessingServiceOtherFoldersTests
     }
 
     [Fact]
-    public async Task SupportsOtherFoldersAsync_ShouldOnlySupportYandexDisk()
+    public async Task SupportsOtherUploadsAsync_ShouldOnlySupportYandexDisk()
     {
         var service = CreateService(new FakeDiskHandler([]));
 
-        Assert.True(await service.SupportsOtherFoldersAsync(YandexDiskSourceId));
-        Assert.False(await service.SupportsOtherFoldersAsync(DropboxSourceId));
+        Assert.True(await service.SupportsOtherUploadsAsync(YandexDiskSourceId));
+        Assert.False(await service.SupportsOtherUploadsAsync(DropboxSourceId));
     }
 
     [Fact]
-    public async Task RunOtherFoldersCommandAsync_ShouldStartNothing_ForASourceOtherThanYandexDisk()
+    public async Task RunOtherUploadsCommandAsync_ShouldStartNothing_ForASourceOtherThanYandexDisk()
     {
         // Arrange
         var service = CreateService(new FakeDiskHandler([]));
 
         // Act & Assert
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            service.RunOtherFoldersCommandAsync(UserId, DropboxSourceId, PhotoSourceProcessingCommands.Start));
+            service.RunOtherUploadsCommandAsync(UserId, DropboxSourceId, PhotoSourceProcessingCommands.Start));
 
         _backgroundTaskManager.Verify(a => a.TryStartTask(It.IsAny<string>(), It.IsAny<Func<CancellationToken, Task>>()),
             Times.Never);
     }
 
     [Fact]
-    public async Task RunOtherFoldersCommandAsync_ShouldNotStart_WhileTheOtherFoldersAreBeingProcessed()
+    public async Task RunOtherUploadsCommandAsync_ShouldNotStart_WhileTheOtherUploadsAreBeingProcessed()
     {
         // Arrange
         _backgroundTaskManager.Setup(a => a.IsRunning(It.IsAny<string>())).Returns(true);
@@ -92,7 +92,7 @@ public class PhotoSourceProcessingServiceOtherFoldersTests
         var service = CreateService(new FakeDiskHandler([]));
 
         // Act
-        var accepted = await service.RunOtherFoldersCommandAsync(UserId, YandexDiskSourceId, PhotoSourceProcessingCommands.Start);
+        var accepted = await service.RunOtherUploadsCommandAsync(UserId, YandexDiskSourceId, PhotoSourceProcessingCommands.Start);
 
         // Assert
         Assert.False(accepted);
@@ -119,13 +119,13 @@ public class PhotoSourceProcessingServiceOtherFoldersTests
         var service = CreateService(handler);
 
         // Act
-        await service.RunOtherFoldersCommandAsync(UserId, YandexDiskSourceId, PhotoSourceProcessingCommands.Start);
+        await service.RunOtherUploadsCommandAsync(UserId, YandexDiskSourceId, PhotoSourceProcessingCommands.Start);
 
         await RunWithWorkerAsync(requests);
 
         // Assert
         Assert.Equal(["heic", "in-subfolder"], requests.Select(a => a.DownloadedFileInfo.FileId).Order());
-        Assert.All(requests, a => Assert.True(a.DownloadedFileInfo.FromOtherFolder));
+        Assert.All(requests, a => Assert.True(a.DownloadedFileInfo.FromOtherUploads));
         Assert.All(requests, a => Assert.StartsWith("/storage/Bin/1/2/", a.FileName));
         Assert.Equal(["disk:/Camera Uploads/2020/b.jpg", "disk:/Photos/c.heic"], handler.DownloadedFiles.Order());
 
@@ -153,7 +153,7 @@ public class PhotoSourceProcessingServiceOtherFoldersTests
         var service = CreateService(handler);
 
         // Act
-        await service.RunOtherFoldersCommandAsync(UserId, YandexDiskSourceId, PhotoSourceProcessingCommands.Start);
+        await service.RunOtherUploadsCommandAsync(UserId, YandexDiskSourceId, PhotoSourceProcessingCommands.Start);
 
         await RunWithWorkerAsync([], ProcessingResult.Failed("Failed to decode the image."));
 
@@ -182,7 +182,7 @@ public class PhotoSourceProcessingServiceOtherFoldersTests
 
         // Assert
         Assert.Equal(resource.Created, fileInfo.CreatedOn);
-        Assert.True(fileInfo.FromOtherFolder);
+        Assert.True(fileInfo.FromOtherUploads);
     }
 
     /// <summary>

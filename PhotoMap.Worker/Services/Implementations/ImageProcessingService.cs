@@ -58,7 +58,7 @@ namespace PhotoMap.Worker.Services.Implementations
                 UserId = request.UserId,
                 PhotoSourceId = request.PhotoSourceId,
                 PhotoSourceName = request.PhotoSourceName,
-                FromOtherFolder = fileInfo.FromOtherFolder,
+                FromOtherUploads = fileInfo.FromOtherUploads,
                 Processed = request.Processed
             };
 

@@ -7,7 +7,7 @@ namespace PhotoMap.Api.Services.Services;
 /// <summary>
 /// The photos of a Yandex.Disk outside the folder it is processed from, wherever they are on it.
 /// </summary>
-public class YandexDiskOtherFolderPhotos
+public class YandexDiskOtherUploads
 {
     private const string ImageMediaType = "image";
     private const int PageSize = 500;
@@ -15,7 +15,7 @@ public class YandexDiskOtherFolderPhotos
     private readonly ApiClient _apiClient;
     private readonly ILogger _logger;
 
-    public YandexDiskOtherFolderPhotos(ApiClient apiClient, ILogger logger)
+    public YandexDiskOtherUploads(ApiClient apiClient, ILogger logger)
     {
         _apiClient = apiClient;
         _logger = logger;

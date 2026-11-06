@@ -37,9 +37,9 @@ public class Photo
 
     /// <summary>
     /// The photo is outside the folder the source is processed from. Such photos are only listed when asked for, see
-    /// <see cref="PhotoFilter.IncludeOtherFolders"/>.
+    /// <see cref="PhotoFilter.IncludeOtherUploads"/>.
     /// </summary>
-    public bool FromOtherFolder { get; set; }
+    public bool FromOtherUploads { get; set; }
 
     /// <summary>
     /// The names of the tags of the photo, by name. Only read along with the photos of the gallery.

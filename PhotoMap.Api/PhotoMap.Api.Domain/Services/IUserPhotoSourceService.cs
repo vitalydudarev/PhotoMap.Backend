@@ -23,14 +23,14 @@ public interface IUserPhotoSourceService
     /// The status of the last processing of the photos of the photo source outside the folder it is processed from,
     /// null when they have never been processed.
     /// </summary>
-    Task<UserPhotoSourceStatus?> GetOtherFoldersStatusAsync(long userId, long photoSourceId);
+    Task<UserPhotoSourceStatus?> GetOtherUploadsStatusAsync(long userId, long photoSourceId);
 
-    Task UpdateOtherFoldersStatusAsync(UserPhotoSourceStatus status);
-    Task DeleteOtherFoldersStatusAsync(long userId, long photoSourceId);
+    Task UpdateOtherUploadsStatusAsync(UserPhotoSourceStatus status);
+    Task DeleteOtherUploadsStatusAsync(long userId, long photoSourceId);
 
     /// <summary>
     /// Marks the runs recorded as in progress as paused, of the folder the sources are processed from and of the
-    /// other folders, returns how many there were.
+    /// other uploads, returns how many there were.
     /// </summary>
     Task<int> PauseInProgressAsync();
 }
