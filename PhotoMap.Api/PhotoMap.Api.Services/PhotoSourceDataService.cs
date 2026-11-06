@@ -10,7 +10,6 @@ public class PhotoSourceDataService : IPhotoSourceDataService
     private readonly IUserPhotoSourceService _userPhotoSourceService;
     private readonly IFailedFileService _failedFileService;
     private readonly IPhotoSourceProcessingService _photoSourceProcessingService;
-    private readonly IOtherFoldersProcessingService _otherFoldersProcessingService;
     private readonly IFileStorage _fileStorage;
     private readonly IFrontendNotificationService _frontendNotificationService;
     private readonly ILogger<PhotoSourceDataService> _logger;
@@ -20,7 +19,6 @@ public class PhotoSourceDataService : IPhotoSourceDataService
         IUserPhotoSourceService userPhotoSourceService,
         IFailedFileService failedFileService,
         IPhotoSourceProcessingService photoSourceProcessingService,
-        IOtherFoldersProcessingService otherFoldersProcessingService,
         IFileStorage fileStorage,
         IFrontendNotificationService frontendNotificationService,
         ILogger<PhotoSourceDataService> logger)
@@ -29,7 +27,6 @@ public class PhotoSourceDataService : IPhotoSourceDataService
         _userPhotoSourceService = userPhotoSourceService;
         _failedFileService = failedFileService;
         _photoSourceProcessingService = photoSourceProcessingService;
-        _otherFoldersProcessingService = otherFoldersProcessingService;
         _fileStorage = fileStorage;
         _frontendNotificationService = frontendNotificationService;
         _logger = logger;
@@ -75,7 +72,7 @@ public class PhotoSourceDataService : IPhotoSourceDataService
     private bool IsRunning(long userId, long sourceId)
     {
         return _photoSourceProcessingService.IsRunning(userId, sourceId) ||
-               _otherFoldersProcessingService.IsRunning(userId, sourceId);
+               _photoSourceProcessingService.IsOtherFoldersRunning(userId, sourceId);
     }
 
     private async Task DeleteSourceDataAsync(long userId, long sourceId)

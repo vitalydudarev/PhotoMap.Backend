@@ -70,7 +70,6 @@ namespace PhotoMap.Api
             services.AddScoped<IDownloadServiceFactory, DropboxDownloadServiceFactory>();
             services.AddScoped<IDownloadServiceFactory, YandexDiskDownloadServiceFactory>();
             services.AddScoped<IVideoProcessingService, VideoProcessingService>();
-            services.AddScoped<IOtherFoldersProcessingService, OtherFoldersProcessingService>();
             services.AddSingleton<SourceDownloadStatuses>();
             services.AddScoped<ISourceDownloadService, SourceDownloadService>();
             services.AddScoped<ISourceFilesFactory, SourceFilesFactory>();

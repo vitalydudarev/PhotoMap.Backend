@@ -15,7 +15,6 @@ public class PhotoSourceDataServiceTests
     private readonly Mock<IUserPhotoSourceService> _userPhotoSourceService = new();
     private readonly Mock<IFailedFileService> _failedFileService = new();
     private readonly Mock<IPhotoSourceProcessingService> _processingService = new();
-    private readonly Mock<IOtherFoldersProcessingService> _otherFoldersProcessingService = new();
     private readonly Mock<IFileStorage> _fileStorage = new();
     private readonly Mock<IFrontendNotificationService> _frontendNotificationService = new();
 
@@ -75,7 +74,7 @@ public class PhotoSourceDataServiceTests
     public async Task DeleteDataAsync_ShouldDeleteNothing_WhileTheOtherFoldersOfTheSourceAreBeingProcessed()
     {
         // Arrange
-        _otherFoldersProcessingService.Setup(a => a.IsRunning(UserId, SourceId)).Returns(true);
+        _processingService.Setup(a => a.IsOtherFoldersRunning(UserId, SourceId)).Returns(true);
 
         var service = CreateService();
 
@@ -179,7 +178,7 @@ public class PhotoSourceDataServiceTests
     private PhotoSourceDataService CreateService()
     {
         return new PhotoSourceDataService(_photoService.Object, _userPhotoSourceService.Object,
-            _failedFileService.Object, _processingService.Object, _otherFoldersProcessingService.Object, _fileStorage.Object, _frontendNotificationService.Object,
+            _failedFileService.Object, _processingService.Object, _fileStorage.Object, _frontendNotificationService.Object,
             NullLogger<PhotoSourceDataService>.Instance);
     }
 }

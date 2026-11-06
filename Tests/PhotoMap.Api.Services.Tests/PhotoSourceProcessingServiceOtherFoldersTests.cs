@@ -18,7 +18,7 @@ using PhotoMap.Shared.Yandex.Disk.Models;
 
 namespace PhotoMap.Api.Services.Tests;
 
-public class OtherFoldersProcessingServiceTests
+public class PhotoSourceProcessingServiceOtherFoldersTests
 {
     private const long UserId = 1;
     private const long DropboxSourceId = 1;
@@ -36,7 +36,7 @@ public class OtherFoldersProcessingServiceTests
     private readonly List<UserPhotoSourceStatus> _reportedStatuses = [];
     private Func<CancellationToken, Task>? _startedRun;
 
-    public OtherFoldersProcessingServiceTests()
+    public PhotoSourceProcessingServiceOtherFoldersTests()
     {
         _photoSourceService
             .Setup(a => a.GetByIdAsync(DropboxSourceId))
@@ -70,21 +70,21 @@ public class OtherFoldersProcessingServiceTests
     }
 
     [Fact]
-    public async Task RunCommandAsync_ShouldStartNothing_ForASourceOtherThanYandexDisk()
+    public async Task RunOtherFoldersCommandAsync_ShouldStartNothing_ForASourceOtherThanYandexDisk()
     {
         // Arrange
         var service = CreateService(new FakeDiskHandler([]));
 
         // Act & Assert
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            service.RunCommandAsync(UserId, DropboxSourceId, PhotoSourceProcessingCommands.Start));
+            service.RunOtherFoldersCommandAsync(UserId, DropboxSourceId, PhotoSourceProcessingCommands.Start));
 
         _backgroundTaskManager.Verify(a => a.TryStartTask(It.IsAny<string>(), It.IsAny<Func<CancellationToken, Task>>()),
             Times.Never);
     }
 
     [Fact]
-    public async Task RunCommandAsync_ShouldNotStart_WhileTheOtherFoldersAreBeingProcessed()
+    public async Task RunOtherFoldersCommandAsync_ShouldNotStart_WhileTheOtherFoldersAreBeingProcessed()
     {
         // Arrange
         _backgroundTaskManager.Setup(a => a.IsRunning(It.IsAny<string>())).Returns(true);
@@ -92,7 +92,7 @@ public class OtherFoldersProcessingServiceTests
         var service = CreateService(new FakeDiskHandler([]));
 
         // Act
-        var accepted = await service.RunCommandAsync(UserId, YandexDiskSourceId, PhotoSourceProcessingCommands.Start);
+        var accepted = await service.RunOtherFoldersCommandAsync(UserId, YandexDiskSourceId, PhotoSourceProcessingCommands.Start);
 
         // Assert
         Assert.False(accepted);
@@ -119,7 +119,7 @@ public class OtherFoldersProcessingServiceTests
         var service = CreateService(handler);
 
         // Act
-        await service.RunCommandAsync(UserId, YandexDiskSourceId, PhotoSourceProcessingCommands.Start);
+        await service.RunOtherFoldersCommandAsync(UserId, YandexDiskSourceId, PhotoSourceProcessingCommands.Start);
 
         await RunWithWorkerAsync(requests);
 
@@ -153,7 +153,7 @@ public class OtherFoldersProcessingServiceTests
         var service = CreateService(handler);
 
         // Act
-        await service.RunCommandAsync(UserId, YandexDiskSourceId, PhotoSourceProcessingCommands.Start);
+        await service.RunOtherFoldersCommandAsync(UserId, YandexDiskSourceId, PhotoSourceProcessingCommands.Start);
 
         await RunWithWorkerAsync([], ProcessingResult.Failed("Failed to decode the image."));
 
@@ -178,7 +178,7 @@ public class OtherFoldersProcessingServiceTests
         };
 
         // Act
-        var fileInfo = OtherFoldersProcessingService.CreateFileInfo(resource);
+        var fileInfo = PhotoSourceProcessingService.CreateFileInfo(resource);
 
         // Assert
         Assert.Equal(resource.Created, fileInfo.CreatedOn);
@@ -209,7 +209,7 @@ public class OtherFoldersProcessingServiceTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => worker);
     }
 
-    private OtherFoldersProcessingService CreateService(HttpMessageHandler handler)
+    private PhotoSourceProcessingService CreateService(HttpMessageHandler handler)
     {
         var httpClientFactory = new Mock<IHttpClientFactory>();
         httpClientFactory.Setup(a => a.CreateClient(It.IsAny<string>())).Returns(() => new HttpClient(handler));
@@ -223,7 +223,7 @@ public class OtherFoldersProcessingServiceTests
         services.AddSingleton(httpClientFactory.Object);
         services.AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
 
-        return new OtherFoldersProcessingService(_userPhotoSourceService.Object, _photoSourceService.Object,
+        return new PhotoSourceProcessingService(_userPhotoSourceService.Object, _photoSourceService.Object,
             _backgroundTaskManager.Object, services.BuildServiceProvider().GetRequiredService<IServiceScopeFactory>(),
             Options.Create(new PhotoProcessingSettings { Sizes = [256, 640] }));
     }

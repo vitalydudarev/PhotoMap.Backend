@@ -20,20 +20,17 @@ namespace PhotoMap.Api.Controllers
         private readonly IPhotoSourceProcessingService _photoSourceProcessingService;
         private readonly IPhotoSourceDataService _photoSourceDataService;
         private readonly IFailedFileService _failedFileService;
-        private readonly IOtherFoldersProcessingService _otherFoldersProcessingService;
 
         public UsersPhotoSourcesController(
             IUserPhotoSourceService userPhotoSourceService,
             IPhotoSourceProcessingService photoSourceProcessingService,
             IPhotoSourceDataService photoSourceDataService,
-            IFailedFileService failedFileService,
-            IOtherFoldersProcessingService otherFoldersProcessingService)
+            IFailedFileService failedFileService)
         {
             _userPhotoSourceService = userPhotoSourceService;
             _photoSourceProcessingService = photoSourceProcessingService;
             _photoSourceDataService = photoSourceDataService;
             _failedFileService = failedFileService;
-            _otherFoldersProcessingService = otherFoldersProcessingService;
         }
 
         [HttpGet]
@@ -124,7 +121,7 @@ namespace PhotoMap.Api.Controllers
         public async Task<IActionResult> OtherFoldersProcessing(long userId, long sourceId,
             [FromBody] PhotoSourceProcessingCommands command)
         {
-            if (!await _otherFoldersProcessingService.SupportsOtherFoldersAsync(sourceId))
+            if (!await _photoSourceProcessingService.SupportsOtherFoldersAsync(sourceId))
             {
                 return BadRequest("The other folders of the photo source cannot be processed.");
             }
@@ -134,7 +131,7 @@ namespace PhotoMap.Api.Controllers
                 return BadRequest("The other folders of a photo source are only started and stopped.");
             }
 
-            var accepted = await _otherFoldersProcessingService.RunCommandAsync(userId, sourceId, command);
+            var accepted = await _photoSourceProcessingService.RunOtherFoldersCommandAsync(userId, sourceId, command);
             if (!accepted)
             {
                 return Conflict("Processing of the other folders of the photo source is already running.");
