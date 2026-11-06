@@ -1,5 +1,7 @@
 using Dropbox.Api;
 using Dropbox.Api.Files;
+using Dropbox.Api.Stone;
+using Microsoft.Extensions.Logging;
 using PhotoMap.Api.Domain.Models;
 
 namespace PhotoMap.Api.Services.Services;
@@ -10,6 +12,18 @@ namespace PhotoMap.Api.Services.Services;
 public sealed class DropboxSourceFiles : ISourceFiles
 {
     private const int ListPageSize = 2000;
+
+    /// <summary>
+    /// How long the download of a file waits to start, for the headers of the response, before the attempt fails.
+    /// Reading the contents takes as long as it does.
+    /// </summary>
+    public static readonly TimeSpan DownloadTimeout = TimeSpan.FromSeconds(10);
+
+    /// <summary>
+    /// How many times the download of a file is tried again when it fails. The client the files are downloaded with
+    /// does not retry by itself, see <see cref="DropboxClientFactory.Create"/>.
+    /// </summary>
+    public const int DownloadMaxRetries = 2;
 
     /// <summary>
     /// The sizes of the thumbnail, the largest first: a photo Dropbox cannot make one size of may make a smaller one.
@@ -25,12 +39,23 @@ public sealed class DropboxSourceFiles : ISourceFiles
     ];
 
     private readonly DropboxClient _dropboxClient;
+    private readonly DropboxClient _downloadClient;
     private readonly DropboxSettings _settings;
+    private readonly ILogger _logger;
+    private readonly Func<int, TimeSpan> _retryDelay;
 
-    public DropboxSourceFiles(DropboxClient dropboxClient, DropboxSettings settings)
+    /// <param name="dropboxClient">Lists the files and makes their previews.</param>
+    /// <param name="downloadClient">Downloads the files, with no retries of its own.</param>
+    /// <param name="retryDelay">How long to wait before the retry of the attempt given, 2 then 4 seconds when not
+    /// given. A rate limit reached waits as long as Dropbox asks for instead.</param>
+    public DropboxSourceFiles(DropboxClient dropboxClient, DropboxClient downloadClient, DropboxSettings settings, ILogger logger,
+        Func<int, TimeSpan>? retryDelay = null)
     {
         _dropboxClient = dropboxClient;
+        _downloadClient = downloadClient;
         _settings = settings;
+        _logger = logger;
+        _retryDelay = retryDelay ?? (attempt => TimeSpan.FromSeconds(Math.Pow(2, attempt)));
     }
 
     public int MaxParallelDownloads => Math.Max(_settings.MaxParallelFileDownloads, 1);
@@ -72,12 +97,84 @@ public sealed class DropboxSourceFiles : ISourceFiles
         return files;
     }
 
+    /// <summary>
+    /// The download waits <see cref="DownloadTimeout"/> to start, and is tried again up to
+    /// <see cref="DownloadMaxRetries"/> times.
+    /// </summary>
     public async Task CopyToAsync(SourceFile file, Stream destination, CancellationToken cancellationToken)
     {
-        using var response = await _dropboxClient.Files.DownloadAsync(file.Path);
+        using var response = await OpenDownloadAsync(file.Path, cancellationToken);
         await using var contentStream = await response.GetContentAsStreamAsync();
 
         await contentStream.CopyToAsync(destination, cancellationToken);
+    }
+
+    /// <summary>
+    /// Starts downloading the file, again up to <see cref="DownloadMaxRetries"/> times when it fails. A token Dropbox
+    /// does not accept fails at once, as do a file it cannot download and a stopped download: none of them would go
+    /// any differently on a retry.
+    /// </summary>
+    private async Task<IDownloadResponse<FileMetadata>> OpenDownloadAsync(string path, CancellationToken cancellationToken)
+    {
+        for (var attempt = 1; ; attempt++)
+        {
+            try
+            {
+                return await StartDownloadAsync(path, cancellationToken);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception e) when (e is not AuthException and not ApiException<DownloadError> && attempt <= DownloadMaxRetries)
+            {
+                var delay = e is RateLimitException rateLimit
+                    ? TimeSpan.FromSeconds(Math.Max(rateLimit.RetryAfter, 1))
+                    : _retryDelay(attempt);
+
+                _logger.LogWarning(e, "Downloading {Path} failed: {ErrorMessage}, retrying in {RetryDelay} (attempt {Attempt} of {MaxAttempts})",
+                    path, e.Message, delay, attempt, DownloadMaxRetries);
+
+                await Task.Delay(delay, cancellationToken);
+            }
+        }
+    }
+
+    /// <summary>
+    /// The Dropbox SDK cannot cancel a download, so it is waited for <see cref="DownloadTimeout"/> at most. A download
+    /// given up on is disposed if it starts after all.
+    /// </summary>
+    /// <exception cref="TimeoutException">The download has not started within <see cref="DownloadTimeout"/>.</exception>
+    private async Task<IDownloadResponse<FileMetadata>> StartDownloadAsync(string path, CancellationToken cancellationToken)
+    {
+        var download = _downloadClient.Files.DownloadAsync(path);
+
+        try
+        {
+            return await download.WaitAsync(DownloadTimeout, cancellationToken);
+        }
+        catch (Exception e) when (e is TimeoutException or OperationCanceledException)
+        {
+            _ = download.ContinueWith(a =>
+            {
+                if (a.IsCompletedSuccessfully)
+                {
+                    a.Result.Dispose();
+                }
+                else
+                {
+                    // observed, so that the failure of a download given up on is not reported as unobserved
+                    _ = a.Exception;
+                }
+            }, TaskScheduler.Default);
+
+            if (e is TimeoutException)
+            {
+                throw new TimeoutException($"The download of {path} has not started within {DownloadTimeout.TotalSeconds:0} seconds.", e);
+            }
+
+            throw;
+        }
     }
 
     /// <summary>
@@ -120,5 +217,6 @@ public sealed class DropboxSourceFiles : ISourceFiles
     public void Dispose()
     {
         _dropboxClient.Dispose();
+        _downloadClient.Dispose();
     }
 }

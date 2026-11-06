@@ -85,7 +85,8 @@ public class SourceDownloadServiceTests : IDisposable
     [Fact]
     public async Task SupportsDownloadsAsync_ShouldSupportYandexDiskAndDropbox()
     {
-        var sourceFilesFactory = new SourceFilesFactory(Mock.Of<IHttpClientFactory>(), NullLogger<YandexDiskSourceFiles>.Instance);
+        var sourceFilesFactory = new SourceFilesFactory(Mock.Of<IHttpClientFactory>(), NullLogger<YandexDiskSourceFiles>.Instance,
+            NullLogger<DropboxSourceFiles>.Instance);
 
         Assert.True(sourceFilesFactory.Supports((await _photoSourceService.Object.GetByIdAsync(YandexDiskSourceId))));
         Assert.True(sourceFilesFactory.Supports((await _photoSourceService.Object.GetByIdAsync(DropboxSourceId))));

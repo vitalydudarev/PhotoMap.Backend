@@ -24,11 +24,14 @@ public class SourceFilesFactory : ISourceFilesFactory
 {
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly ILogger<YandexDiskSourceFiles> _logger;
+    private readonly ILogger<DropboxSourceFiles> _dropboxLogger;
 
-    public SourceFilesFactory(IHttpClientFactory httpClientFactory, ILogger<YandexDiskSourceFiles> logger)
+    public SourceFilesFactory(IHttpClientFactory httpClientFactory, ILogger<YandexDiskSourceFiles> logger,
+        ILogger<DropboxSourceFiles> dropboxLogger)
     {
         _httpClientFactory = httpClientFactory;
         _logger = logger;
+        _dropboxLogger = dropboxLogger;
     }
 
     public bool Supports(PhotoSource photoSource)
@@ -60,10 +63,14 @@ public class SourceFilesFactory : ISourceFilesFactory
         {
             var settings = new DropboxSettings();
 
-            var dropboxClient = DropboxClientFactory.Create(authResult, photoSource.ClientAuthSettings.OAuthConfiguration.ClientId,
-                _httpClientFactory.CreateClient("dropboxClient"));
+            var appKey = photoSource.ClientAuthSettings.OAuthConfiguration.ClientId;
+            var dropboxClient = DropboxClientFactory.Create(authResult, appKey, _httpClientFactory.CreateClient("dropboxClient"));
 
-            return new DropboxSourceFiles(dropboxClient, settings);
+            // the downloads of the files are retried by DropboxSourceFiles alone, as many times as it says
+            var downloadClient = DropboxClientFactory.Create(authResult, appKey, _httpClientFactory.CreateClient("dropboxClient"),
+                maxRetriesOnError: 0);
+
+            return new DropboxSourceFiles(dropboxClient, downloadClient, settings, _dropboxLogger);
         }
 
         throw new InvalidOperationException($"The files of photo source {photoSource.Name} cannot be downloaded.");
