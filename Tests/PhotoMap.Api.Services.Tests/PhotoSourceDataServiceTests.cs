@@ -26,6 +26,9 @@ public class PhotoSourceDataServiceTests
         _photoService
             .Setup(a => a.DeleteByPhotoSourceAsync(UserId, OtherSourceId))
             .ReturnsAsync(["Yandex.Disk/1/thumbs/photo_256.jpg"]);
+        _photoService
+            .Setup(a => a.DeleteByPhotoSourceAsync(UserId, SourceId, It.IsAny<bool>()))
+            .ReturnsAsync([]);
     }
 
     [Fact]
@@ -123,6 +126,115 @@ public class PhotoSourceDataServiceTests
 
         _fileStorage.Verify(a => a.Delete("Dropbox/1/thumbs/photo_640.jpg"));
         _userPhotoSourceService.Verify(a => a.DeleteUserPhotoStatusAsync(UserId, SourceId));
+    }
+
+    [Fact]
+    public async Task DeleteCameraUploadsDataAsync_ShouldDeleteOnlyTheCameraUploads()
+    {
+        // Arrange
+        _photoService
+            .Setup(a => a.DeleteByPhotoSourceAsync(UserId, SourceId, false))
+            .ReturnsAsync(["Yandex.Disk/1/thumbs/camera_256.jpg"]);
+
+        var service = CreateService();
+
+        // Act
+        var deleted = await service.DeleteCameraUploadsDataAsync(UserId, SourceId);
+
+        // Assert
+        Assert.True(deleted);
+
+        _photoService.Verify(a => a.DeleteByPhotoSourceAsync(UserId, SourceId, false));
+        _photoService.VerifyNoOtherCalls();
+        _fileStorage.Verify(a => a.Delete("Yandex.Disk/1/thumbs/camera_256.jpg"));
+        _userPhotoSourceService.Verify(a => a.DeleteUserPhotoStatusAsync(UserId, SourceId));
+        _userPhotoSourceService.Verify(a => a.UpdateUserPhotoStateAsync(UserId, SourceId, null));
+        _userPhotoSourceService.Verify(a => a.DeleteOtherFoldersStatusAsync(UserId, SourceId), Times.Never);
+        _failedFileService.Verify(a => a.DeleteByPhotoSourceAsync(UserId, SourceId));
+        _frontendNotificationService.Verify(a => a.SendProgressAsync(It.Is<UserPhotoSourceStatus>(b =>
+            b.PhotoSourceId == SourceId && b.Status == PhotoSourceStatus.NotStarted)));
+        _frontendNotificationService.Verify(a => a.SendOtherFoldersProgressAsync(It.IsAny<UserPhotoSourceStatus>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task DeleteCameraUploadsDataAsync_ShouldDeleteNothing_WhileTheCameraUploadsAreBeingProcessed()
+    {
+        // Arrange
+        _processingService.Setup(a => a.IsRunning(UserId, SourceId)).Returns(true);
+
+        var service = CreateService();
+
+        // Act
+        var deleted = await service.DeleteCameraUploadsDataAsync(UserId, SourceId);
+
+        // Assert
+        Assert.False(deleted);
+
+        _photoService.VerifyNoOtherCalls();
+        _userPhotoSourceService.VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public async Task DeleteCameraUploadsDataAsync_ShouldDelete_WhileTheOtherUploadsAreBeingProcessed()
+    {
+        // Arrange
+        _processingService.Setup(a => a.IsOtherFoldersRunning(UserId, SourceId)).Returns(true);
+
+        var service = CreateService();
+
+        // Act
+        var deleted = await service.DeleteCameraUploadsDataAsync(UserId, SourceId);
+
+        // Assert
+        Assert.True(deleted);
+    }
+
+    [Fact]
+    public async Task DeleteOtherUploadsDataAsync_ShouldDeleteOnlyTheOtherUploads()
+    {
+        // Arrange
+        _photoService
+            .Setup(a => a.DeleteByPhotoSourceAsync(UserId, SourceId, true))
+            .ReturnsAsync(["Yandex.Disk/1/thumbs/other_256.jpg"]);
+
+        var service = CreateService();
+
+        // Act
+        var deleted = await service.DeleteOtherUploadsDataAsync(UserId, SourceId);
+
+        // Assert
+        Assert.True(deleted);
+
+        _photoService.Verify(a => a.DeleteByPhotoSourceAsync(UserId, SourceId, true));
+        _photoService.VerifyNoOtherCalls();
+        _fileStorage.Verify(a => a.Delete("Yandex.Disk/1/thumbs/other_256.jpg"));
+        _userPhotoSourceService.Verify(a => a.DeleteOtherFoldersStatusAsync(UserId, SourceId));
+        _userPhotoSourceService.VerifyNoOtherCalls();
+
+        // the failed files are of the camera uploads, whose run retries them
+        _failedFileService.VerifyNoOtherCalls();
+        _frontendNotificationService.Verify(a => a.SendOtherFoldersProgressAsync(It.Is<UserPhotoSourceStatus>(b =>
+            b.PhotoSourceId == SourceId && b.Status == PhotoSourceStatus.NotStarted)));
+        _frontendNotificationService.Verify(a => a.SendProgressAsync(It.IsAny<UserPhotoSourceStatus>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task DeleteOtherUploadsDataAsync_ShouldDeleteNothing_WhileTheOtherUploadsAreBeingProcessed()
+    {
+        // Arrange
+        _processingService.Setup(a => a.IsOtherFoldersRunning(UserId, SourceId)).Returns(true);
+
+        var service = CreateService();
+
+        // Act
+        var deleted = await service.DeleteOtherUploadsDataAsync(UserId, SourceId);
+
+        // Assert
+        Assert.False(deleted);
+
+        _photoService.VerifyNoOtherCalls();
+        _userPhotoSourceService.VerifyNoOtherCalls();
     }
 
     [Fact]

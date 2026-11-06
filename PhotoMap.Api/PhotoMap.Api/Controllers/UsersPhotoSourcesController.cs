@@ -68,27 +68,34 @@ namespace PhotoMap.Api.Controllers
             return Ok();
         }
         
-        [HttpPost("{sourceId:long}")]
+        /// <summary>
+        /// Starts, stops or retries the failed files of the processing of the camera uploads of the photo source:
+        /// the photos of the folder it is processed from, which the source uploads the photos of the camera to.
+        /// </summary>
+        /// <param name="userId">The ID of the user.</param>
+        /// <param name="sourceId">The ID of the photo source.</param>
+        /// <param name="command">Start, Stop or RetryFailed.</param>
+        [HttpPost("{sourceId:long}/camera-uploads")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status409Conflict)]
-        public async Task<IActionResult> SourceProcessing(long userId, long sourceId, [FromBody] PhotoSourceProcessingCommands command)
+        public async Task<IActionResult> CameraUploadsProcessing(long userId, long sourceId, [FromBody] PhotoSourceProcessingCommands command)
         {
             var accepted = await _photoSourceProcessingService.RunCommandAsync(userId, sourceId, command);
             if (!accepted)
             {
-                return Conflict("Processing of the photo source is already running.");
+                return Conflict("Processing of the camera uploads of the photo source is already running.");
             }
 
             return Ok();
         }
 
         /// <summary>
-        /// The status of the processing of the photo source with the number of files processed, failed and in total.
-        /// A running source saves them periodically, the notification hub sends them live.
+        /// The status of the processing of the camera uploads of the photo source with the number of files processed,
+        /// failed and in total. A running source saves them periodically, the notification hub sends them live.
         /// </summary>
-        [HttpGet("{sourceId:long}/status")]
+        [HttpGet("{sourceId:long}/camera-uploads/status")]
         [ProducesResponseType(typeof(PhotoSourceProgressDto), StatusCodes.Status200OK)]
-        public async Task<IActionResult> GetStatus(long userId, long sourceId)
+        public async Task<IActionResult> GetCameraUploadsStatus(long userId, long sourceId)
         {
             var status = await _userPhotoSourceService.GetUserPhotoStatusAsync(userId, sourceId);
 
@@ -106,50 +113,50 @@ namespace PhotoMap.Api.Controllers
         }
 
         /// <summary>
-        /// Starts or stops the processing of the photos of the photo source outside the folder it is processed from,
-        /// which runs apart from the processing of that folder. The thumbnails of the photos are made from the largest
+        /// Starts or stops the processing of the other uploads of the photo source: the photos outside the folder it
+        /// is processed from, which runs apart from the processing of the camera uploads. The thumbnails of the photos are made from the largest
         /// preview the source makes of each. Starting again skips the photos saved already, so it carries on where it
         /// left off. Only Yandex.Disk sources have their other folders processed.
         /// </summary>
         /// <param name="userId">The ID of the user.</param>
         /// <param name="sourceId">The ID of the photo source.</param>
         /// <param name="command">Start or Stop.</param>
-        [HttpPost("{sourceId:long}/other-folders")]
+        [HttpPost("{sourceId:long}/other-uploads")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status409Conflict)]
-        public async Task<IActionResult> OtherFoldersProcessing(long userId, long sourceId,
+        public async Task<IActionResult> OtherUploadsProcessing(long userId, long sourceId,
             [FromBody] PhotoSourceProcessingCommands command)
         {
             if (!await _photoSourceProcessingService.SupportsOtherFoldersAsync(sourceId))
             {
-                return BadRequest("The other folders of the photo source cannot be processed.");
+                return BadRequest("The photo source has no other uploads.");
             }
 
             if (command != PhotoSourceProcessingCommands.Start && command != PhotoSourceProcessingCommands.Stop)
             {
-                return BadRequest("The other folders of a photo source are only started and stopped.");
+                return BadRequest("The other uploads of a photo source are only started and stopped.");
             }
 
             var accepted = await _photoSourceProcessingService.RunOtherFoldersCommandAsync(userId, sourceId, command);
             if (!accepted)
             {
-                return Conflict("Processing of the other folders of the photo source is already running.");
+                return Conflict("Processing of the other uploads of the photo source is already running.");
             }
 
             return Ok();
         }
 
         /// <summary>
-        /// The status of the processing of the photos of the photo source outside the folder it is processed from,
-        /// with the number of photos processed, failed and in total. A running source saves them periodically, the
+        /// The status of the processing of the other uploads of the photo source, the photos outside the folder it is
+        /// processed from, with the number of photos processed, failed and in total. A running source saves them periodically, the
         /// notification hub sends them live.
         /// </summary>
         /// <param name="userId">The ID of the user.</param>
         /// <param name="sourceId">The ID of the photo source.</param>
-        [HttpGet("{sourceId:long}/other-folders/status")]
+        [HttpGet("{sourceId:long}/other-uploads/status")]
         [ProducesResponseType(typeof(PhotoSourceProgressDto), StatusCodes.Status200OK)]
-        public async Task<IActionResult> GetOtherFoldersStatus(long userId, long sourceId)
+        public async Task<IActionResult> GetOtherUploadsStatus(long userId, long sourceId)
         {
             var status = await _userPhotoSourceService.GetOtherFoldersStatusAsync(userId, sourceId);
 
@@ -167,10 +174,10 @@ namespace PhotoMap.Api.Controllers
         }
 
         /// <summary>
-        /// The files of the photo source that could not be downloaded or processed, in the order they first failed.
-        /// The RetryFailed command downloads them again.
+        /// The camera uploads of the photo source that could not be downloaded or processed, in the order they first
+        /// failed. The RetryFailed command downloads them again.
         /// </summary>
-        [HttpGet("{sourceId:long}/failed-files")]
+        [HttpGet("{sourceId:long}/camera-uploads/failed-files")]
         [ProducesResponseType(typeof(IEnumerable<FailedFileDto>), StatusCodes.Status200OK)]
         public async Task<IActionResult> GetFailedFiles(long userId, long sourceId)
         {
@@ -191,8 +198,50 @@ namespace PhotoMap.Api.Controllers
         }
 
         /// <summary>
-        /// Deletes the photos imported from the photo source, of the folder it is processed from and of the other
-        /// folders, and the processing statuses and state of the source. The user stays authorized in it.
+        /// Deletes the camera uploads imported from the photo source, with the status, state and failed files of
+        /// their processing. The other uploads stay, and the user stays authorized in the source.
+        /// </summary>
+        [HttpDelete("{sourceId:long}/camera-uploads/data")]
+        [ProducesResponseType(StatusCodes.Status204NoContent)]
+        [ProducesResponseType(StatusCodes.Status409Conflict)]
+        public async Task<IActionResult> DeleteCameraUploadsData(long userId, long sourceId)
+        {
+            var deleted = await _photoSourceDataService.DeleteCameraUploadsDataAsync(userId, sourceId);
+            if (!deleted)
+            {
+                return Conflict("Processing of the camera uploads of the photo source is running.");
+            }
+
+            return NoContent();
+        }
+
+        /// <summary>
+        /// Deletes the other uploads imported from the photo source, the photos of its other folders, with the
+        /// status of their processing. The camera uploads stay, and the user stays authorized in the source.
+        /// </summary>
+        [HttpDelete("{sourceId:long}/other-uploads/data")]
+        [ProducesResponseType(StatusCodes.Status204NoContent)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status409Conflict)]
+        public async Task<IActionResult> DeleteOtherUploadsData(long userId, long sourceId)
+        {
+            if (!await _photoSourceProcessingService.SupportsOtherFoldersAsync(sourceId))
+            {
+                return BadRequest("The photo source has no other uploads.");
+            }
+
+            var deleted = await _photoSourceDataService.DeleteOtherUploadsDataAsync(userId, sourceId);
+            if (!deleted)
+            {
+                return Conflict("Processing of the other uploads of the photo source is running.");
+            }
+
+            return NoContent();
+        }
+
+        /// <summary>
+        /// Deletes all the photos imported from the photo source, its camera uploads and its other uploads, and the
+        /// processing statuses and state of the source. The user stays authorized in it.
         /// </summary>
         [HttpDelete("{sourceId:long}/data")]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
@@ -202,7 +251,7 @@ namespace PhotoMap.Api.Controllers
             var deleted = await _photoSourceDataService.DeleteDataAsync(userId, sourceId);
             if (!deleted)
             {
-                return Conflict("Processing of the photo source or of its other folders is running.");
+                return Conflict("Processing of the camera uploads or of the other uploads of the photo source is running.");
             }
 
             return NoContent();

@@ -51,6 +51,46 @@ public class PhotoSourceDataService : IPhotoSourceDataService
         return true;
     }
 
+    public async Task<bool> DeleteCameraUploadsDataAsync(long userId, long sourceId)
+    {
+        if (_photoSourceProcessingService.IsRunning(userId, sourceId))
+        {
+            return false;
+        }
+
+        await DeletePhotosAsync(_photoService.DeleteByPhotoSourceAsync(userId, sourceId, fromOtherFolder: false));
+
+        await _userPhotoSourceService.DeleteUserPhotoStatusAsync(userId, sourceId);
+        await _userPhotoSourceService.UpdateUserPhotoStateAsync(userId, sourceId, null);
+        await _failedFileService.DeleteByPhotoSourceAsync(userId, sourceId);
+
+        _logger.LogInformation("Deleted the camera uploads of photo source {SourceId} of user {UserId}", sourceId,
+            userId);
+
+        await _frontendNotificationService.SendProgressAsync(NotStarted(userId, sourceId));
+
+        return true;
+    }
+
+    public async Task<bool> DeleteOtherUploadsDataAsync(long userId, long sourceId)
+    {
+        if (_photoSourceProcessingService.IsOtherFoldersRunning(userId, sourceId))
+        {
+            return false;
+        }
+
+        await DeletePhotosAsync(_photoService.DeleteByPhotoSourceAsync(userId, sourceId, fromOtherFolder: true));
+
+        await _userPhotoSourceService.DeleteOtherFoldersStatusAsync(userId, sourceId);
+
+        _logger.LogInformation("Deleted the other uploads of photo source {SourceId} of user {UserId}", sourceId,
+            userId);
+
+        await _frontendNotificationService.SendOtherFoldersProgressAsync(NotStarted(userId, sourceId));
+
+        return true;
+    }
+
     public async Task<bool> DeleteAllDataAsync()
     {
         var userPhotoSources = await _userPhotoSourceService.GetAllUserPhotoSourceIdsAsync();
@@ -77,12 +117,7 @@ public class PhotoSourceDataService : IPhotoSourceDataService
 
     private async Task DeleteSourceDataAsync(long userId, long sourceId)
     {
-        var thumbnailPaths = await _photoService.DeleteByPhotoSourceAsync(userId, sourceId);
-
-        foreach (var thumbnailPath in thumbnailPaths)
-        {
-            DeleteThumbnail(thumbnailPath);
-        }
+        await DeletePhotosAsync(_photoService.DeleteByPhotoSourceAsync(userId, sourceId));
 
         await _userPhotoSourceService.DeleteUserPhotoStatusAsync(userId, sourceId);
         await _userPhotoSourceService.DeleteOtherFoldersStatusAsync(userId, sourceId);
@@ -100,16 +135,29 @@ public class PhotoSourceDataService : IPhotoSourceDataService
     /// </summary>
     private async Task NotifyDataDeletedAsync(long userId, long sourceId)
     {
-        var status = new UserPhotoSourceStatus
+        var status = NotStarted(userId, sourceId);
+
+        await _frontendNotificationService.SendProgressAsync(status);
+        await _frontendNotificationService.SendOtherFoldersProgressAsync(status);
+    }
+
+    private static UserPhotoSourceStatus NotStarted(long userId, long sourceId)
+    {
+        return new UserPhotoSourceStatus
         {
             UserId = userId,
             PhotoSourceId = sourceId,
             Status = PhotoSourceStatus.NotStarted,
             LastUpdatedAt = DateTimeOffset.UtcNow
         };
+    }
 
-        await _frontendNotificationService.SendProgressAsync(status);
-        await _frontendNotificationService.SendOtherFoldersProgressAsync(status);
+    private async Task DeletePhotosAsync(Task<IReadOnlyCollection<string>> deletePhotos)
+    {
+        foreach (var thumbnailPath in await deletePhotos)
+        {
+            DeleteThumbnail(thumbnailPath);
+        }
     }
 
     private void DeleteThumbnail(string thumbnailPath)

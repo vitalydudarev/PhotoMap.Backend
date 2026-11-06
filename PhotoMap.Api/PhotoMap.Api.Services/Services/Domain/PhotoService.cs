@@ -116,11 +116,24 @@ namespace PhotoMap.Api.Services.Services.Domain
             return PhotoTagSuggester.Suggest(photo, taggedPhotos);
         }
 
-        public async Task<IReadOnlyCollection<string>> DeleteByPhotoSourceAsync(long userId, long photoSourceId)
+        public Task<IReadOnlyCollection<string>> DeleteByPhotoSourceAsync(long userId, long photoSourceId)
+        {
+            return DeleteAsync(userId, () => _photoRepository.DeleteByPhotoSourceAsync(userId, photoSourceId));
+        }
+
+        public Task<IReadOnlyCollection<string>> DeleteByPhotoSourceAsync(long userId, long photoSourceId,
+            bool fromOtherFolder)
+        {
+            return DeleteAsync(userId,
+                () => _photoRepository.DeleteByPhotoSourceAsync(userId, photoSourceId, fromOtherFolder));
+        }
+
+        private async Task<IReadOnlyCollection<string>> DeleteAsync(long userId,
+            Func<Task<IReadOnlyCollection<string>>> delete)
         {
             try
             {
-                return await _photoRepository.DeleteByPhotoSourceAsync(userId, photoSourceId);
+                return await delete();
             }
             finally
             {
