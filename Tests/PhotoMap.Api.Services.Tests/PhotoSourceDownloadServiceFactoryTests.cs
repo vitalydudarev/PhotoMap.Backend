@@ -35,7 +35,6 @@ public class PhotoSourceDownloadServiceFactoryTests
         {
             Id = id,
             Name = "Test",
-            ServiceSettings = "Settings",
             ClientAuthSettings = new ClientAuthSettings
             {
                 OAuthConfiguration = new OAuthConfiguration

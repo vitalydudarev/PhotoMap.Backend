@@ -1,5 +1,9 @@
 namespace PhotoMap.Api.Services;
 
+/// <summary>
+/// The settings of the Yandex.Disk photo source. They are not read from the settings of the photo source in the
+/// database, the defaults are used.
+/// </summary>
 public class YandexDiskSettings
 {
     /// <summary>

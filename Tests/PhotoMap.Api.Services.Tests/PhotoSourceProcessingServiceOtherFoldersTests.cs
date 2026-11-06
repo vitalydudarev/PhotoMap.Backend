@@ -248,7 +248,6 @@ public class PhotoSourceProcessingServiceOtherFoldersTests
         {
             Id = id,
             Name = name,
-            ServiceSettings = "{}",
             ClientAuthSettings = new ClientAuthSettings
             {
                 OAuthConfiguration = new OAuthConfiguration

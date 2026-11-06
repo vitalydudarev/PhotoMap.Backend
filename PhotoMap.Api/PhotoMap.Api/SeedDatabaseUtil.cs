@@ -1,5 +1,4 @@
 using System;
-using System.Text.Json;
 using PhotoMap.Api.Database;
 using PhotoMap.Api.Database.Entities;
 using PhotoMap.Api.Domain.Models;
@@ -51,13 +50,8 @@ public static class SeedDatabaseUtil
             },
             RelativeAuthUrl = "/dropbox"
         };
-            
-        var dropboxSettings = new DropboxSettings
-        {
-            SourceFolder = "/Camera Uploads"
-        };
 
-        return CreatePhotoSource(1, "Dropbox", dropboxSettings, dropboxAuthSettings, typeof(DropboxDownloadServiceFactory));
+        return CreatePhotoSource(1, "Dropbox", dropboxAuthSettings, typeof(DropboxDownloadServiceFactory));
     }
 
     private static PhotoSourceEntity CreateYandexDiskEntity()
@@ -73,23 +67,16 @@ public static class SeedDatabaseUtil
             },
             RelativeAuthUrl = "/yandex-disk"
         };
-            
-        var yandexDiskSettings = new YandexDiskSettings
-        {
-            UsePhotoStreamFolder = true,
-            DownloadLimit = 10000
-        };
 
-        return CreatePhotoSource(2, "Yandex.Disk", yandexDiskSettings, yandexDiskAuthSettings, typeof(YandexDiskDownloadServiceFactory));
+        return CreatePhotoSource(2, "Yandex.Disk", yandexDiskAuthSettings, typeof(YandexDiskDownloadServiceFactory));
     }
 
-    private static PhotoSourceEntity CreatePhotoSource<TSettings>(long id, string name, TSettings settings, ClientAuthSettings clientAuthSettings, Type serviceImplementationType)
+    private static PhotoSourceEntity CreatePhotoSource(long id, string name, ClientAuthSettings clientAuthSettings, Type serviceImplementationType)
     {
         return new PhotoSourceEntity
         {
             Id = id,
             Name = name,
-            Settings = JsonSerializer.Serialize(settings),
             ClientAuthSettings = clientAuthSettings,
             ServiceFactoryImplementationType = TypeHelper.GetTypeFullName(serviceImplementationType)
         };

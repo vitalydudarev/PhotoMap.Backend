@@ -346,11 +346,6 @@ namespace PhotoMap.Api.Database.Migrations
                         .HasColumnType("text")
                         .HasColumnName("service_factory_implementation_type");
 
-                    b.Property<string>("Settings")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("settings");
-
                     b.HasKey("Id")
                         .HasName("pk_photo_sources");
 

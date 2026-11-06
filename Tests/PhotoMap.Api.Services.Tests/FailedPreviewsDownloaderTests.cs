@@ -32,7 +32,6 @@ public class FailedPreviewsDownloaderTests
         {
             Id = SourceId,
             Name = "Yandex.Disk",
-            ServiceSettings = "{}",
             ClientAuthSettings = null!,
             ServiceFactoryImplementationType = TypeHelper.GetTypeFullName(typeof(YandexDiskDownloadServiceFactory))
         };

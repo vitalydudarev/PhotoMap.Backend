@@ -285,7 +285,6 @@ public class PhotoSourceProcessingServiceTests
         {
             Id = SourceId,
             Name = "Dropbox",
-            ServiceSettings = "Settings",
             ClientAuthSettings = new ClientAuthSettings
             {
                 OAuthConfiguration = new OAuthConfiguration

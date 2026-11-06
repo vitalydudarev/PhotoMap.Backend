@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using PhotoMap.Api.Domain.Models;
 using PhotoMap.Api.Services.Factories;
@@ -46,7 +45,7 @@ public class SourceFilesFactory : ISourceFilesFactory
     {
         if (IsYandexDisk(photoSource))
         {
-            var settings = JsonSerializer.Deserialize<YandexDiskSettings>(photoSource.ServiceSettings) ?? new YandexDiskSettings();
+            var settings = new YandexDiskSettings();
 
             // Yandex.Disk tokens are not refreshed, the user authorizes again when the token has expired
             var apiClient = new ApiClient(authResult.Token, _httpClientFactory.CreateClient("yandexDiskClient"));
@@ -56,8 +55,7 @@ public class SourceFilesFactory : ISourceFilesFactory
 
         if (IsDropbox(photoSource))
         {
-            var settings = JsonSerializer.Deserialize<DropboxSettings>(photoSource.ServiceSettings)
-                ?? throw new Exception("Unable to deserialize settings");
+            var settings = new DropboxSettings();
 
             var dropboxClient = DropboxClientFactory.Create(authResult, photoSource.ClientAuthSettings.OAuthConfiguration.ClientId,
                 _httpClientFactory.CreateClient("dropboxClient"));

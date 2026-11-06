@@ -1,7 +1,6 @@
 using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text;
-using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -166,7 +165,7 @@ public class VideoProcessingService : IVideoProcessingService
             throw new NotAuthorizedException("User is not authorized.");
         }
 
-        var settings = JsonSerializer.Deserialize<YandexDiskSettings>(photoSource.ServiceSettings) ?? new YandexDiskSettings();
+        var settings = new YandexDiskSettings();
         var run = new VideoRun(userId, sourceId, photoSource.Name, authResult.Token, Math.Max(settings.MaxParallelDownloads, 1));
         var serviceScopeFactory = _serviceScopeFactory;
 

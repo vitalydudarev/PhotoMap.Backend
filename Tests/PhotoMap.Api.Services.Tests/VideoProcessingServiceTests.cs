@@ -206,7 +206,6 @@ public class VideoProcessingServiceTests
         {
             Id = id,
             Name = name,
-            ServiceSettings = "{}",
             ClientAuthSettings = new ClientAuthSettings
             {
                 OAuthConfiguration = new OAuthConfiguration

@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -130,7 +129,7 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
         Func<CancellationToken, Task> work;
         if (kind == RunKind.OtherFolders)
         {
-            var settings = JsonSerializer.Deserialize<YandexDiskSettings>(photoSource.ServiceSettings) ?? new YandexDiskSettings();
+            var settings = new YandexDiskSettings();
 
             work = cancellationToken => DoOtherFoldersWork(run, authResult.Token, settings, serviceScopeFactory, cancellationToken);
         }

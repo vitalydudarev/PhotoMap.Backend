@@ -833,7 +833,6 @@ public class SourceDownloadServiceTests : IDisposable
         {
             Id = id,
             Name = name,
-            ServiceSettings = "{}",
             ClientAuthSettings = new ClientAuthSettings
             {
                 OAuthConfiguration = new OAuthConfiguration
