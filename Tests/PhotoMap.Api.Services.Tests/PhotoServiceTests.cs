@@ -137,6 +137,63 @@ public class PhotoServiceTests
         Assert.False(_duplicatesSignal.WaitAsync(CancellationToken.None).IsCompleted);
     }
 
+    [Fact]
+    public async Task SetTagsAsync_ShouldCleanTheNames_AndTakeANameGivenTwiceOnce()
+    {
+        // Arrange
+        _photoRepository
+            .Setup(a => a.SetTagsAsync(UserId, 5, It.IsAny<IReadOnlyCollection<string>>()))
+            .ReturnsAsync((long _, long _, IReadOnlyCollection<string> names) => names.ToList());
+        var service = CreateService();
+
+        // Act
+        var tags = await service.SetTagsAsync(UserId, 5, ["  Paris  trip ", "paris TRIP", "", "   ", "Family"]);
+
+        // Assert
+        Assert.Equal(["Paris trip", "Family"], tags);
+    }
+
+    [Fact]
+    public async Task SuggestTagsAsync_ShouldSuggestNothing_WhenThePhotoIsOfAnotherUser()
+    {
+        // Arrange
+        var photo = CreatePhoto(DateTimeOffset.UtcNow);
+        photo.UserId = UserId + 1;
+        _photoRepository.Setup(a => a.GetAsync(5)).ReturnsAsync(photo);
+        var service = CreateService();
+
+        // Act
+        var suggestions = await service.SuggestTagsAsync(UserId, 5);
+
+        // Assert
+        Assert.Null(suggestions);
+        _photoRepository.Verify(a => a.GetTaggedPhotosAsync(It.IsAny<long>(), It.IsAny<PhotoNeighborhood>(), It.IsAny<int>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task SuggestTagsAsync_ShouldSuggestTheTagsOfThePhotosAroundIt()
+    {
+        // Arrange
+        var taken = new DateTimeOffset(2019, 7, 14, 12, 0, 0, TimeSpan.Zero);
+        var photo = CreatePhoto(taken);
+        photo.Id = 5;
+        _photoRepository.Setup(a => a.GetAsync(5)).ReturnsAsync(photo);
+        _photoRepository
+            .Setup(a => a.GetTaggedPhotosAsync(UserId,
+                It.Is<PhotoNeighborhood>(n => n.From == taken.AddDays(-7) && n.To == taken.AddDays(7) && n.Box == null),
+                It.IsAny<int>()))
+            .ReturnsAsync([new TaggedPhoto(6, taken.AddHours(1), null, null, ["Wedding"])]);
+        var service = CreateService();
+
+        // Act
+        var suggestions = await service.SuggestTagsAsync(UserId, 5);
+
+        // Assert
+        Assert.NotNull(suggestions);
+        Assert.Equal("Wedding", suggestions[0].Name);
+    }
+
     private PhotoService CreateService()
     {
         return new PhotoService(_photoRepository.Object, _yearsCache, _categorizationSignal, _duplicatesSignal);

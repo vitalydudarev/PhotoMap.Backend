@@ -12,12 +12,23 @@ namespace PhotoMap.Api.Domain.Models;
 /// <param name="HasGps">Whether the photos have a GPS location, or null for the photos with and without one.</param>
 /// <param name="IncludeOtherFolders">Whether the photos outside the folders the sources are processed from are taken
 /// too, see <see cref="Photo.FromOtherFolder"/>.</param>
+/// <param name="TagIds">The tags the photos have, any of them. With <paramref name="Untagged"/>, the photos with no tag
+/// are taken too.</param>
+/// <param name="Untagged">Whether the photos with no tag are taken, along with those of <paramref name="TagIds"/>;
+/// only they are when no tag is given.</param>
 public record PhotoFilter(
     IReadOnlyCollection<long> PhotoSourceIds,
     IReadOnlyCollection<int> Years,
     IReadOnlyCollection<PhotoCategory> Categories,
     bool? HasGps = null,
-    bool IncludeOtherFolders = false)
+    bool IncludeOtherFolders = false,
+    IReadOnlyCollection<long>? TagIds = null,
+    bool Untagged = false)
 {
     public static PhotoFilter All { get; } = new([], [], []);
+
+    /// <summary>
+    /// Whether the photos are narrowed down by their tags.
+    /// </summary>
+    public bool FiltersByTags => (TagIds?.Count ?? 0) > 0 || Untagged;
 }

@@ -44,6 +44,24 @@ namespace PhotoMap.Api.Domain.Services
         /// <returns>false if the user has no such photo.</returns>
         Task<bool> RestoreAsync(long userId, long photoId);
 
+        /// <returns>The tags of the user that a photo has at least, by name.</returns>
+        Task<IReadOnlyList<PhotoTag>> GetTagsAsync(long userId);
+
+        /// <summary>
+        /// Replaces the tags of a photo of the user. The names are cleaned, see <see cref="TagNames.Clean"/>, the empty
+        /// ones dropped, and a name given twice, whatever its case, taken once. A name the user has a tag of takes
+        /// that tag, as it is written.
+        /// </summary>
+        /// <returns>The names of the tags of the photo, by name, or null if the user has no such photo.</returns>
+        Task<IReadOnlyList<string>?> SetTagsAsync(long userId, long photoId, IEnumerable<string> names);
+
+        /// <summary>
+        /// Suggests tags for a photo of the user by when and where it was taken, see <c>PhotoTagSuggester</c>.
+        /// </summary>
+        /// <returns>The tags suggested, the likeliest first, but the ones the photo has; null if the user has no
+        /// such photo.</returns>
+        Task<IReadOnlyList<TagSuggestion>?> SuggestTagsAsync(long userId, long photoId);
+
         /// <returns>The thumbnail files of the deleted photos.</returns>
         Task<IReadOnlyCollection<string>> DeleteByPhotoSourceAsync(long userId, long photoSourceId);
     }

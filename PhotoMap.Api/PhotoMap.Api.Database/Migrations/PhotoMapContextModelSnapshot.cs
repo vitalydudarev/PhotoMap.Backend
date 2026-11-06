@@ -357,6 +357,60 @@ namespace PhotoMap.Api.Database.Migrations
                     b.ToTable("photo_sources", (string)null);
                 });
 
+            modelBuilder.Entity("PhotoMap.Api.Database.Entities.PhotoTagEntity", b =>
+                {
+                    b.Property<long>("PhotoId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("photo_id");
+
+                    b.Property<long>("TagId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("tag_id");
+
+                    b.HasKey("PhotoId", "TagId")
+                        .HasName("pk_photo_tags");
+
+                    b.HasIndex("TagId")
+                        .HasDatabaseName("ix_photo_tags_tag_id");
+
+                    b.ToTable("photo_tags", (string)null);
+                });
+
+            modelBuilder.Entity("PhotoMap.Api.Database.Entities.TagEntity", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("name");
+
+                    b.Property<string>("NormalizedName")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("normalized_name");
+
+                    b.Property<long>("UserId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_tags");
+
+                    b.HasIndex("UserId", "NormalizedName")
+                        .IsUnique()
+                        .HasDatabaseName("ix_tags_user_id_normalized_name");
+
+                    b.ToTable("tags", (string)null);
+                });
+
             modelBuilder.Entity("PhotoMap.Api.Database.Entities.UserEntity", b =>
                 {
                     b.Property<long>("Id")
@@ -686,6 +740,39 @@ namespace PhotoMap.Api.Database.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("PhotoMap.Api.Database.Entities.PhotoTagEntity", b =>
+                {
+                    b.HasOne("PhotoMap.Api.Database.Entities.PhotoEntity", "Photo")
+                        .WithMany("Tags")
+                        .HasForeignKey("PhotoId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_photo_tags_photos_photo_id");
+
+                    b.HasOne("PhotoMap.Api.Database.Entities.TagEntity", "Tag")
+                        .WithMany("Photos")
+                        .HasForeignKey("TagId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_photo_tags_tags_tag_id");
+
+                    b.Navigation("Photo");
+
+                    b.Navigation("Tag");
+                });
+
+            modelBuilder.Entity("PhotoMap.Api.Database.Entities.TagEntity", b =>
+                {
+                    b.HasOne("PhotoMap.Api.Database.Entities.UserEntity", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_tags_users_user_id");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("PhotoMap.Api.Database.Entities.UserOtherFoldersStatusEntity", b =>
                 {
                     b.HasOne("PhotoMap.Api.Database.Entities.PhotoSourceEntity", "PhotoSource")
@@ -794,6 +881,8 @@ namespace PhotoMap.Api.Database.Migrations
             modelBuilder.Entity("PhotoMap.Api.Database.Entities.PhotoEntity", b =>
                 {
                     b.Navigation("Categories");
+
+                    b.Navigation("Tags");
                 });
 
             modelBuilder.Entity("PhotoMap.Api.Database.Entities.PhotoSourceEntity", b =>
@@ -801,6 +890,11 @@ namespace PhotoMap.Api.Database.Migrations
                     b.Navigation("UserPhotoSourcesStates");
 
                     b.Navigation("UserPhotoSourcesStatuses");
+                });
+
+            modelBuilder.Entity("PhotoMap.Api.Database.Entities.TagEntity", b =>
+                {
+                    b.Navigation("Photos");
                 });
 
             modelBuilder.Entity("PhotoMap.Api.Database.Entities.UserEntity", b =>

@@ -115,6 +115,150 @@ public class UsersControllerTests
     }
 
     [Fact]
+    public async Task GetUserPhotos_ShouldTakeThePhotosOfTheGivenTags_AndTheUntaggedOnes()
+    {
+        // Arrange
+        var controller = CreateController();
+
+        // Act
+        await controller.GetUserPhotos(UserId, 100, 0, tag: [4, 9], untagged: true);
+
+        // Assert
+        _photoService.Verify(a => a.GetByUserIdAsync(UserId,
+            It.Is<PhotoFilter>(f => f.TagIds!.SequenceEqual(new long[] { 4, 9 }) && f.Untagged), 100, 0,
+            PhotoSortOrder.Asc));
+        _photoService.Verify(a => a.GetTotalCountByUserIdAsync(UserId,
+            It.Is<PhotoFilter>(f => f.TagIds!.SequenceEqual(new long[] { 4, 9 }) && f.Untagged)));
+    }
+
+    [Fact]
+    public async Task GetUserPhotos_ShouldNotFilterByTags_WhenNoneIsGiven()
+    {
+        // Arrange
+        var controller = CreateController();
+
+        // Act
+        await controller.GetUserPhotos(UserId, 100, 0);
+
+        // Assert
+        _photoService.Verify(a => a.GetByUserIdAsync(UserId, It.Is<PhotoFilter>(f => !f.FiltersByTags), 100, 0,
+            PhotoSortOrder.Asc));
+    }
+
+    [Fact]
+    public async Task GetUserPhotos_ShouldTellTheTagsOfThePhotos()
+    {
+        // Arrange
+        _photoService
+            .Setup(a => a.GetByUserIdAsync(UserId, It.IsAny<PhotoFilter>(), It.IsAny<int>(), It.IsAny<int>(),
+                It.IsAny<PhotoSortOrder>()))
+            .ReturnsAsync([new Photo { Id = 5, UserId = UserId, FileName = "a.jpg", Tags = ["Family", "Paris"] }]);
+        var controller = CreateController();
+
+        // Act
+        var result = await controller.GetUserPhotos(UserId, 100, 0);
+
+        // Assert
+        var response = Assert.IsType<PagedResponse<PhotoDto>>(Assert.IsType<OkObjectResult>(result).Value);
+        Assert.Equal(["Family", "Paris"], Assert.Single(response.Values).Tags);
+    }
+
+    [Fact]
+    public async Task SetPhotoTags_ShouldReturnTheTagsOfThePhoto()
+    {
+        // Arrange
+        _photoService
+            .Setup(a => a.SetTagsAsync(UserId, 5, It.IsAny<IEnumerable<string>>()))
+            .ReturnsAsync(["Family", "Paris"]);
+        var controller = CreateController();
+
+        // Act
+        var result = await controller.SetPhotoTags(UserId, 5, ["Paris", "Family"]);
+
+        // Assert
+        Assert.Equal(new[] { "Family", "Paris" }, Assert.IsType<OkObjectResult>(result).Value);
+    }
+
+    [Fact]
+    public async Task SetPhotoTags_ShouldReturnNotFound_WhenTheUserHasNoSuchPhoto()
+    {
+        // Arrange
+        _photoService
+            .Setup(a => a.SetTagsAsync(UserId, 5, It.IsAny<IEnumerable<string>>()))
+            .ReturnsAsync((IReadOnlyList<string>?)null);
+        var controller = CreateController();
+
+        // Act
+        var result = await controller.SetPhotoTags(UserId, 5, ["Paris"]);
+
+        // Assert
+        Assert.IsType<NotFoundResult>(result);
+    }
+
+    [Fact]
+    public async Task SetPhotoTags_ShouldReturnBadRequest_WhenATagIsTooLong()
+    {
+        // Arrange
+        var controller = CreateController();
+
+        // Act
+        var result = await controller.SetPhotoTags(UserId, 5, [new string('a', TagNames.MaxLength + 1)]);
+
+        // Assert
+        var problem = Assert.IsType<ValidationProblemDetails>(Assert.IsAssignableFrom<ObjectResult>(result).Value);
+        Assert.Contains("names", problem.Errors.Keys);
+        _photoService.Verify(a => a.SetTagsAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<IEnumerable<string>>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task SetPhotoTags_ShouldReturnBadRequest_WhenThereAreTooManyTags()
+    {
+        // Arrange
+        var controller = CreateController();
+        var names = Enumerable.Range(0, TagNames.MaxPerPhoto + 1).Select(a => $"Tag {a}").ToArray();
+
+        // Act
+        var result = await controller.SetPhotoTags(UserId, 5, names);
+
+        // Assert
+        Assert.IsType<ValidationProblemDetails>(Assert.IsAssignableFrom<ObjectResult>(result).Value);
+    }
+
+    [Fact]
+    public async Task GetPhotoTagSuggestions_ShouldReturnNotFound_WhenTheUserHasNoSuchPhoto()
+    {
+        // Arrange
+        _photoService.Setup(a => a.SuggestTagsAsync(UserId, 5)).ReturnsAsync((IReadOnlyList<TagSuggestion>?)null);
+        var controller = CreateController();
+
+        // Act
+        var result = await controller.GetPhotoTagSuggestions(UserId, 5);
+
+        // Assert
+        Assert.IsType<NotFoundResult>(result);
+    }
+
+    [Fact]
+    public async Task GetPhotoTagSuggestions_ShouldTellWhyEachTagIsSuggested()
+    {
+        // Arrange
+        _photoService
+            .Setup(a => a.SuggestTagsAsync(UserId, 5))
+            .ReturnsAsync([new TagSuggestion("Home", false, true)]);
+        var controller = CreateController();
+
+        // Act
+        var result = await controller.GetPhotoTagSuggestions(UserId, 5);
+
+        // Assert
+        var suggestion = Assert.Single(Assert.IsType<TagSuggestionDto[]>(Assert.IsType<OkObjectResult>(result).Value));
+        Assert.Equal("Home", suggestion.Name);
+        Assert.False(suggestion.ByDate);
+        Assert.True(suggestion.ByLocation);
+    }
+
+    [Fact]
     public async Task GetUserPhotos_ShouldReturnBadRequest_WhenTheCategoryIsNotOne()
     {
         // Arrange

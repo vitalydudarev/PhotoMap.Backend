@@ -6,6 +6,11 @@ namespace PhotoMap.Api.Services.Services.Domain
 {
     public class PhotoService : IPhotoService
     {
+        /// <summary>
+        /// The most photos taken around the same time, and the most taken nearby, that the tags are suggested by.
+        /// </summary>
+        private const int TaggedPhotosToSuggestBy = 500;
+
         private readonly IPhotoRepository _photoRepository;
         private readonly PhotoYearsCache _yearsCache;
         private readonly PhotoCategorizationSignal _categorizationSignal;
@@ -79,6 +84,36 @@ namespace PhotoMap.Api.Services.Services.Domain
         public Task<bool> RestoreAsync(long userId, long photoId)
         {
             return SetDeletedOnAsync(userId, photoId, null);
+        }
+
+        public Task<IReadOnlyList<PhotoTag>> GetTagsAsync(long userId)
+        {
+            return _photoRepository.GetTagsAsync(userId);
+        }
+
+        public Task<IReadOnlyList<string>?> SetTagsAsync(long userId, long photoId, IEnumerable<string> names)
+        {
+            var cleanNames = names
+                .Select(TagNames.Clean)
+                .Where(a => a.Length > 0)
+                .DistinctBy(TagNames.Normalize)
+                .ToList();
+
+            return _photoRepository.SetTagsAsync(userId, photoId, cleanNames);
+        }
+
+        public async Task<IReadOnlyList<TagSuggestion>?> SuggestTagsAsync(long userId, long photoId)
+        {
+            var photo = await _photoRepository.GetAsync(photoId);
+            if (photo == null || photo.UserId != userId)
+            {
+                return null;
+            }
+
+            var taggedPhotos = await _photoRepository.GetTaggedPhotosAsync(userId,
+                PhotoTagSuggester.GetNeighborhood(photo), TaggedPhotosToSuggestBy);
+
+            return PhotoTagSuggester.Suggest(photo, taggedPhotos);
         }
 
         public async Task<IReadOnlyCollection<string>> DeleteByPhotoSourceAsync(long userId, long photoSourceId)

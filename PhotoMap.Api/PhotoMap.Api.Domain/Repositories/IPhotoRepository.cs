@@ -43,6 +43,22 @@ public interface IPhotoRepository
     /// <returns>false if the user has no such photo.</returns>
     Task<bool> SetDeletedOnAsync(long userId, long photoId, DateTimeOffset? deletedOn);
 
+    /// <returns>The tags of the user that a photo has at least, by name.</returns>
+    Task<IReadOnlyList<PhotoTag>> GetTagsAsync(long userId);
+
+    /// <summary>
+    /// Replaces the tags of a photo of the user. A name the user has a tag of, whatever its case, takes that tag; the
+    /// other names make new tags.
+    /// </summary>
+    /// <param name="names">The names of the tags, cleaned and of different names; see <see cref="TagNames"/>.</param>
+    /// <returns>The names of the tags of the photo, by name, or null if the user has no such photo.</returns>
+    Task<IReadOnlyList<string>?> SetTagsAsync(long userId, long photoId, IReadOnlyCollection<string> names);
+
+    /// <returns>The photos of the user with tags, taken within the time or the box of coordinates of the
+    /// neighborhood, the photo itself among them if it has tags. At most <paramref name="top"/> of each: of those
+    /// taken within the box, the nearest to its middle.</returns>
+    Task<IReadOnlyList<TaggedPhoto>> GetTaggedPhotosAsync(long userId, PhotoNeighborhood neighborhood, int top);
+
     /// <returns>The thumbnail files of the deleted photos.</returns>
     Task<IReadOnlyCollection<string>> DeleteByPhotoSourceAsync(long userId, long photoSourceId);
 }

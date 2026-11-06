@@ -62,6 +62,11 @@ namespace PhotoMap.Api.Controllers
         /// <param name="gps">Whether the photos have a GPS location. The photos with and without one when not given.</param>
         /// <param name="allFolders">Whether the photos outside the folders the sources are processed from are taken
         /// too, the ones of the other folders of Yandex.Disk. Only the photos of those folders when not given.</param>
+        /// <param name="tag">The IDs of the tags the photos have, any of them, repeated for each one, such as
+        /// <c>tag=4&amp;tag=9</c>. The photos with and without tags when neither this nor <c>untagged</c> is
+        /// given.</param>
+        /// <param name="untagged">Whether the photos with no tag are taken, along with the ones of <c>tag</c>; only
+        /// they are when no tag is given.</param>
         [HttpGet("{id:long}/photos")]
         [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(PagedResponse<PhotoDto>))]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -73,7 +78,9 @@ namespace PhotoMap.Api.Controllers
             [FromQuery] int[]? year = null,
             [FromQuery] PhotoCategory[]? category = null,
             [FromQuery] bool? gps = null,
-            [FromQuery] bool allFolders = false)
+            [FromQuery] bool allFolders = false,
+            [FromQuery] long[]? tag = null,
+            [FromQuery] bool untagged = false)
         {
             // a number binds to the enum whether it names a category or not
             if (category != null && !category.All(Enum.IsDefined))
@@ -83,7 +90,7 @@ namespace PhotoMap.Api.Controllers
                 return ValidationProblem(ModelState);
             }
 
-            var filter = new PhotoFilter(source ?? [], year ?? [], category ?? [], gps, allFolders);
+            var filter = new PhotoFilter(source ?? [], year ?? [], category ?? [], gps, allFolders, tag ?? [], untagged);
 
             var userPhotos = await _photoService.GetByUserIdAsync(id, filter, top, skip, sort);
             var totalPhotosCount = await _photoService.GetTotalCountByUserIdAsync(id, filter);
@@ -170,6 +177,77 @@ namespace PhotoMap.Api.Controllers
             return Ok(await _photoService.GetYearsAsync(id));
         }
 
+        /// <summary>
+        /// The tags of the user that a photo has at least, by name, with how many photos have each.
+        /// </summary>
+        /// <param name="id">The ID of the user.</param>
+        [HttpGet("{id:long}/photos/tags")]
+        [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(PhotoTagDto[]))]
+        public async Task<IActionResult> GetUserPhotoTags([FromRoute] long id)
+        {
+            var tags = await _photoService.GetTagsAsync(id);
+
+            return Ok(tags.Select(a => new PhotoTagDto { Id = a.Id, Name = a.Name, PhotoCount = a.PhotoCount }).ToArray());
+        }
+
+        /// <summary>
+        /// Replaces the tags of a photo of the user. The names are trimmed, with single spaces between words, and a
+        /// name the user has a tag of, whatever its case, takes that tag; the other names make new tags.
+        /// </summary>
+        /// <param name="id">The ID of the user.</param>
+        /// <param name="photoId">The ID of the photo.</param>
+        /// <param name="names">The names of the tags, none to take them all off.</param>
+        /// <returns>The names of the tags of the photo, by name.</returns>
+        [HttpPut("{id:long}/photos/{photoId:long}/tags")]
+        [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(string[]))]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> SetPhotoTags([FromRoute] long id, [FromRoute] long photoId,
+            [FromBody] string[] names)
+        {
+            var cleanNames = names.Select(a => TagNames.Clean(a ?? "")).Where(a => a.Length > 0).ToArray();
+
+            if (cleanNames.Any(a => a.Length > TagNames.MaxLength))
+            {
+                ModelState.AddModelError(nameof(names), $"A tag is {TagNames.MaxLength} characters long at most.");
+
+                return ValidationProblem(ModelState);
+            }
+
+            if (cleanNames.DistinctBy(TagNames.Normalize).Count() > TagNames.MaxPerPhoto)
+            {
+                ModelState.AddModelError(nameof(names), $"A photo has {TagNames.MaxPerPhoto} tags at most.");
+
+                return ValidationProblem(ModelState);
+            }
+
+            var tags = await _photoService.SetTagsAsync(id, photoId, cleanNames);
+
+            return tags != null ? Ok(tags) : NotFound();
+        }
+
+        /// <summary>
+        /// Suggests tags for a photo of the user: those of the photos taken within a week of it or within 5 km, the
+        /// nearer the better, and the year and the season it was taken in. The tags the photo has are left out.
+        /// </summary>
+        /// <param name="id">The ID of the user.</param>
+        /// <param name="photoId">The ID of the photo.</param>
+        [HttpGet("{id:long}/photos/{photoId:long}/tags/suggestions")]
+        [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(TagSuggestionDto[]))]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> GetPhotoTagSuggestions([FromRoute] long id, [FromRoute] long photoId)
+        {
+            var suggestions = await _photoService.SuggestTagsAsync(id, photoId);
+            if (suggestions == null)
+            {
+                return NotFound();
+            }
+
+            return Ok(suggestions
+                .Select(a => new TagSuggestionDto { Name = a.Name, ByDate = a.ByDate, ByLocation = a.ByLocation })
+                .ToArray());
+        }
+
         private PhotoDto ToDto(Photo photo)
         {
             var url = _hostInfo.GetUrl() + "api";
@@ -186,7 +264,8 @@ namespace PhotoMap.Api.Controllers
                 PhotoUrl = $"{url}/photos/{photo.Id}",
                 ThumbnailLargeUrl = $"{url}/photos/{photo.Id}/thumb/large",
                 ThumbnailSmallUrl = $"{url}/photos/{photo.Id}/thumb/small",
-                DeletedOn = photo.DeletedOn?.UtcDateTime
+                DeletedOn = photo.DeletedOn?.UtcDateTime,
+                Tags = photo.Tags.ToArray()
             };
         }
     }

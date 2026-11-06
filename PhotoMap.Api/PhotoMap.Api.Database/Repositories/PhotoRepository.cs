@@ -61,6 +61,9 @@ public class PhotoRepository : IPhotoRepository
         var page = await sortedPhotos
             .Skip(skip)
             .Take(top)
+            .Include(a => a.Tags)
+            .ThenInclude(a => a.Tag)
+            .AsSplitQuery()
             .ToListAsync();
 
         return page.Select(EntityToModel);
@@ -195,6 +198,103 @@ public class PhotoRepository : IPhotoRepository
         return updated > 0;
     }
 
+    public async Task<IReadOnlyList<PhotoTag>> GetTagsAsync(long userId)
+    {
+        // a tag taken off its last photo is left behind, unused, and offered again once a photo has it
+        var tags = await _context.Tags
+            .AsNoTracking()
+            .Where(a => a.UserId == userId && a.Photos.Any())
+            .Select(a => new PhotoTag(a.Id, a.Name, a.Photos.Count))
+            .ToListAsync();
+
+        return tags.OrderBy(a => a.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
+    }
+
+    /// <summary>
+    /// Replaces the tags of a photo of the user, in one go: the new tags are made, and the photo given them, or
+    /// nothing is.
+    /// </summary>
+    public async Task<IReadOnlyList<string>?> SetTagsAsync(long userId, long photoId, IReadOnlyCollection<string> names)
+    {
+        if (!await _context.Photos.AnyAsync(a => a.UserId == userId && a.Id == photoId))
+        {
+            return null;
+        }
+
+        var normalizedNames = names.Select(TagNames.Normalize).ToArray();
+
+        await using var transaction = await _context.Database.BeginTransactionAsync();
+
+        var tags = await _context.Tags
+            .Where(a => a.UserId == userId && normalizedNames.Contains(a.NormalizedName))
+            .ToListAsync();
+
+        var newTags = names
+            .Where(name => tags.All(tag => tag.NormalizedName != TagNames.Normalize(name)))
+            .Select(name => new TagEntity { UserId = userId, Name = name, NormalizedName = TagNames.Normalize(name) })
+            .ToList();
+
+        await _context.Tags.AddRangeAsync(newTags);
+        await _context.SaveChangesAsync();
+        tags.AddRange(newTags);
+
+        // only what changed, the tags the photo keeps stay as they are
+        var tagIds = tags.Select(a => a.Id).ToHashSet();
+        var photoTags = await _context.PhotoTags.Where(a => a.PhotoId == photoId).ToListAsync();
+
+        _context.PhotoTags.RemoveRange(photoTags.Where(a => !tagIds.Contains(a.TagId)));
+        await _context.PhotoTags.AddRangeAsync(tagIds
+            .Where(id => photoTags.All(a => a.TagId != id))
+            .Select(id => new PhotoTagEntity { PhotoId = photoId, TagId = id }));
+        await _context.SaveChangesAsync();
+
+        await transaction.CommitAsync();
+
+        return tags.Select(a => a.Name).OrderBy(a => a, StringComparer.CurrentCultureIgnoreCase).ToList();
+    }
+
+    public async Task<IReadOnlyList<TaggedPhoto>> GetTaggedPhotosAsync(long userId, PhotoNeighborhood neighborhood,
+        int top)
+    {
+        var from = neighborhood.From;
+        var to = neighborhood.To;
+        var tagged = _context.Photos
+            .AsNoTracking()
+            .Where(a => a.UserId == userId && a.Tags.Any());
+
+        var photos = await ToTaggedPhotos(tagged
+                .Where(a => a.DateTimeTaken >= from && a.DateTimeTaken <= to)
+                .OrderBy(a => a.Id)
+                .Take(top))
+            .ToListAsync();
+
+        if (neighborhood.Box is { } box)
+        {
+            var latitude = (box.MinLatitude + box.MaxLatitude) / 2;
+            var longitude = (box.MinLongitude + box.MaxLongitude) / 2;
+
+            // a place visited again and again would otherwise bring every photo ever taken there
+            var nearby = await ToTaggedPhotos(tagged
+                    .Where(a => a.HasGps &&
+                                a.Latitude >= box.MinLatitude && a.Latitude <= box.MaxLatitude &&
+                                a.Longitude >= box.MinLongitude && a.Longitude <= box.MaxLongitude)
+                    .OrderBy(a => (a.Latitude!.Value - latitude) * (a.Latitude!.Value - latitude) +
+                                  (a.Longitude!.Value - longitude) * (a.Longitude!.Value - longitude))
+                    .Take(top))
+                .ToListAsync();
+
+            photos.AddRange(nearby.Where(a => photos.All(b => b.Id != a.Id)));
+        }
+
+        return photos;
+    }
+
+    private static IQueryable<TaggedPhoto> ToTaggedPhotos(IQueryable<PhotoEntity> photos)
+    {
+        return photos.Select(a => new TaggedPhoto(a.Id, a.DateTimeTaken, a.Latitude, a.Longitude,
+            a.Tags.Select(b => b.Tag!.Name).ToList()));
+    }
+
     /// <summary>
     /// Deletes the photos a photo source was the origin of, for one user.
     /// </summary>
@@ -259,6 +359,14 @@ public class PhotoRepository : IPhotoRepository
             photos = photos.Where(a => a.HasGps == filter.HasGps.Value);
         }
 
+        if (filter.FiltersByTags)
+        {
+            var tagIds = filter.TagIds?.ToArray() ?? [];
+            var untagged = filter.Untagged;
+
+            photos = photos.Where(a => a.Tags.Any(t => tagIds.Contains(t.TagId)) || (untagged && !a.Tags.Any()));
+        }
+
         return photos;
     }
 
@@ -284,7 +392,13 @@ public class PhotoRepository : IPhotoRepository
             PhotoSourceId = photoEntity.PhotoSourceId,
             DeletedOn = photoEntity.DeletedOn,
             DuplicateGroupId = photoEntity.DuplicateGroupId,
-            FromOtherFolder = photoEntity.FromOtherFolder
+            FromOtherFolder = photoEntity.FromOtherFolder,
+            // only loaded along with the photos of the gallery
+            Tags = photoEntity.Tags
+                .Where(a => a.Tag != null)
+                .Select(a => a.Tag!.Name)
+                .OrderBy(a => a, StringComparer.CurrentCultureIgnoreCase)
+                .ToList()
         };
     }
 

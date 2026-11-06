@@ -27,5 +27,10 @@ namespace PhotoMap.Api.DTOs
         /// When the user marked the photo as deleted, null while it is not.
         /// </summary>
         public DateTime? DeletedOn { get; set; }
+
+        /// <summary>
+        /// The names of the tags of the photo, by name. Only the photos of the gallery tell them.
+        /// </summary>
+        public string[] Tags { get; set; } = [];
     }
 }

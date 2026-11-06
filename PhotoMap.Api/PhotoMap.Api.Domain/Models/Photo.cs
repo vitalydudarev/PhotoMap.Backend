@@ -40,4 +40,9 @@ public class Photo
     /// <see cref="PhotoFilter.IncludeOtherFolders"/>.
     /// </summary>
     public bool FromOtherFolder { get; set; }
+
+    /// <summary>
+    /// The names of the tags of the photo, by name. Only read along with the photos of the gallery.
+    /// </summary>
+    public IReadOnlyList<string> Tags { get; set; } = [];
 }

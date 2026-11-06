@@ -46,4 +46,5 @@ public class PhotoEntity
     /// </summary>
     public int CategoriesVersion { get; set; }
     public List<PhotoCategoryEntity> Categories { get; set; } = [];
+    public List<PhotoTagEntity> Tags { get; set; } = [];
 }
