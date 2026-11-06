@@ -446,6 +446,10 @@ namespace PhotoMap.Api.Database.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("failed_count");
 
+                    b.Property<DateTimeOffset?>("LastListedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_listed_at");
+
                     b.Property<DateTimeOffset?>("LastUpdatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("last_updated_at");
@@ -511,6 +515,10 @@ namespace PhotoMap.Api.Database.Migrations
                     b.Property<int>("FailedCount")
                         .HasColumnType("integer")
                         .HasColumnName("failed_count");
+
+                    b.Property<DateTimeOffset?>("LastListedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_listed_at");
 
                     b.Property<DateTimeOffset?>("LastUpdatedAt")
                         .HasColumnType("timestamp with time zone")

@@ -290,6 +290,12 @@ public class DownloadServiceBaseTests
         {
         }
 
+        public override IAsyncEnumerable<DownloadedFile> SyncAsync(DateTimeOffset? uploadedBefore,
+            CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
+        }
+
         protected override Task<DownloadedFile> RetryFileAsync(FailedFile failedFile, CancellationToken cancellationToken)
         {
             return DownloadAsync(failedFile.ExternalId);

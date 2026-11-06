@@ -78,6 +78,48 @@ public sealed class DropboxDownloadService : DownloadServiceBase<DropboxDownload
         }
     }
 
+    /// <summary>
+    /// The folder is listed from the start, without the cursor a run resumes from, which stays as it is. Dropbox
+    /// does not list the files in the order they were uploaded, so all of them are listed.
+    /// </summary>
+    public override async IAsyncEnumerable<DownloadedFile> SyncAsync(DateTimeOffset? uploadedBefore,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        if (uploadedBefore == null)
+        {
+            yield break;
+        }
+
+        CreateClient();
+
+        var failedExternalIds = await GetFailedExternalIdsAsync();
+        var listFolderResult = await ListFolderAsync(null, cancellationToken);
+
+        while (true)
+        {
+            var filesToDownload = (await GetFilesToDownloadAsync(listFolderResult))
+                .Where(a => a.ServerModified < uploadedBefore.Value.UtcDateTime && !failedExternalIds.Contains(a.Id))
+                .ToList();
+
+            if (filesToDownload.Count > 0)
+            {
+                Logger.LogInformation("{FileCount} files missed by the runs, downloading them", filesToDownload.Count);
+
+                await foreach (var downloadedFile in DownloadPageAsync(filesToDownload, DownloadFileOrSkipAsync, cancellationToken))
+                {
+                    yield return downloadedFile;
+                }
+            }
+
+            if (!listFolderResult.HasMore)
+            {
+                break;
+            }
+
+            listFolderResult = await ListFolderAsync(listFolderResult.Cursor, cancellationToken);
+        }
+    }
+
     public override async Task<byte[]> DownloadFileAsync(string? externalId, string? path, CancellationToken cancellationToken)
     {
         // the file ID stays the same when the file is moved or renamed, the path doesn't

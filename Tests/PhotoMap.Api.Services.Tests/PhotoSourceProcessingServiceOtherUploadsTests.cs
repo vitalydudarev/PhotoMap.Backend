@@ -408,6 +408,84 @@ public class PhotoSourceProcessingServiceOtherUploadsTests
     }
 
     [Fact]
+    public async Task Sync_ShouldProcessOnlyThePhotosUploadedBeforeTheLastListingRun_NeitherSavedNorFailed()
+    {
+        // Arrange
+        var lastListedAt = new DateTimeOffset(2026, 11, 1, 9, 0, 0, TimeSpan.Zero);
+        var before = new DateTime(2026, 10, 1, 0, 0, 0, DateTimeKind.Utc);
+        var since = new DateTime(2026, 11, 2, 0, 0, 0, DateTimeKind.Utc);
+
+        var handler = new FakeDiskHandler(
+        [
+            CreateResource("missed", "disk:/Photos/missed.jpg", created: before),
+            CreateResource("saved", "disk:/Photos/saved.jpg", created: before),
+            CreateResource("failed", "disk:/Photos/failed.jpg", created: before),
+            CreateResource("new", "disk:/Photos/new.jpg", created: since)
+        ]);
+
+        _photoService
+            .Setup(a => a.GetSavedExternalIdsAsync(UserId, YandexDiskSourceId, It.IsAny<IEnumerable<string>>()))
+            .ReturnsAsync(new HashSet<string> { "saved" });
+        _failedFileService
+            .Setup(a => a.GetOtherUploadsAsync(UserId, YandexDiskSourceId))
+            .ReturnsAsync([CreateFailedFile("failed", "disk:/Photos/failed.jpg")]);
+        _recordedFailures.Add("failed");
+        _userPhotoSourceService
+            .Setup(a => a.GetOtherUploadsStatusAsync(UserId, YandexDiskSourceId))
+            .ReturnsAsync(new UserPhotoSourceStatus
+            {
+                UserId = UserId,
+                PhotoSourceId = YandexDiskSourceId,
+                Status = PhotoSourceStatus.Done,
+                LastUpdatedAt = DateTimeOffset.UtcNow,
+                LastListedAt = lastListedAt
+            });
+
+        var requests = new List<ProcessImageRequest>();
+        var service = CreateService(handler);
+
+        // Act
+        var accepted = await service.RunOtherUploadsCommandAsync(UserId, YandexDiskSourceId, PhotoSourceProcessingCommands.Sync);
+
+        await RunWithWorkerAsync(requests);
+
+        // Assert: the photo uploaded since is left to the next run, the failed one to Retry failed
+        Assert.True(accepted);
+        Assert.Equal(["missed"], requests.Select(a => a.DownloadedFileInfo.FileId));
+        Assert.Equal(["disk:/Photos/missed.jpg"], handler.DownloadedFiles);
+
+        var lastStatus = _reportedStatuses.Last();
+        Assert.Equal(PhotoSourceStatus.Done, lastStatus.Status);
+        Assert.Equal(2, lastStatus.ProcessedCount);
+        Assert.Equal(1, lastStatus.FailedCount);
+        Assert.All(_reportedStatuses, a => Assert.Null(a.LastListedAt));
+    }
+
+    [Fact]
+    public async Task Run_ShouldSaveWhenItStarted_OnceItHasFinished()
+    {
+        // Arrange
+        var handler = new FakeDiskHandler([CreateResource("a", "disk:/Photos/a.jpg")]);
+
+        _photoService
+            .Setup(a => a.GetSavedExternalIdsAsync(UserId, YandexDiskSourceId, It.IsAny<IEnumerable<string>>()))
+            .ReturnsAsync(new HashSet<string>());
+
+        var service = CreateService(handler);
+        var before = DateTimeOffset.UtcNow;
+
+        // Act
+        await service.RunOtherUploadsCommandAsync(UserId, YandexDiskSourceId, PhotoSourceProcessingCommands.Start);
+
+        await RunWithWorkerAsync([]);
+
+        // Assert
+        var lastStatus = _reportedStatuses.Last();
+        Assert.Equal(PhotoSourceStatus.Done, lastStatus.Status);
+        Assert.InRange(lastStatus.LastListedAt!.Value, before, DateTimeOffset.UtcNow);
+    }
+
+    [Fact]
     public void CreateFileInfo_ShouldTakeTheUploadTime_WhenYandexDiskHasNoTimeTaken()
     {
         // Arrange
@@ -477,7 +555,7 @@ public class PhotoSourceProcessingServiceOtherUploadsTests
             Options.Create(new PhotoProcessingSettings { Sizes = [256, 640] }));
     }
 
-    private static object CreateResource(string resourceId, string path, object? exif = null)
+    private static object CreateResource(string resourceId, string path, object? exif = null, DateTime? created = null)
     {
         return new
         {
@@ -486,7 +564,7 @@ public class PhotoSourceProcessingServiceOtherUploadsTests
             type = "file",
             media_type = "image",
             resource_id = resourceId,
-            created = new DateTime(2020, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+            created = created ?? new DateTime(2020, 1, 1, 0, 0, 0, DateTimeKind.Utc),
             exif
         };
     }

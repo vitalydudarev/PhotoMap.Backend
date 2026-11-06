@@ -13,4 +13,5 @@ public class UserPhotoSourceStatusEntity
     public int ProcessedCount { get; set; }
     public int FailedCount { get; set; }
     public DateTimeOffset? LastUpdatedAt { get; set; }
+    public DateTimeOffset? LastListedAt { get; set; }
 }

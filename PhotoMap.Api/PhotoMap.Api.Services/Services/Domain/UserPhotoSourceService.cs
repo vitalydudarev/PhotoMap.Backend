@@ -84,7 +84,8 @@ public class UserPhotoSourceService : IUserPhotoSourceService
             TotalCount = entity.TotalCount,
             ProcessedCount = entity.ProcessedCount,
             FailedCount = entity.FailedCount,
-            LastUpdatedAt = entity.LastUpdatedAt
+            LastUpdatedAt = entity.LastUpdatedAt,
+            LastListedAt = entity.LastListedAt
         };
     }
     
@@ -169,6 +170,8 @@ public class UserPhotoSourceService : IUserPhotoSourceService
         entity.ProcessedCount = status.ProcessedCount;
         entity.FailedCount = status.FailedCount;
         entity.LastUpdatedAt = status.LastUpdatedAt;
+        // only a listing run that has finished sets it, the reports of the others keep it
+        entity.LastListedAt = status.LastListedAt ?? entity.LastListedAt;
 
         await _context.SaveChangesAsync();
     }
@@ -192,7 +195,8 @@ public class UserPhotoSourceService : IUserPhotoSourceService
             TotalCount = entity.TotalCount,
             ProcessedCount = entity.ProcessedCount,
             FailedCount = entity.FailedCount,
-            LastUpdatedAt = entity.LastUpdatedAt
+            LastUpdatedAt = entity.LastUpdatedAt,
+            LastListedAt = entity.LastListedAt
         };
     }
 
@@ -212,6 +216,8 @@ public class UserPhotoSourceService : IUserPhotoSourceService
         entity.ProcessedCount = status.ProcessedCount;
         entity.FailedCount = status.FailedCount;
         entity.LastUpdatedAt = status.LastUpdatedAt;
+        // only a listing run that has finished sets it, the reports of the others keep it
+        entity.LastListedAt = status.LastListedAt ?? entity.LastListedAt;
 
         await _context.SaveChangesAsync();
     }

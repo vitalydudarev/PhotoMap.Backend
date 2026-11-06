@@ -93,15 +93,49 @@ public class YandexDiskDownloadServiceTests
             .ReturnsAsync(offset == null ? null : new YandexDiskDownloadState { Offset = offset.Value });
     }
 
+    [Fact]
+    public async Task SyncAsync_ShouldDownloadOnlyTheFilesUploadedBeforeTheTime_NeitherSavedNorFailed()
+    {
+        // Arrange: r0 is saved and r1 failed, r4 has been uploaded since the time
+        await using var service = CreateService(pageSize: 2, saveStateEvery: 2, savedExternalIds: ["r0"],
+            failedExternalIds: ["r1"]);
+        var uploadedBefore = new DateTimeOffset(2020, 1, 1, 0, 0, 4, TimeSpan.Zero);
+
+        // Act
+        var downloadedFiles = await DownloadAllAsync(service.SyncAsync(uploadedBefore, CancellationToken.None));
+
+        // Assert: the offset a run resumes from stays as it is
+        Assert.Equal(["r2", "r3"], downloadedFiles.Order());
+        Assert.Empty(_savedOffsets);
+    }
+
+    [Fact]
+    public async Task SyncAsync_ShouldDownloadNothing_WhenNoRunHasListedTheFolder()
+    {
+        // Arrange
+        await using var service = CreateService(pageSize: 10, saveStateEvery: 2);
+
+        // Act
+        var downloadedFiles = await DownloadAllAsync(service.SyncAsync(null, CancellationToken.None));
+
+        // Assert
+        Assert.Empty(downloadedFiles);
+    }
+
     /// <summary>
     /// Downloads the files, processing each one as it comes.
     /// </summary>
-    private static async Task<List<string>> DownloadAllAsync(YandexDiskDownloadService service,
+    private static Task<List<string>> DownloadAllAsync(YandexDiskDownloadService service,
         CancellationToken cancellationToken)
+    {
+        return DownloadAllAsync(service.DownloadAsync(cancellationToken));
+    }
+
+    private static async Task<List<string>> DownloadAllAsync(IAsyncEnumerable<DownloadedFile> downloadedFiles)
     {
         var fileIds = new List<string>();
 
-        await foreach (var downloadedFile in service.DownloadAsync(cancellationToken))
+        await foreach (var downloadedFile in downloadedFiles)
         {
             fileIds.Add(downloadedFile.FileInfo.FileId);
             downloadedFile.Processed.SetResult(ProcessingResult.Success);
@@ -110,12 +144,20 @@ public class YandexDiskDownloadServiceTests
         return fileIds;
     }
 
-    private YandexDiskDownloadService CreateService(int pageSize, int saveStateEvery)
+    private YandexDiskDownloadService CreateService(int pageSize, int saveStateEvery, string[]? savedExternalIds = null,
+        string[]? failedExternalIds = null)
     {
         var photoService = new Mock<IPhotoService>();
         photoService
             .Setup(a => a.GetSavedExternalIdsAsync(UserId, SourceId, It.IsAny<IEnumerable<string>>()))
-            .ReturnsAsync(new HashSet<string>());
+            .ReturnsAsync((long _, long _, IEnumerable<string> ids) => ids.Intersect(savedExternalIds ?? []).ToHashSet());
+
+        var failedFileService = new Mock<IFailedFileService>();
+        failedFileService
+            .Setup(a => a.GetAsync(UserId, SourceId))
+            .ReturnsAsync((failedExternalIds ?? [])
+                .Select(a => new FailedFile { ExternalId = a, FileName = a + ".jpg", Error = "Failed." })
+                .ToList());
 
         var httpClientFactory = new Mock<IHttpClientFactory>();
         httpClientFactory
@@ -141,7 +183,7 @@ public class YandexDiskDownloadServiceTests
         };
 
         return new YandexDiskDownloadService(NullLogger<YandexDiskDownloadService>.Instance, _stateService.Object,
-            photoService.Object, new Mock<IFailedFileService>().Object, httpClientFactory.Object, settings, parameters);
+            photoService.Object, failedFileService.Object, httpClientFactory.Object, settings, parameters);
     }
 
     /// <summary>

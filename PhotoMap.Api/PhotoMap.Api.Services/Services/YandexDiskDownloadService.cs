@@ -84,6 +84,54 @@ public sealed class YandexDiskDownloadService : DownloadServiceBase<YandexDiskDo
     }
 
     /// <summary>
+    /// The folder is listed from the start, oldest first, until the files uploaded since the time given: none of the
+    /// files after them is older.
+    /// </summary>
+    public override async IAsyncEnumerable<DownloadedFile> SyncAsync(DateTimeOffset? uploadedBefore,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        if (uploadedBefore == null)
+        {
+            yield break;
+        }
+
+        CreateClient();
+
+        var sourceFolder = await GetSourceFolderAsync(cancellationToken);
+        var failedExternalIds = await GetFailedExternalIdsAsync();
+        var offset = 0;
+
+        while (true)
+        {
+            var page = await ListFolderAsync(sourceFolder, offset, cancellationToken);
+            var items = page.Items ?? [];
+            var existingItems = items.Where(a => a.Created.ToUniversalTime() < uploadedBefore.Value.UtcDateTime).ToList();
+
+            var filesToDownload = (await GetFilesToDownloadAsync(existingItems))
+                .Where(a => !failedExternalIds.Contains(a.ResourceId))
+                .ToList();
+
+            if (filesToDownload.Count > 0)
+            {
+                Logger.LogInformation("{FileCount} files of {SourceFolder} missed by the runs, downloading them",
+                    filesToDownload.Count, sourceFolder);
+
+                await foreach (var downloadedFile in DownloadPageAsync(filesToDownload, DownloadFileOrSkipAsync, cancellationToken))
+                {
+                    yield return downloadedFile;
+                }
+            }
+
+            offset += items.Length;
+
+            if (existingItems.Count < items.Length || items.Length < PageSize || offset >= page.Total)
+            {
+                break;
+            }
+        }
+    }
+
+    /// <summary>
     /// Yandex.Disk downloads files by path only, the resource ID of a file cannot be used to download it.
     /// </summary>
     public override async Task<byte[]> DownloadFileAsync(string? externalId, string? path, CancellationToken cancellationToken)

@@ -51,6 +51,7 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
         {
             PhotoSourceProcessingCommands.Start => await StartAsync(userId, sourceId, RunKind.Source),
             PhotoSourceProcessingCommands.RetryFailed => await StartAsync(userId, sourceId, RunKind.RetryFailed),
+            PhotoSourceProcessingCommands.Sync => await StartAsync(userId, sourceId, RunKind.Sync),
             PhotoSourceProcessingCommands.Stop => Stop(userId, sourceId, RunKind.Source),
             _ => throw new Exception("Unsupported command.")
         };
@@ -74,6 +75,7 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
         {
             PhotoSourceProcessingCommands.Start => await StartAsync(userId, sourceId, RunKind.OtherUploads),
             PhotoSourceProcessingCommands.RetryFailed => await StartAsync(userId, sourceId, RunKind.RetryFailedOtherUploads),
+            PhotoSourceProcessingCommands.Sync => await StartAsync(userId, sourceId, RunKind.SyncOtherUploads),
             PhotoSourceProcessingCommands.Stop => Stop(userId, sourceId, RunKind.OtherUploads),
             _ => throw new Exception("Unsupported command.")
         };
@@ -123,7 +125,11 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
         }
 
         var authResult = await GetAuthResultAsync(userId, sourceId);
-        var run = new ProcessingRun(userId, sourceId, photoSource.Name, _photoProcessingSettings.Sizes, kind);
+        var uploadedBefore = kind is RunKind.Sync or RunKind.SyncOtherUploads
+            ? await GetLastListedAtAsync(userId, sourceId, kind == RunKind.SyncOtherUploads)
+            : null;
+        var run = new ProcessingRun(userId, sourceId, photoSource.Name, _photoProcessingSettings.Sizes, kind,
+            DateTimeOffset.UtcNow, uploadedBefore);
         var serviceScopeFactory = _serviceScopeFactory;
 
         Func<CancellationToken, Task> work;
@@ -157,13 +163,14 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
     }
 
     /// <summary>
-    /// Lists the files of the folder the source is processed from, or takes the files that failed in earlier runs,
-    /// and hands them over to be processed.
+    /// Lists the files of the folder the source is processed from, or takes the files that failed in earlier runs, or
+    /// syncs the files the runs have missed, and hands them over to be processed.
     /// </summary>
     private static async Task DoWork(ProcessingRun run, PhotoSource photoSource, DownloadServiceParameters parameters,
         IServiceScopeFactory serviceScopeFactory, CancellationToken cancellationToken)
     {
         var retryFailed = run.Kind == RunKind.RetryFailed;
+        var sync = run.Kind == RunKind.Sync;
         var progress = parameters.Progress;
 
         await RunWithStatusAsync(run, serviceScopeFactory, () => progress,
@@ -175,14 +182,14 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
                 await using var downloadService = services.GetRequiredService<IPhotoSourceDownloadServiceFactory>()
                     .GetService(photoSource, parameters);
 
-                // a retry downloads files the total already counts, the total of the previous run stays
-                if (!retryFailed)
+                // a retry or a sync downloads files the total already counts, the total of the previous run stays
+                if (!retryFailed && !sync)
                 {
                     progress.TotalCount = await downloadService.GetTotalFileCountAsync();
                 }
 
-                var downloadedFiles = retryFailed
-                    ? downloadService.RetryFailedAsync(cancellationToken)
+                var downloadedFiles = retryFailed ? downloadService.RetryFailedAsync(cancellationToken)
+                    : sync ? downloadService.SyncAsync(run.UploadedBefore, cancellationToken)
                     : downloadService.DownloadAsync(cancellationToken);
 
                 await foreach (var downloadedFile in downloadedFiles)
@@ -270,8 +277,23 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
                         TotalCount = photos.Count
                     };
 
-                    photosToSave = photos
-                        .Where(a => !savedExternalIds.Contains(a.ResourceId))
+                    var photosNotSaved = photos.Where(a => !savedExternalIds.Contains(a.ResourceId));
+
+                    if (run.Kind == RunKind.SyncOtherUploads)
+                    {
+                        // a sync takes only the photos the runs have been through and missed, the ones uploaded since
+                        // are left to the next run and the failed ones to Retry failed
+                        var failedExternalIds = (await failedFileService.GetOtherUploadsAsync(run.UserId, run.SourceId))
+                            .Select(a => a.ExternalId)
+                            .ToHashSet();
+
+                        photosNotSaved = run.UploadedBefore is { } uploadedBefore
+                            ? photosNotSaved.Where(a => a.Created.ToUniversalTime() < uploadedBefore.UtcDateTime &&
+                                                        !failedExternalIds.Contains(a.ResourceId))
+                            : [];
+                    }
+
+                    photosToSave = photosNotSaved
                         .Select(a => new OtherUpload(a.ResourceId, a.Path, a.Name, a))
                         .ToList();
 
@@ -576,12 +598,17 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
                 TotalCount = progress.TotalCount,
                 ProcessedCount = progress.ProcessedCount,
                 FailedCount = progress.FailedCount,
-                LastUpdatedAt = DateTimeOffset.UtcNow
+                LastUpdatedAt = DateTimeOffset.UtcNow,
+                // the files uploaded before a listing run that has finished started are the ones a sync checks
+                LastListedAt = status == PhotoSourceStatus.Done && run.Kind is RunKind.Source or RunKind.OtherUploads
+                    ? run.StartedAt
+                    : null
             };
 
             switch (run.Kind)
             {
                 case RunKind.OtherUploads:
+                case RunKind.SyncOtherUploads:
                     await userPhotoSourceService.UpdateOtherUploadsStatusAsync(userPhotoSourceStatus);
                     await frontendNotificationService.SendOtherUploadsProgressAsync(userPhotoSourceStatus);
                     break;
@@ -651,6 +678,20 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
             .CountAsync(userId, sourceId, fromOtherUploads);
     }
 
+    /// <summary>
+    /// When the last run listing the camera uploads, or the other uploads, that has finished started. The statuses
+    /// saved before it was kept have only the time they were last updated at; null when the uploads have never been
+    /// processed.
+    /// </summary>
+    private async Task<DateTimeOffset?> GetLastListedAtAsync(long userId, long sourceId, bool otherUploads)
+    {
+        var status = otherUploads
+            ? await _userPhotoSourceService.GetOtherUploadsStatusAsync(userId, sourceId)
+            : await _userPhotoSourceService.GetUserPhotoStatusAsync(userId, sourceId);
+
+        return status?.LastListedAt ?? status?.LastUpdatedAt;
+    }
+
     private async Task<UserAuthResult> GetAuthResultAsync(long userId, long sourceId)
     {
         var authResult = await _userPhotoSourceService.GetAuthResultAsync(userId, sourceId);
@@ -686,12 +727,18 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
         OtherUploads,
 
         /// <summary>The photos of the other uploads that failed in earlier runs.</summary>
-        RetryFailedOtherUploads
+        RetryFailedOtherUploads,
+
+        /// <summary>The files of the source the runs have been through and missed.</summary>
+        Sync,
+
+        /// <summary>The photos of the other uploads the runs have been through and missed.</summary>
+        SyncOtherUploads
     }
 
     private static bool IsOtherUploads(RunKind kind)
     {
-        return kind is RunKind.OtherUploads or RunKind.RetryFailedOtherUploads;
+        return kind is RunKind.OtherUploads or RunKind.RetryFailedOtherUploads or RunKind.SyncOtherUploads;
     }
 
     /// <summary>
@@ -709,5 +756,8 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
             new(photo, null, stage, error);
     }
 
-    private sealed record ProcessingRun(long UserId, long SourceId, string PhotoSourceName, int[] Sizes, RunKind Kind);
+    /// <param name="StartedAt">When the run started, which a listing run that finishes saves for the syncs.</param>
+    /// <param name="UploadedBefore">For a sync, the files uploaded before this time are the ones it checks.</param>
+    private sealed record ProcessingRun(long UserId, long SourceId, string PhotoSourceName, int[] Sizes, RunKind Kind,
+        DateTimeOffset StartedAt, DateTimeOffset? UploadedBefore);
 }

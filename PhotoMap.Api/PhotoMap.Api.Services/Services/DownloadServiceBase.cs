@@ -74,6 +74,19 @@ public abstract class DownloadServiceBase<TState> : IDownloadService where TStat
         }
     }
 
+    public abstract IAsyncEnumerable<DownloadedFile> SyncAsync(DateTimeOffset? uploadedBefore,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The files recorded as failed, which a sync leaves to Retry failed.
+    /// </summary>
+    protected async Task<HashSet<string>> GetFailedExternalIdsAsync()
+    {
+        var failedFiles = await _failedFileService.GetAsync(Parameters.UserId, Parameters.SourceId);
+
+        return failedFiles.Select(a => a.ExternalId).ToHashSet();
+    }
+
     /// <summary>
     /// Creates the client of the API of the source, unless it has been created already.
     /// </summary>

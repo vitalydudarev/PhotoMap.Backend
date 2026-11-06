@@ -74,7 +74,7 @@ namespace PhotoMap.Api.Controllers
         /// </summary>
         /// <param name="userId">The ID of the user.</param>
         /// <param name="sourceId">The ID of the photo source.</param>
-        /// <param name="command">Start, Stop or RetryFailed.</param>
+        /// <param name="command">Start, Stop, RetryFailed or Sync, which downloads the files the runs have missed.</param>
         [HttpPost("{sourceId:long}/camera-uploads")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status409Conflict)]
@@ -122,7 +122,7 @@ namespace PhotoMap.Api.Controllers
         /// </summary>
         /// <param name="userId">The ID of the user.</param>
         /// <param name="sourceId">The ID of the photo source.</param>
-        /// <param name="command">Start, Stop or RetryFailed.</param>
+        /// <param name="command">Start, Stop, RetryFailed or Sync, which downloads the files the runs have missed.</param>
         [HttpPost("{sourceId:long}/other-uploads")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]

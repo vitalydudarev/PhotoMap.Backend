@@ -61,6 +61,92 @@ public class PhotoSourceProcessingServiceTests
     }
 
     [Fact]
+    public async Task RunCommandAsync_ShouldSyncTheFilesUploadedBeforeTheLastListingRun_WithoutListingTheSource()
+    {
+        // Arrange
+        var lastListedAt = new DateTimeOffset(2026, 11, 1, 9, 0, 0, TimeSpan.Zero);
+        SetUpUserPhotoSource(processedCount: 39, failedCount: 1, state: null, lastListedAt: lastListedAt);
+
+        var service = CreateService(out var runTask);
+        _downloadService
+            .Setup(a => a.SyncAsync(lastListedAt, It.IsAny<CancellationToken>()))
+            .Returns(ProcessedFilesAsync(ProcessingResult.Success));
+
+        // Act
+        var accepted = await service.RunCommandAsync(UserId, SourceId, PhotoSourceProcessingCommands.Sync);
+        await runTask();
+
+        // Assert: the file missed is counted as processed, the total of the last run stays
+        Assert.True(accepted);
+        var lastStatus = _reportedStatuses.Last();
+        Assert.Equal(PhotoSourceStatus.Done, lastStatus.Status);
+        Assert.Equal(40, lastStatus.ProcessedCount);
+        Assert.Equal(2826, lastStatus.TotalCount);
+        // a sync is no listing run, the files a next sync checks stay the same
+        Assert.All(_reportedStatuses, a => Assert.Null(a.LastListedAt));
+
+        _downloadService.Verify(a => a.GetTotalFileCountAsync(), Times.Never);
+        _downloadService.Verify(a => a.DownloadAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task RunCommandAsync_ShouldSyncTheFilesUploadedBeforeTheLastUpdate_WhenNoListingRunTimeIsSaved()
+    {
+        // Arrange: a status saved before the time of the listing runs was kept
+        SetUpUserPhotoSource(processedCount: 39, failedCount: 0, state: null);
+
+        var service = CreateService(out var runTask);
+        _downloadService
+            .Setup(a => a.SyncAsync(It.IsAny<DateTimeOffset?>(), It.IsAny<CancellationToken>()))
+            .Returns(ProcessedFilesAsync());
+
+        // Act
+        await service.RunCommandAsync(UserId, SourceId, PhotoSourceProcessingCommands.Sync);
+        await runTask();
+
+        // Assert
+        _downloadService.Verify(a => a.SyncAsync(LastUpdatedAt, It.IsAny<CancellationToken>()));
+    }
+
+    [Fact]
+    public async Task RunCommandAsync_ShouldSaveWhenAListingRunThatHasFinishedStarted()
+    {
+        // Arrange
+        SetUpUserPhotoSource(processedCount: 0, failedCount: 0, state: null);
+
+        var service = CreateService(out var runTask);
+        var before = DateTimeOffset.UtcNow;
+
+        // Act
+        await service.RunCommandAsync(UserId, SourceId, PhotoSourceProcessingCommands.Start);
+        await runTask();
+
+        // Assert: only the report it has finished with saves it, the files uploaded since are left to the next run
+        var lastStatus = _reportedStatuses.Last();
+        Assert.Equal(PhotoSourceStatus.Done, lastStatus.Status);
+        Assert.NotNull(lastStatus.LastListedAt);
+        Assert.InRange(lastStatus.LastListedAt!.Value, before, DateTimeOffset.UtcNow);
+        Assert.All(_reportedStatuses.SkipLast(1), a => Assert.Null(a.LastListedAt));
+    }
+
+    [Fact]
+    public async Task RunCommandAsync_ShouldNotSaveWhenAListingRunStarted_WhenItIsStopped()
+    {
+        // Arrange
+        SetUpUserPhotoSource(processedCount: 0, failedCount: 0, state: null);
+
+        var service = CreateService(out var runTask, cancelled: true, CancellationToken.None);
+
+        // Act
+        await service.RunCommandAsync(UserId, SourceId, PhotoSourceProcessingCommands.Start);
+        await runTask();
+
+        // Assert: the files it has not reached are not the runs' to check yet
+        Assert.Equal(PhotoSourceStatus.Stopped, _reportedStatuses.Last().Status);
+        Assert.All(_reportedStatuses, a => Assert.Null(a.LastListedAt));
+    }
+
+    [Fact]
     public async Task RunCommandAsync_ShouldStartCountingFromZero_WhenTheSourceWasNeverProcessed()
     {
         // Arrange
@@ -184,7 +270,10 @@ public class PhotoSourceProcessingServiceTests
     }
 
     /// <param name="recordedFailures">The files recorded as failed, the failed count by default.</param>
-    private void SetUpUserPhotoSource(int processedCount, int failedCount, string? state, int? recordedFailures = null)
+    private static readonly DateTimeOffset LastUpdatedAt = new(2026, 11, 6, 12, 0, 0, TimeSpan.Zero);
+
+    private void SetUpUserPhotoSource(int processedCount, int failedCount, string? state, int? recordedFailures = null,
+        DateTimeOffset? lastListedAt = null)
     {
         _failedFileService
             .Setup(a => a.CountAsync(UserId, SourceId, false))
@@ -208,7 +297,8 @@ public class PhotoSourceProcessingServiceTests
                 TotalCount = 2826,
                 ProcessedCount = processedCount,
                 FailedCount = failedCount,
-                LastUpdatedAt = DateTimeOffset.UtcNow
+                LastUpdatedAt = LastUpdatedAt,
+                LastListedAt = lastListedAt
             });
 
         _userPhotoSourceService
