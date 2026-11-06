@@ -4,7 +4,6 @@ using PhotoMap.Api.Database.Entities;
 using PhotoMap.Api.Domain.Models;
 using PhotoMap.Api.Services;
 using PhotoMap.Api.Services.Factories;
-using PhotoMap.Api.Services.Services;
 
 namespace PhotoMap.Api;
 
