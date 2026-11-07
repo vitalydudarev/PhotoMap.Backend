@@ -28,6 +28,7 @@ using PhotoMap.Api.Services.Implementations;
 using PhotoMap.Api.Services.Interfaces;
 using PhotoMap.Api.Services.Services;
 using PhotoMap.Api.Services.Services.Domain;
+using PhotoMap.Shared.Messaging;
 using PhotoMap.Worker;
 using Serilog;
 using Swashbuckle.AspNetCore.SwaggerGen;
@@ -118,6 +119,8 @@ namespace PhotoMap.Api
             services.AddScoped<HostInfo>();
 
             services.AddSingleton<IFrontendNotificationService, FrontendNotificationService>();
+
+            AddKafka(services);
             
             // worker, hosted in this application
             services.AddWorker(Configuration);
@@ -139,6 +142,31 @@ namespace PhotoMap.Api
             });
 
             services.AddSignalR();
+        }
+
+        /// <summary>
+        /// Events are saved to the outbox with the changes they report, and the relay publishes them to Kafka, only
+        /// when it is enabled; the application runs without a broker otherwise. See docs/kafka.md.
+        /// </summary>
+        private void AddKafka(IServiceCollection services)
+        {
+            var kafkaSettings = Configuration.GetSection("Kafka").Get<KafkaSettings>() ?? new KafkaSettings();
+
+            services.AddSingleton(kafkaSettings);
+            services.AddSingleton<OutboxSignal>();
+            services.AddScoped<IOutboxService, OutboxService>();
+
+            if (!kafkaSettings.Enabled)
+            {
+                return;
+            }
+
+            services.AddSingleton<IMessagePublisher, KafkaMessagePublisher>();
+            services.AddScoped<OutboxRelay>();
+            // registered before the processing services: hosted services stop in reverse order, so the relay still
+            // publishes what is saved while those stop; what it does not, it publishes on the next start
+            services.AddHostedService<OutboxRelayBackgroundService>();
+            services.AddHostedService<PhotoSavedLogConsumer>();
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.

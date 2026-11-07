@@ -5,9 +5,10 @@ namespace PhotoMap.Api.Domain.Services
     public interface IPhotoService
     {
         /// <summary>
-        /// Saves the photos in one go: they are all saved, or none of them is.
+        /// Saves the photos in one go, and the outbox messages that report them with them: they are all saved, or
+        /// none of them is.
         /// </summary>
-        Task AddRangeAsync(IReadOnlyCollection<Photo> photos);
+        Task AddRangeAsync(IReadOnlyCollection<Photo> photos, IReadOnlyCollection<OutboxMessage>? outboxMessages = null);
 
         Task<Photo?> GetAsync(long id);
 

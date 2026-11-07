@@ -204,6 +204,59 @@ namespace PhotoMap.Api.Database.Migrations
                     b.ToTable("failed_files", (string)null);
                 });
 
+            modelBuilder.Entity("PhotoMap.Api.Database.Entities.OutboxMessageEntity", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<int>("Attempts")
+                        .HasColumnType("integer")
+                        .HasColumnName("attempts");
+
+                    b.Property<DateTimeOffset>("CreatedOn")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_on");
+
+                    b.Property<string>("Key")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("key");
+
+                    b.Property<string>("LastError")
+                        .HasColumnType("text")
+                        .HasColumnName("last_error");
+
+                    b.Property<string>("Payload")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("payload");
+
+                    b.Property<DateTimeOffset?>("PublishedOn")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("published_on");
+
+                    b.Property<string>("Topic")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("topic");
+
+                    b.HasKey("Id")
+                        .HasName("pk_outbox_messages");
+
+                    b.HasIndex("Id")
+                        .HasDatabaseName("ix_outbox_messages_pending")
+                        .HasFilter("published_on IS NULL");
+
+                    b.HasIndex("PublishedOn")
+                        .HasDatabaseName("ix_outbox_messages_published_on");
+
+                    b.ToTable("outbox_messages", (string)null);
+                });
+
             modelBuilder.Entity("PhotoMap.Api.Database.Entities.PhotoCategoryEntity", b =>
                 {
                     b.Property<long>("PhotoId")

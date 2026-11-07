@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
@@ -10,6 +11,8 @@ using Microsoft.Extensions.Options;
 using PhotoMap.Api.Domain.Models;
 using PhotoMap.Api.Domain.Services;
 using PhotoMap.Api.Services.Services;
+using PhotoMap.Shared.Events;
+using PhotoMap.Shared.Messaging;
 using PhotoMap.Shared.Models;
 using PhotoMap.Shared.Queues;
 
@@ -17,13 +20,16 @@ namespace PhotoMap.Api.Services
 {
     /// <summary>
     /// Consumes the images processed by PhotoMap.Worker from the in-process queue,
-    /// stores their thumbnails and saves the photos, several at a time.
+    /// stores their thumbnails and saves the photos, several at a time. Saves a <see cref="PhotoSavedEvent"/> to the
+    /// outbox with each photo, for the outbox relay to publish.
     /// </summary>
     public class ProcessedImageBackgroundService : BackgroundService
     {
         private readonly IMessageQueue<ProcessedImage> _processedImageQueue;
         private readonly IServiceScopeFactory _serviceScopeFactory;
         private readonly ILogger<ProcessedImageBackgroundService> _logger;
+        private readonly KafkaSettings _kafkaSettings;
+        private readonly OutboxSignal _outboxSignal;
         private readonly int _batchSize;
         private readonly TimeSpan _batchMaxWait;
 
@@ -31,11 +37,15 @@ namespace PhotoMap.Api.Services
             IMessageQueue<ProcessedImage> processedImageQueue,
             IServiceScopeFactory serviceScopeFactory,
             ILogger<ProcessedImageBackgroundService> logger,
-            IOptions<PhotoProcessingSettings> settings)
+            IOptions<PhotoProcessingSettings> settings,
+            KafkaSettings kafkaSettings,
+            OutboxSignal outboxSignal)
         {
             _processedImageQueue = processedImageQueue;
             _serviceScopeFactory = serviceScopeFactory;
             _logger = logger;
+            _kafkaSettings = kafkaSettings;
+            _outboxSignal = outboxSignal;
             _batchSize = Math.Max(settings.Value.SaveBatchSize, 1);
             _batchMaxWait = settings.Value.SaveBatchMaxWait;
         }
@@ -104,7 +114,19 @@ namespace PhotoMap.Api.Services
 
                 if (photos.Count > 0)
                 {
-                    await photoService.AddRangeAsync(photos.Select(a => a.Photo).ToList());
+                    // The events are saved with the photos, in one transaction, rather than published to Kafka
+                    // after: a photo is saved exactly when its event is, neither is lost when the other is not
+                    // (the outbox pattern). Kafka disabled, there is nothing to publish them to.
+                    var outboxMessages = _kafkaSettings.Enabled
+                        ? photos.Select(a => CreateOutboxMessage(a.Image, a.Photo)).ToList()
+                        : [];
+
+                    await photoService.AddRangeAsync(photos.Select(a => a.Photo).ToList(), outboxMessages);
+
+                    if (outboxMessages.Count > 0)
+                    {
+                        _outboxSignal.Notify();
+                    }
                 }
 
                 foreach (var (processedImage, _) in photos)
@@ -206,6 +228,21 @@ namespace PhotoMap.Api.Services
                 HorizontalPositioningError = processedImage.HorizontalPositioningError,
                 HasGps = processedImage.Latitude.HasValue && processedImage.Longitude.HasValue,
                 FromOtherUploads = processedImage.FromOtherUploads
+            };
+        }
+
+        private static OutboxMessage CreateOutboxMessage(ProcessedImage processedImage, Photo photo)
+        {
+            var photoSaved = new PhotoSavedEvent(photo.UserId, photo.PhotoSourceId, processedImage.PhotoSourceName,
+                photo.FileName, photo.Path, photo.ExternalId, photo.ContentHash, photo.DateTimeTaken, photo.Latitude,
+                photo.Longitude, photo.FromOtherUploads, photo.AddedOn);
+
+            return new OutboxMessage
+            {
+                Topic = PhotoSavedEvent.Topic,
+                Key = photoSaved.GetKey(),
+                Payload = JsonSerializer.Serialize(photoSaved),
+                CreatedOn = photo.AddedOn
             };
         }
 

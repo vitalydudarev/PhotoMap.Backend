@@ -4,7 +4,7 @@ namespace PhotoMap.Api.Domain.Repositories;
 
 public interface IPhotoRepository
 {
-    Task AddRangeAsync(IReadOnlyCollection<Photo> photos);
+    Task AddRangeAsync(IReadOnlyCollection<Photo> photos, IReadOnlyCollection<OutboxMessage> outboxMessages);
     Task<Photo?> GetAsync(long id);
     Task<IReadOnlySet<string>> GetSavedExternalIdsAsync(long userId, long photoSourceId, IEnumerable<string> externalIds);
     Task<IEnumerable<Photo>> GetByUserIdAsync(long userId, PhotoFilter filter, int top, int skip, PhotoSortOrder sortOrder);

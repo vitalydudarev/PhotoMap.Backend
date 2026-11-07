@@ -5,6 +5,9 @@ using Moq;
 using PhotoMap.Api.Domain.Models;
 using PhotoMap.Api.Domain.Services;
 using PhotoMap.Api.Services.Services;
+using PhotoMap.Shared.Events;
+using PhotoMap.Shared.Messaging;
+using System.Text.Json;
 using PhotoMap.Shared.Models;
 using PhotoMap.Shared.Queues;
 
@@ -19,6 +22,9 @@ public class ProcessedImageBackgroundServiceTests
 
     private readonly Mock<IPhotoService> _photoService = new();
     private readonly List<IReadOnlyCollection<Photo>> _savedBatches = [];
+    private readonly List<(IReadOnlyCollection<Photo> Photos, IReadOnlyCollection<OutboxMessage> OutboxMessages)> _saves = [];
+    private readonly KafkaSettings _kafkaSettings = new() { Enabled = true };
+    private readonly OutboxSignal _outboxSignal = new();
 
     public ProcessedImageBackgroundServiceTests()
     {
@@ -32,8 +38,8 @@ public class ProcessedImageBackgroundServiceTests
     {
         // Arrange
         _photoService
-            .Setup(a => a.AddRangeAsync(It.IsAny<IReadOnlyCollection<Photo>>()))
-            .Callback<IReadOnlyCollection<Photo>>(_savedBatches.Add)
+            .Setup(a => a.AddRangeAsync(It.IsAny<IReadOnlyCollection<Photo>>(), It.IsAny<IReadOnlyCollection<OutboxMessage>?>()))
+            .Callback<IReadOnlyCollection<Photo>, IReadOnlyCollection<OutboxMessage>?>((a, _) => _savedBatches.Add(a))
             .Returns(Task.CompletedTask);
 
         var queue = new ChannelMessageQueue<ProcessedImage>();
@@ -56,8 +62,8 @@ public class ProcessedImageBackgroundServiceTests
             .Setup(a => a.GetSavedExternalIdsAsync(UserId, SourceId, It.IsAny<IEnumerable<string>>()))
             .ReturnsAsync(new HashSet<string> { "id:saved" });
         _photoService
-            .Setup(a => a.AddRangeAsync(It.IsAny<IReadOnlyCollection<Photo>>()))
-            .Callback<IReadOnlyCollection<Photo>>(_savedBatches.Add)
+            .Setup(a => a.AddRangeAsync(It.IsAny<IReadOnlyCollection<Photo>>(), It.IsAny<IReadOnlyCollection<OutboxMessage>?>()))
+            .Callback<IReadOnlyCollection<Photo>, IReadOnlyCollection<OutboxMessage>?>((a, _) => _savedBatches.Add(a))
             .Returns(Task.CompletedTask);
 
         var queue = new ChannelMessageQueue<ProcessedImage>();
@@ -77,8 +83,8 @@ public class ProcessedImageBackgroundServiceTests
     {
         // Arrange: the insert of the batch fails on one of its photos, which fails on its own as well
         _photoService
-            .Setup(a => a.AddRangeAsync(It.IsAny<IReadOnlyCollection<Photo>>()))
-            .Callback<IReadOnlyCollection<Photo>>(a =>
+            .Setup(a => a.AddRangeAsync(It.IsAny<IReadOnlyCollection<Photo>>(), It.IsAny<IReadOnlyCollection<OutboxMessage>?>()))
+            .Callback<IReadOnlyCollection<Photo>, IReadOnlyCollection<OutboxMessage>?>((a, _) =>
             {
                 if (a.Any(b => b.ExternalId == "id:bad"))
                 {
@@ -103,6 +109,61 @@ public class ProcessedImageBackgroundServiceTests
         Assert.True((await images[2].Processed!.Task).Succeeded);
     }
 
+    [Fact]
+    public async Task ExecuteAsync_ShouldSaveAnEventForEachPhotoToTheOutbox_WithThePhotos()
+    {
+        // Arrange: one photo saved already, which gets no event
+        _photoService
+            .Setup(a => a.GetSavedExternalIdsAsync(UserId, SourceId, It.IsAny<IEnumerable<string>>()))
+            .ReturnsAsync(new HashSet<string> { "id:saved" });
+        SetUpSave();
+
+        var queue = new ChannelMessageQueue<ProcessedImage>();
+        var images = new[] { CreateImage("id:saved"), CreateImage("id:0"), CreateImage("id:1") };
+
+        // Act
+        await RunAsync(queue, images);
+
+        // Assert: in the same call as the photos, so in the same transaction
+        var (photos, outboxMessages) = Assert.Single(_saves);
+        Assert.Equal(["id:0", "id:1"], photos.Select(a => a.ExternalId));
+        Assert.All(outboxMessages, a => Assert.Equal(PhotoSavedEvent.Topic, a.Topic));
+        Assert.All(outboxMessages, a => Assert.Equal($"{UserId}:{SourceId}", a.Key));
+        Assert.Equal(["id:0", "id:1"],
+            outboxMessages.Select(a => JsonSerializer.Deserialize<PhotoSavedEvent>(a.Payload)!.ExternalId));
+        Assert.True(_outboxSignal.WaitAsync(CancellationToken.None).IsCompletedSuccessfully);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_ShouldSaveNoEvents_WhenKafkaIsDisabled()
+    {
+        // Arrange
+        SetUpSave();
+        _kafkaSettings.Enabled = false;
+
+        var queue = new ChannelMessageQueue<ProcessedImage>();
+        var images = new[] { CreateImage("id:0") };
+
+        // Act
+        await RunAsync(queue, images);
+
+        // Assert
+        var (photos, outboxMessages) = Assert.Single(_saves);
+        Assert.Single(photos);
+        Assert.Empty(outboxMessages);
+        Assert.False(_outboxSignal.WaitAsync(CancellationToken.None).IsCompleted);
+    }
+
+    private void SetUpSave()
+    {
+        _photoService
+            .Setup(a => a.AddRangeAsync(It.IsAny<IReadOnlyCollection<Photo>>(),
+                It.IsAny<IReadOnlyCollection<OutboxMessage>?>()))
+            .Callback<IReadOnlyCollection<Photo>, IReadOnlyCollection<OutboxMessage>?>((photos, outboxMessages) =>
+                _saves.Add((photos, outboxMessages ?? [])))
+            .Returns(Task.CompletedTask);
+    }
+
     /// <summary>
     /// Enqueues the images before the service starts, so that they make one batch, and waits until all of them
     /// have been processed.
@@ -121,7 +182,9 @@ public class ProcessedImageBackgroundServiceTests
                 Sizes = [256],
                 SaveBatchSize = 10,
                 SaveBatchMaxWait = TimeSpan.FromMilliseconds(50)
-            }));
+            }),
+            _kafkaSettings,
+            _outboxSignal);
 
         await service.StartAsync(CancellationToken.None);
         await Task.WhenAll(images.Select(a => a.Processed!.Task)).WaitAsync(Timeout);

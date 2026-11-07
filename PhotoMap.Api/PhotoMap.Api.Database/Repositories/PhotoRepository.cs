@@ -16,11 +16,20 @@ public class PhotoRepository : IPhotoRepository
     }
     
     /// <summary>
-    /// Saves the photos in one go: they are all saved, or none of them is.
+    /// Saves the photos and the outbox messages in one go, one transaction: they are all saved, or none of them is.
     /// </summary>
-    public async Task AddRangeAsync(IReadOnlyCollection<Photo> photos)
+    public async Task AddRangeAsync(IReadOnlyCollection<Photo> photos, IReadOnlyCollection<OutboxMessage> outboxMessages)
     {
         await _context.Photos.AddRangeAsync(photos.Select(ModelToEntity));
+        await _context.OutboxMessages.AddRangeAsync(outboxMessages.Select(a => new OutboxMessageEntity
+        {
+            Topic = a.Topic,
+            Key = a.Key,
+            Payload = a.Payload,
+            CreatedOn = a.CreatedOn
+        }));
+
+        // one SaveChanges is one transaction
         await _context.SaveChangesAsync();
     }
     

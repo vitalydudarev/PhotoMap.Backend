@@ -25,9 +25,10 @@ namespace PhotoMap.Api.Services.Services.Domain
             _duplicatesSignal = duplicatesSignal;
         }
 
-        public async Task AddRangeAsync(IReadOnlyCollection<Photo> photos)
+        public async Task AddRangeAsync(IReadOnlyCollection<Photo> photos,
+            IReadOnlyCollection<OutboxMessage>? outboxMessages = null)
         {
-            await _photoRepository.AddRangeAsync(photos);
+            await _photoRepository.AddRangeAsync(photos, outboxMessages ?? []);
 
             foreach (var userPhotos in photos.GroupBy(a => a.UserId))
             {
