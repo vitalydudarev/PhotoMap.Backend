@@ -102,6 +102,29 @@ Before, the Worker handed the API a `ProcessedImage` object holding the thumbnai
 With Kafka disabled, the same messages go through `ChannelMessageTransport<T>`, an in-memory queue, and
 `Acknowledge()` does nothing. The code on both sides only sees `IMessageSender<T>` / `IMessageReceiver<T>`.
 
+## When Kafka is down
+
+The app keeps working without Kafka. Only processing photos and videos becomes unavailable, until Kafka is back.
+
+- **Detection:** `ProcessingAvailabilityMonitor` asks a broker for the cluster's metadata every 5s
+  (`KafkaBrokerHealthCheck`). Two failed checks in a row, about 10–15s, make processing unavailable; a single
+  failure might be a blip, and treating it as an outage would stop every run for nothing. One successful check
+  makes processing available again.
+- **Runs already going** (camera uploads, other uploads, videos) are stopped. They record the Stopped status and
+  can be continued once Kafka is back, instead of each failing on a 30-second send timeout.
+- **Starting processing** (Start, Retry failed, Sync, for photos and videos) is answered with **503 Service
+  Unavailable**, which says why. Stopping always works.
+- **The frontend** asks `GET /api/processing/availability` when the photo-source page opens, and the notification
+  hub sends every change as `ProcessingAvailability`. While processing is unavailable, the page shows a warning and
+  disables the buttons that start it; Pause stays enabled.
+- **Everything else** works as usual: browsing photos and videos, tags, the map, downloads, failed previews. The
+  API also starts with Kafka down, reporting processing unavailable from its first check.
+- **Videos** don't go through Kafka, but they follow the same rule, so processing is available or unavailable as a
+  whole.
+- **With Kafka disabled** (`Kafka:Enabled=false`), nothing is checked and processing is always available.
+
+Try it: `docker stop photo-map-kafka` with the app open, wait about 15s, then `docker start photo-map-kafka`.
+
 ## Why an outbox
 
 Writing to the database and then publishing to Kafka is a *dual write*. The two aren't atomic, so one can happen

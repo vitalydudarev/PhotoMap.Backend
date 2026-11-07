@@ -167,6 +167,8 @@ namespace PhotoMap.Api
             services.AddImageServices();
 
             services.AddSingleton(kafkaSettings);
+            // with Kafka, available only while it can be reached, which the monitor below checks
+            services.AddSingleton(new ProcessingAvailability(checkedByMonitor: kafkaSettings.Enabled));
             services.AddSingleton<OutboxSignal>();
             services.AddScoped<IOutboxService, OutboxService>();
 
@@ -179,6 +181,9 @@ namespace PhotoMap.Api
             }
 
             services.AddKafkaPublisher(kafkaSettings);
+
+            services.AddSingleton<IBrokerHealthCheck, KafkaBrokerHealthCheck>();
+            services.AddHostedService<ProcessingAvailabilityMonitor>();
 
             // to the workers, and back
             services.AddKafkaSender<ProcessImageRequest>(ProcessImageRequest.Topic, a => a.GetKey());

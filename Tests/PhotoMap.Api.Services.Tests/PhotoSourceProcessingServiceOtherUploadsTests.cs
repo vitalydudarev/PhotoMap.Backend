@@ -10,6 +10,7 @@ using Moq;
 using PhotoMap.Api.Domain.Models;
 using PhotoMap.Api.Domain.Services;
 using PhotoMap.Api.Services.Factories;
+using PhotoMap.Api.Services.Exceptions;
 using PhotoMap.Api.Services.Services;
 using PhotoMap.Shared.Messaging;
 using PhotoMap.Shared.Models;
@@ -30,6 +31,7 @@ public class PhotoSourceProcessingServiceOtherUploadsTests
     private readonly Mock<IUserPhotoSourceService> _userPhotoSourceService = new();
     private readonly Mock<IPhotoSourceService> _photoSourceService = new();
     private readonly Mock<IBackgroundTaskManager> _backgroundTaskManager = new();
+    private readonly ProcessingAvailability _processingAvailability = new(checkedByMonitor: false);
     private readonly Mock<IPhotoService> _photoService = new();
     private readonly Mock<IFailedFileService> _failedFileService = new();
     private readonly Mock<IFileStorage> _fileStorage = new();
@@ -114,6 +116,67 @@ public class PhotoSourceProcessingServiceOtherUploadsTests
 
         // Assert
         Assert.False(accepted);
+    }
+
+    [Theory]
+    [InlineData(PhotoSourceProcessingCommands.Start)]
+    [InlineData(PhotoSourceProcessingCommands.RetryFailed)]
+    [InlineData(PhotoSourceProcessingCommands.Sync)]
+    public async Task RunCommands_ShouldStartNothing_WhileProcessingIsUnavailable(PhotoSourceProcessingCommands command)
+    {
+        // Arrange
+        _processingAvailability.Set(false, "Kafka cannot be reached.");
+        var service = CreateService(new FakeDiskHandler([]));
+
+        // Act & Assert: the camera uploads and the other uploads alike
+        var cameraUploads = await Assert.ThrowsAsync<ProcessingUnavailableException>(() =>
+            service.RunCommandAsync(UserId, YandexDiskSourceId, command));
+        var otherUploads = await Assert.ThrowsAsync<ProcessingUnavailableException>(() =>
+            service.RunOtherUploadsCommandAsync(UserId, YandexDiskSourceId, command));
+
+        Assert.Equal("Kafka cannot be reached.", cameraUploads.Message);
+        Assert.Equal("Kafka cannot be reached.", otherUploads.Message);
+        _backgroundTaskManager.Verify(a => a.TryStartTask(It.IsAny<string>(), It.IsAny<Func<CancellationToken, Task>>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task RunCommands_ShouldStop_WhileProcessingIsUnavailable()
+    {
+        // Arrange
+        _processingAvailability.Set(false, "Kafka cannot be reached.");
+        var service = CreateService(new FakeDiskHandler([]));
+
+        // Act
+        var cameraUploads = await service.RunCommandAsync(UserId, YandexDiskSourceId, PhotoSourceProcessingCommands.Stop);
+        var otherUploads = await service.RunOtherUploadsCommandAsync(UserId, YandexDiskSourceId, PhotoSourceProcessingCommands.Stop);
+
+        // Assert
+        Assert.True(cameraUploads);
+        Assert.True(otherUploads);
+        _backgroundTaskManager.Verify(a => a.CancelTask(It.IsAny<string>()), Times.Exactly(2));
+    }
+
+    [Fact]
+    public void StopAllRuns_ShouldStopTheRunsOfThePhotos_ButNotThoseOfTheVideosNorTheDownloads()
+    {
+        // Arrange
+        Func<string, bool>? filter = null;
+        _backgroundTaskManager
+            .Setup(a => a.CancelTasks(It.IsAny<Func<string, bool>>()))
+            .Callback<Func<string, bool>>(a => filter = a)
+            .Returns(["UserId=1-SourceId=2"]);
+
+        // Act
+        var stopped = CreateService(new FakeDiskHandler([])).StopAllRuns();
+
+        // Assert: the names of the runs as the services give them
+        Assert.Equal(1, stopped);
+        Assert.True(filter!("UserId=1-SourceId=2"));
+        Assert.True(filter("OtherUploads-UserId=1-SourceId=2"));
+        Assert.False(filter("Videos-UserId=1-SourceId=2"));
+        Assert.False(filter("Download-UserId=1-SourceId=2"));
+        Assert.False(filter("FolderDownload-UserId=1-SourceId=2"));
     }
 
     [Fact]
@@ -559,7 +622,7 @@ public class PhotoSourceProcessingServiceOtherUploadsTests
 
         return new PhotoSourceProcessingService(_userPhotoSourceService.Object, _photoSourceService.Object,
             _backgroundTaskManager.Object, services.BuildServiceProvider().GetRequiredService<IServiceScopeFactory>(),
-            Options.Create(new PhotoProcessingSettings { Sizes = [256, 640] }));
+            Options.Create(new PhotoProcessingSettings { Sizes = [256, 640] }), _processingAvailability);
     }
 
     private static object CreateResource(string resourceId, string path, object? exif = null, DateTime? created = null)

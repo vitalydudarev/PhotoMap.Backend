@@ -9,6 +9,8 @@ namespace PhotoMap.Api.Services;
 public interface IPhotoSourceProcessingService
 {
     /// <returns>false if the command was rejected: Start while the processing of the source is running.</returns>
+    /// <exception cref="Exceptions.ProcessingUnavailableException">A command but Stop while processing is
+    /// unavailable.</exception>
     Task<bool> RunCommandAsync(long userId, long sourceId, PhotoSourceProcessingCommands command);
 
     /// <returns>true while the photo source is being processed for the user.</returns>
@@ -18,8 +20,17 @@ public interface IPhotoSourceProcessingService
     Task<bool> SupportsOtherUploadsAsync(long sourceId);
 
     /// <returns>false if the command was rejected: Start while the other uploads of the source are being processed.</returns>
+    /// <exception cref="Exceptions.ProcessingUnavailableException">A command but Stop while processing is
+    /// unavailable.</exception>
     Task<bool> RunOtherUploadsCommandAsync(long userId, long sourceId, PhotoSourceProcessingCommands command);
 
     /// <returns>true while the other uploads of the photo source are being processed for the user.</returns>
     bool IsOtherUploadsRunning(long userId, long sourceId);
+
+    /// <summary>
+    /// Stops every run processing photos, of every source and user, e.g. as processing has become unavailable. The
+    /// runs record the Stopped status, to be continued later.
+    /// </summary>
+    /// <returns>How many runs have been stopped.</returns>
+    int StopAllRuns();
 }

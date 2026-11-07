@@ -66,6 +66,21 @@ public sealed class BackgroundTaskManager : IBackgroundTaskManager, IHostedServi
         return false;
     }
 
+    public IReadOnlyList<string> CancelTasks(Func<string, bool> taskNameFilter)
+    {
+        var cancelled = new List<string>();
+
+        foreach (var taskName in _tasks.Keys.Where(taskNameFilter))
+        {
+            if (CancelTask(taskName))
+            {
+                cancelled.Add(taskName);
+            }
+        }
+
+        return cancelled;
+    }
+
     public Task StartAsync(CancellationToken cancellationToken)
     {
         return Task.CompletedTask;

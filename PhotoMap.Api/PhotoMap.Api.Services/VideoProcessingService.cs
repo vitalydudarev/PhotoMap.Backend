@@ -32,6 +32,7 @@ public class VideoProcessingService : IVideoProcessingService
     private readonly IFileStorage _fileStorage;
     private readonly IFrontendNotificationService _frontendNotificationService;
     private readonly ILogger<VideoProcessingService> _logger;
+    private readonly ProcessingAvailability _processingAvailability;
 
     public VideoProcessingService(
         IUserPhotoSourceService userPhotoSourceService,
@@ -41,7 +42,8 @@ public class VideoProcessingService : IVideoProcessingService
         IServiceScopeFactory serviceScopeFactory,
         IFileStorage fileStorage,
         IFrontendNotificationService frontendNotificationService,
-        ILogger<VideoProcessingService> logger)
+        ILogger<VideoProcessingService> logger,
+        ProcessingAvailability processingAvailability)
     {
         _userPhotoSourceService = userPhotoSourceService;
         _photoSourceService = photoSourceService;
@@ -51,6 +53,7 @@ public class VideoProcessingService : IVideoProcessingService
         _fileStorage = fileStorage;
         _frontendNotificationService = frontendNotificationService;
         _logger = logger;
+        _processingAvailability = processingAvailability;
     }
 
     public async Task<bool> SupportsVideosAsync(long sourceId)
@@ -64,6 +67,9 @@ public class VideoProcessingService : IVideoProcessingService
     {
         if (command == PhotoSourceProcessingCommands.Start)
         {
+            // the videos do not go through Kafka, but processing is available or not as a whole
+            _processingAvailability.EnsureAvailable();
+
             return await StartAsync(userId, sourceId);
         }
 
@@ -446,9 +452,16 @@ public class VideoProcessingService : IVideoProcessingService
         return Type.GetType(photoSource.ServiceFactoryImplementationType) == typeof(YandexDiskDownloadServiceFactory);
     }
 
+    public int StopAllRuns()
+    {
+        return _backgroundTaskManager.CancelTasks(a => a.StartsWith(TaskNamePrefix, StringComparison.Ordinal)).Count;
+    }
+
+    private const string TaskNamePrefix = "Videos-";
+
     private static string GetTaskName(long userId, long sourceId)
     {
-        return $"Videos-UserId={userId}-SourceId={sourceId}";
+        return $"{TaskNamePrefix}UserId={userId}-SourceId={sourceId}";
     }
 
     private sealed record VideoRun(long UserId, long SourceId, string PhotoSourceName, string Token, int MaxParallelDownloads);

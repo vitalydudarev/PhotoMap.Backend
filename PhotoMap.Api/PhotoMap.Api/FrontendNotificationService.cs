@@ -23,6 +23,11 @@ public class FrontendNotificationService : IFrontendNotificationService
         return _hubContext.Clients.Group(NotificationHub.GetUserGroupName(userId)).SendAsync("Error", hubErrorModel);
     }
 
+    public Task SendProcessingAvailabilityAsync(bool available, string? reason)
+    {
+        return _hubContext.Clients.All.SendAsync("ProcessingAvailability", new HubProcessingAvailabilityModel(available, reason));
+    }
+
     public Task SendProgressAsync(UserPhotoSourceStatus status)
     {
         return SendProgressAsync("Progress", status);

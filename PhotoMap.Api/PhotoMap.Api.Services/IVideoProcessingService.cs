@@ -12,6 +12,7 @@ public interface IVideoProcessingService
     Task<bool> SupportsVideosAsync(long sourceId);
 
     /// <returns>false if the command was rejected: Start while the videos of the source are being processed.</returns>
+    /// <exception cref="Exceptions.ProcessingUnavailableException">Start while processing is unavailable.</exception>
     Task<bool> RunCommandAsync(long userId, long sourceId, PhotoSourceProcessingCommands command);
 
     /// <returns>true while the videos of the photo source are being processed for the user.</returns>
@@ -28,4 +29,11 @@ public interface IVideoProcessingService
     /// </summary>
     /// <returns>false, having deleted nothing, while the videos of any source are being processed.</returns>
     Task<bool> DeleteAllDataAsync();
+
+    /// <summary>
+    /// Stops every run processing videos, of every source and user, e.g. as processing has become unavailable. The
+    /// runs record the Stopped status, to be continued later.
+    /// </summary>
+    /// <returns>How many runs have been stopped.</returns>
+    int StopAllRuns();
 }

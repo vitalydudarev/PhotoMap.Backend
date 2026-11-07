@@ -5,6 +5,11 @@ namespace PhotoMap.Api.Domain.Services;
 public interface IFrontendNotificationService
 {
     Task SendErrorAsync(long userId, long sourceId, string errorText);
+
+    /// <summary>
+    /// Whether photos and videos can be processed, to every user: it is the same for all of them.
+    /// </summary>
+    Task SendProcessingAvailabilityAsync(bool available, string? reason);
     Task SendProgressAsync(UserPhotoSourceStatus status);
 
     /// <summary>

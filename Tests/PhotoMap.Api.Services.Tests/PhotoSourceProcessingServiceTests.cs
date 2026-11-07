@@ -341,7 +341,7 @@ public class PhotoSourceProcessingServiceTests
 
         return new PhotoSourceProcessingService(_userPhotoSourceService.Object, photoSourceService.Object,
             backgroundTaskManager.Object, CreateServiceScopeFactory(downloadServiceFactory.Object, applicationStopping),
-            Options.Create(new PhotoProcessingSettings { Sizes = [256] }));
+            Options.Create(new PhotoProcessingSettings { Sizes = [256] }), new ProcessingAvailability(checkedByMonitor: false));
     }
 
     private IServiceScopeFactory CreateServiceScopeFactory(IPhotoSourceDownloadServiceFactory downloadServiceFactory,

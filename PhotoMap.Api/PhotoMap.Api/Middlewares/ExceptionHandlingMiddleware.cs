@@ -54,6 +54,8 @@ namespace PhotoMap.Api.Middlewares
                 PhotoSourceException { IsAuthError: true } => (StatusCodes.Status401Unauthorized, exception.Message),
                 // the photo source failed to answer, not this application
                 PhotoSourceException => (StatusCodes.Status502BadGateway, exception.Message),
+                // e.g. Kafka cannot be reached: only processing is unavailable, for a while
+                ProcessingUnavailableException => (StatusCodes.Status503ServiceUnavailable, exception.Message),
                 _ => (StatusCodes.Status500InternalServerError, "An unexpected error has occurred.")
             };
 

@@ -4,6 +4,7 @@ using Moq;
 using PhotoMap.Api.Domain.Models;
 using PhotoMap.Api.Domain.Services;
 using PhotoMap.Api.Services.Factories;
+using PhotoMap.Api.Services.Exceptions;
 using PhotoMap.Api.Services.Services;
 using PhotoMap.Shared.Yandex.Disk.Models;
 
@@ -19,6 +20,7 @@ public class VideoProcessingServiceTests
     private readonly Mock<IPhotoSourceService> _photoSourceService = new();
     private readonly Mock<IVideoService> _videoService = new();
     private readonly Mock<IBackgroundTaskManager> _backgroundTaskManager = new();
+    private readonly ProcessingAvailability _processingAvailability = new(checkedByMonitor: false);
     private readonly Mock<IFileStorage> _fileStorage = new();
     private readonly Mock<IFrontendNotificationService> _frontendNotificationService = new();
 
@@ -98,6 +100,58 @@ public class VideoProcessingServiceTests
 
         _fileStorage.Verify(a => a.Delete("Yandex.Disk/1/video-previews/video_2.jpg"));
         _videoService.Verify(a => a.DeleteStatusAsync(UserId, YandexDiskSourceId));
+    }
+
+    [Fact]
+    public async Task RunCommandAsync_ShouldStartNothing_WhileProcessingIsUnavailable()
+    {
+        // Arrange: the videos do not go through Kafka, but processing is available or not as a whole
+        _processingAvailability.Set(false, "Kafka cannot be reached.");
+        var service = CreateService();
+
+        // Act & Assert
+        var exception = await Assert.ThrowsAsync<ProcessingUnavailableException>(() =>
+            service.RunCommandAsync(UserId, YandexDiskSourceId, PhotoSourceProcessingCommands.Start));
+
+        Assert.Equal("Kafka cannot be reached.", exception.Message);
+        _backgroundTaskManager.Verify(a => a.TryStartTask(It.IsAny<string>(), It.IsAny<Func<CancellationToken, Task>>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task RunCommandAsync_ShouldStop_WhileProcessingIsUnavailable()
+    {
+        // Arrange
+        _processingAvailability.Set(false, "Kafka cannot be reached.");
+        var service = CreateService();
+
+        // Act
+        var accepted = await service.RunCommandAsync(UserId, YandexDiskSourceId, PhotoSourceProcessingCommands.Stop);
+
+        // Assert
+        Assert.True(accepted);
+        _backgroundTaskManager.Verify(a => a.CancelTask(It.IsAny<string>()));
+    }
+
+    [Fact]
+    public void StopAllRuns_ShouldStopTheRunsOfTheVideos_ButNotThoseOfThePhotos()
+    {
+        // Arrange
+        Func<string, bool>? filter = null;
+        _backgroundTaskManager
+            .Setup(a => a.CancelTasks(It.IsAny<Func<string, bool>>()))
+            .Callback<Func<string, bool>>(a => filter = a)
+            .Returns(["Videos-UserId=1-SourceId=2"]);
+
+        // Act
+        var stopped = CreateService().StopAllRuns();
+
+        // Assert
+        Assert.Equal(1, stopped);
+        Assert.True(filter!("Videos-UserId=1-SourceId=2"));
+        Assert.False(filter("UserId=1-SourceId=2"));
+        Assert.False(filter("OtherUploads-UserId=1-SourceId=2"));
+        Assert.False(filter("Download-UserId=1-SourceId=2"));
     }
 
     [Fact]
@@ -197,7 +251,8 @@ public class VideoProcessingServiceTests
     {
         return new VideoProcessingService(_userPhotoSourceService.Object, _photoSourceService.Object, _videoService.Object,
             _backgroundTaskManager.Object, new ServiceCollection().BuildServiceProvider().GetRequiredService<IServiceScopeFactory>(),
-            _fileStorage.Object, _frontendNotificationService.Object, NullLogger<VideoProcessingService>.Instance);
+            _fileStorage.Object, _frontendNotificationService.Object, NullLogger<VideoProcessingService>.Instance,
+            _processingAvailability);
     }
 
     private static PhotoSource CreatePhotoSource(long id, string name, Type serviceFactoryType)

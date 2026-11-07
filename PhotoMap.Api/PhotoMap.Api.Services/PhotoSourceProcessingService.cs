@@ -30,23 +30,28 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
     private readonly IBackgroundTaskManager _backgroundTaskManager;
     private readonly IServiceScopeFactory _serviceScopeFactory;
     private readonly PhotoProcessingSettings _photoProcessingSettings;
+    private readonly ProcessingAvailability _processingAvailability;
 
     public PhotoSourceProcessingService(
         IUserPhotoSourceService userPhotoSourceService,
         IPhotoSourceService photoSourceService,
         IBackgroundTaskManager backgroundTaskManager,
         IServiceScopeFactory serviceScopeFactory,
-        IOptions<PhotoProcessingSettings> photoProcessingSettings)
+        IOptions<PhotoProcessingSettings> photoProcessingSettings,
+        ProcessingAvailability processingAvailability)
     {
         _userPhotoSourceService = userPhotoSourceService;
         _photoSourceService = photoSourceService;
         _backgroundTaskManager = backgroundTaskManager;
         _serviceScopeFactory = serviceScopeFactory;
         _photoProcessingSettings = photoProcessingSettings.Value;
+        _processingAvailability = processingAvailability;
     }
 
     public async Task<bool> RunCommandAsync(long userId, long sourceId, PhotoSourceProcessingCommands command)
     {
+        EnsureAvailable(command);
+
         return command switch
         {
             PhotoSourceProcessingCommands.Start => await StartAsync(userId, sourceId, RunKind.Source),
@@ -71,6 +76,8 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
 
     public async Task<bool> RunOtherUploadsCommandAsync(long userId, long sourceId, PhotoSourceProcessingCommands command)
     {
+        EnsureAvailable(command);
+
         return command switch
         {
             PhotoSourceProcessingCommands.Start => await StartAsync(userId, sourceId, RunKind.OtherUploads),
@@ -99,6 +106,25 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
         {
             FromOtherUploads = true
         };
+    }
+
+    public int StopAllRuns()
+    {
+        // the runs of the camera uploads, and those of the other uploads
+        return _backgroundTaskManager.CancelTasks(a => a.StartsWith(SourceTaskNamePrefix, StringComparison.Ordinal) ||
+                                                       a.StartsWith(OtherUploadsTaskNamePrefix, StringComparison.Ordinal))
+            .Count;
+    }
+
+    /// <summary>
+    /// Stopping is always possible: it ends a run, and the work it hands over.
+    /// </summary>
+    private void EnsureAvailable(PhotoSourceProcessingCommands command)
+    {
+        if (command != PhotoSourceProcessingCommands.Stop)
+        {
+            _processingAvailability.EnsureAvailable();
+        }
     }
 
     private bool Stop(long userId, long sourceId, RunKind kind)
@@ -736,11 +762,14 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
         return Type.GetType(photoSource.ServiceFactoryImplementationType) == typeof(YandexDiskDownloadServiceFactory);
     }
 
+    private const string SourceTaskNamePrefix = "UserId=";
+    private const string OtherUploadsTaskNamePrefix = "OtherUploads-";
+
     private static string GetTaskName(long userId, long sourceId, RunKind kind)
     {
         return IsOtherUploads(kind)
-            ? $"OtherUploads-UserId={userId}-SourceId={sourceId}"
-            : $"UserId={userId}-SourceId={sourceId}";
+            ? $"{OtherUploadsTaskNamePrefix}UserId={userId}-SourceId={sourceId}"
+            : $"{SourceTaskNamePrefix}{userId}-SourceId={sourceId}";
     }
 
     private enum RunKind
