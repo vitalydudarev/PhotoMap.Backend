@@ -22,18 +22,17 @@ public sealed class KafkaMessageReceiver<T> : IMessageReceiver<T>, IDisposable
         _topic = topic;
         _logger = logger;
 
-        var config = new ConsumerConfig
+        var config = KafkaClients.Configure(new ConsumerConfig
         {
-            BootstrapServers = settings.BootstrapServers,
             GroupId = groupId,
             // a group with no offset committed yet starts from the oldest message kept: none is skipped
             AutoOffsetReset = AutoOffsetReset.Earliest,
             // committed by Acknowledge, once the messages have been handled
             EnableAutoCommit = false
-        };
+        }, settings);
 
         _consumer = new ConsumerBuilder<string, string>(config)
-            .SetErrorHandler((_, error) => _logger.LogWarning("Kafka consumer of {Topic}: {Reason}", _topic, error.Reason))
+            .SetErrorHandler((_, error) => KafkaClients.LogError(_logger, $"consumer of {_topic}", error))
             .SetLogHandler((_, message) => _logger.LogDebug("Kafka consumer of {Topic}: {Message}", _topic, message.Message))
             .SetPartitionsAssignedHandler((_, partitions) =>
                 _logger.LogInformation("Kafka consumer of {Topic} assigned partitions {Partitions}", _topic, partitions))

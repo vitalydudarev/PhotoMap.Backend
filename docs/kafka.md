@@ -121,7 +121,11 @@ The app keeps working without Kafka. Only processing photos and videos becomes u
   API also starts with Kafka down, reporting processing unavailable from its first check.
 - **Videos** don't go through Kafka, but they follow the same rule, so processing is available or unavailable as a
   whole.
-- **With Kafka disabled** (`Kafka:Enabled=false`), nothing is checked and processing is always available.
+- **The log stays readable:** the Kafka clients log their connection errors at Debug, and retry at most every 10s.
+  The monitor's "Kafka cannot be reached" warning, once, is the only sign in the log.
+- **With Kafka disabled** (`Kafka:Enabled=false`), nothing is checked and processing is always available, with the
+  Worker running in the API through in-memory queues. To run the API without Kafka on purpose:
+  `dotnet run -- --Kafka:Enabled=false` from `PhotoMap.Api/PhotoMap.Api`.
 
 Try it: `docker stop photo-map-kafka` with the app open, wait about 15s, then `docker start photo-map-kafka`.
 

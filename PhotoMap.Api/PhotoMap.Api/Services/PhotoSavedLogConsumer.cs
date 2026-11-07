@@ -44,18 +44,17 @@ namespace PhotoMap.Api.Services
 
         private void Consume(CancellationToken stoppingToken)
         {
-            var config = new ConsumerConfig
+            var config = KafkaClients.Configure(new ConsumerConfig
             {
-                BootstrapServers = _settings.BootstrapServers,
                 GroupId = GroupId,
                 // where a group with no offset committed yet starts: from the oldest event kept, not only the new ones
                 AutoOffsetReset = AutoOffsetReset.Earliest,
                 // the offset is committed once the event has been handled, see below
                 EnableAutoCommit = false
-            };
+            }, _settings);
 
             using var consumer = new ConsumerBuilder<string, string>(config)
-                .SetErrorHandler((_, error) => _logger.LogWarning("Kafka consumer: {Reason}", error.Reason))
+                .SetErrorHandler((_, error) => KafkaClients.LogError(_logger, "consumer of photo-saved", error))
                 .SetLogHandler((_, message) => _logger.LogDebug("Kafka consumer: {Message}", message.Message))
                 // the partitions change when a consumer of the group starts or stops: a rebalance
                 .SetPartitionsAssignedHandler((_, partitions) =>

@@ -19,20 +19,19 @@ public sealed class KafkaMessagePublisher : IMessagePublisher, IDisposable
     {
         _logger = logger;
 
-        var config = new ProducerConfig
+        var config = KafkaClients.Configure(new ProducerConfig
         {
-            BootstrapServers = settings.BootstrapServers,
             // the broker acknowledges a message once every in-sync replica has it, not only the partition leader
             Acks = Acks.All,
             // a message retried after a lost acknowledgement is not written twice, nor out of order
             EnableIdempotence = true,
             // how long PublishAsync waits for the broker, retries included, before the message fails
             MessageTimeoutMs = (int)settings.MessageTimeout.TotalMilliseconds
-        };
+        }, settings);
 
         _producer = new ProducerBuilder<string, string>(config)
             // errors of the connection, e.g. the broker being down; the client reconnects on its own
-            .SetErrorHandler((_, error) => _logger.LogWarning("Kafka producer: {Reason}", error.Reason))
+            .SetErrorHandler((_, error) => KafkaClients.LogError(_logger, "producer", error))
             // librdkafka writes its own log to stderr otherwise
             .SetLogHandler((_, message) => _logger.LogDebug("Kafka producer: {Message}", message.Message))
             .Build();

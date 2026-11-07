@@ -23,9 +23,9 @@ public sealed class KafkaBrokerHealthCheck : IBrokerHealthCheck, IDisposable
     public KafkaBrokerHealthCheck(KafkaSettings settings, ILogger<KafkaBrokerHealthCheck> logger)
     {
         _logger = logger;
-        _adminClient = new AdminClientBuilder(new AdminClientConfig { BootstrapServers = settings.BootstrapServers })
+        _adminClient = new AdminClientBuilder(KafkaClients.Configure(new AdminClientConfig(), settings))
             // the monitor of the availability logs when the broker goes and comes back, not every failed connection
-            .SetErrorHandler((_, error) => _logger.LogDebug("Kafka admin client: {Reason}", error.Reason))
+            .SetErrorHandler((_, error) => KafkaClients.LogError(_logger, "admin client", error))
             .SetLogHandler((_, message) => _logger.LogDebug("Kafka admin client: {Message}", message.Message))
             .Build();
     }
