@@ -116,6 +116,30 @@ photo does, and the relay keeps retrying until Kafka has it, whether that takes 
 
 ## Running it
 
+`./run-all.command` (or double-click it in Finder) runs everything:
+- **Postgres:** your Postgres.app instance, started if it isn't running.
+- **Containers:** Kafka, Kafka UI and Seq (Docker Desktop is started if it isn't running).
+- **Backend:** the API, built first.
+- **Frontend:** `../PhotoMap.Frontend`, or `FRONTEND_DIR`.
+
+Each process's output shows in that terminal with a name prefix, and goes to `logs/<name>.log` as well. Ctrl+C
+stops the API, the Workers and the frontend; the containers keep running.
+
+```sh
+./run-all.command                  # the Worker runs inside the API
+./run-all.command --workers 2      # 2 PhotoMap.Worker.Host processes instead
+./run-all.command --no-frontend
+```
+
+| What | Where |
+| --- | --- |
+| Frontend | <http://localhost:4200> |
+| API | <https://localhost:5002/swagger> |
+| Kafka UI | <http://localhost:8081> |
+| Seq (logs) | <http://localhost:5341> |
+
+To run the pieces by hand instead:
+
 1. Start Docker Desktop, then run `docker compose up -d` from the repository root.
 2. Run the API in the Development environment. The `AddOutboxMessages` migration is applied on start. Kafka is
    enabled in `appsettings.Development.json` and disabled otherwise. While it's disabled, the Worker's results go
@@ -124,7 +148,7 @@ photo does, and the relay keeps retrying until Kafka has it, whether that takes 
 3. Process a photo source. Each image passes through `photo-processed`. Once it's saved, the log shows
    `Photo saved: ... (message 17, key 1:2, partition 1, offset 0)`.
 4. Open Kafka UI at <http://localhost:8081> to browse both topics' messages (and their headers), their partitions
-   and the two consumer groups.
+   and the consumer groups.
 
 `docker compose down` removes the broker together with the topics and their messages.
 

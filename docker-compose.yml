@@ -1,7 +1,9 @@
-# Kafka for local development: one broker in KRaft mode (no ZooKeeper) and Kafka UI to browse it.
+# Kafka for local development: one broker in KRaft mode (no ZooKeeper) and Kafka UI to browse it; Seq for the logs.
+# run-all.command starts these, and the rest of the application.
 #
 #   docker compose up -d      start, the API connects to localhost:9092
 #   http://localhost:8081     Kafka UI: topics, messages, consumer groups and their lag
+#   http://localhost:5341     Seq: the logs of the API
 #   docker compose down       stop and remove the containers, the topics and their messages go with them
 #
 # See docs/kafka.md.
@@ -53,6 +55,19 @@ services:
         /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --create --if-not-exists
         --topic image-processing-requests --partitions 3 --replication-factor 1
 
+  # the API logs to it (Serilog), at http://localhost:5341
+  seq:
+    image: datalust/seq:2024.3
+    container_name: photo-map-seq
+    ports:
+      - "5341:80"
+    environment:
+      ACCEPT_EULA: "Y"
+      # local only: no login
+      SEQ_FIRSTRUN_NOAUTHENTICATION: "true"
+    volumes:
+      - seq-data:/data
+
   kafka-ui:
     image: kafbat/kafka-ui:v1.0.0
     container_name: photo-map-kafka-ui
@@ -64,3 +79,6 @@ services:
     environment:
       KAFKA_CLUSTERS_0_NAME: photo-map
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+
+volumes:
+  seq-data:
