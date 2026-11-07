@@ -192,7 +192,7 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
                     : sync ? downloadService.SyncAsync(run.UploadedBefore, cancellationToken)
                     : downloadService.DownloadAsync(cancellationToken);
 
-                await foreach (var downloadedFile in downloadedFiles)
+                await foreach (var downloadedFile in downloadedFiles.WithCancellation(cancellationToken))
                 {
                     _ = downloadedFile.Processed.Task.ContinueWith(
                         a => CountProcessedFile(progress, a.Result, retryFailed), TaskContinuationOptions.ExecuteSynchronously);
