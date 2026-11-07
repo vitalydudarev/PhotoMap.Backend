@@ -227,6 +227,65 @@ namespace PhotoMap.Api.Controllers
         }
 
         /// <summary>
+        /// Adds tags to several photos of the user at once, keeping the tags they have. The names are cleaned as by
+        /// <c>PUT photos/{photoId}/tags</c>, and a name the user has a tag of, whatever its case, takes that tag; the
+        /// other names make new tags. The photos are all given the tags, or none of them is.
+        /// </summary>
+        /// <param name="id">The ID of the user.</param>
+        /// <param name="request">The IDs of the photos, 1 to 1000 of them, and the names of the tags, one at least.</param>
+        /// <returns>The tags of each photo once they were added.</returns>
+        [HttpPost("{id:long}/photos/tags")]
+        [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(PhotoTagsDto[]))]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> AddPhotoTags([FromRoute] long id, [FromBody] AddPhotoTagsDto request)
+        {
+            var photoIds = (request.PhotoIds ?? []).Distinct().ToArray();
+            var cleanNames = (request.Tags ?? []).Select(a => TagNames.Clean(a ?? "")).Where(a => a.Length > 0)
+                .ToArray();
+
+            if (photoIds.Length is 0 or > MaxPageSize)
+            {
+                ModelState.AddModelError(nameof(request.PhotoIds), $"Give 1 to {MaxPageSize} photos.");
+            }
+
+            if (cleanNames.Length == 0)
+            {
+                ModelState.AddModelError(nameof(request.Tags), "Give a tag at least.");
+            }
+            else if (cleanNames.Any(a => a.Length > TagNames.MaxLength))
+            {
+                ModelState.AddModelError(nameof(request.Tags), $"A tag is {TagNames.MaxLength} characters long at most.");
+            }
+            else if (cleanNames.DistinctBy(TagNames.Normalize).Count() > TagNames.MaxPerPhoto)
+            {
+                ModelState.AddModelError(nameof(request.Tags), $"A photo has {TagNames.MaxPerPhoto} tags at most.");
+            }
+
+            if (!ModelState.IsValid)
+            {
+                return ValidationProblem(ModelState);
+            }
+
+            var added = await _photoService.AddTagsAsync(id, photoIds, cleanNames);
+
+            switch (added.Outcome)
+            {
+                case AddedTagsOutcome.PhotoNotFound:
+                    return NotFound();
+                case AddedTagsOutcome.TooManyTags:
+                    ModelState.AddModelError(nameof(request.Tags),
+                        $"A photo has {TagNames.MaxPerPhoto} tags at most, and some of the photos would have more.");
+
+                    return ValidationProblem(ModelState);
+                default:
+                    return Ok(added.PhotoTags
+                        .Select(a => new PhotoTagsDto { PhotoId = a.Key, Tags = a.Value.ToArray() })
+                        .ToArray());
+            }
+        }
+
+        /// <summary>
         /// Suggests tags for a photo of the user: those of the photos taken within a week of it or within 5 km, the
         /// nearer the better, and the year and the season it was taken in. The tags the photo has are left out.
         /// </summary>

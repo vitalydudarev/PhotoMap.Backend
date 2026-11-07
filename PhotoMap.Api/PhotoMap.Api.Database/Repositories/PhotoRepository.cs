@@ -253,6 +253,66 @@ public class PhotoRepository : IPhotoRepository
         return tags.Select(a => a.Name).OrderBy(a => a, StringComparer.CurrentCultureIgnoreCase).ToList();
     }
 
+    /// <summary>
+    /// Adds tags to photos of the user, in one go: the new tags are made, and the photos given them, or nothing is.
+    /// </summary>
+    public async Task<AddedTags> AddTagsAsync(long userId, IReadOnlyCollection<long> photoIds,
+        IReadOnlyCollection<string> names)
+    {
+        var found = await _context.Photos.CountAsync(a => a.UserId == userId && photoIds.Contains(a.Id));
+        if (found != photoIds.Count)
+        {
+            return AddedTags.PhotoNotFound;
+        }
+
+        var normalizedNames = names.Select(TagNames.Normalize).ToArray();
+
+        await using var transaction = await _context.Database.BeginTransactionAsync();
+
+        var tags = await _context.Tags
+            .Where(a => a.UserId == userId && normalizedNames.Contains(a.NormalizedName))
+            .ToListAsync();
+
+        var newTags = names
+            .Where(name => tags.All(tag => tag.NormalizedName != TagNames.Normalize(name)))
+            .Select(name => new TagEntity { UserId = userId, Name = name, NormalizedName = TagNames.Normalize(name) })
+            .ToList();
+
+        var photoTags = await _context.PhotoTags
+            .Where(a => photoIds.Contains(a.PhotoId))
+            .Select(a => new { a.PhotoId, a.TagId })
+            .ToListAsync();
+        var tagIdsByPhoto = photoIds.ToDictionary(id => id,
+            id => photoTags.Where(a => a.PhotoId == id).Select(a => a.TagId).ToHashSet());
+        var existingTagIds = tags.Select(a => a.Id).ToList();
+
+        // the new tags are on no photo yet, so each of them is one more on every photo
+        if (tagIdsByPhoto.Values.Any(ids => ids.Union(existingTagIds).Count() + newTags.Count > TagNames.MaxPerPhoto))
+        {
+            return AddedTags.TooManyTags;
+        }
+
+        await _context.Tags.AddRangeAsync(newTags);
+        await _context.SaveChangesAsync();
+        tags.AddRange(newTags);
+
+        await _context.PhotoTags.AddRangeAsync(tagIdsByPhoto.SelectMany(photo => tags
+            .Where(tag => !photo.Value.Contains(tag.Id))
+            .Select(tag => new PhotoTagEntity { PhotoId = photo.Key, TagId = tag.Id })));
+        await _context.SaveChangesAsync();
+
+        await transaction.CommitAsync();
+
+        var photoNames = await _context.Photos
+            .AsNoTracking()
+            .Where(a => photoIds.Contains(a.Id))
+            .Select(a => new { a.Id, Names = a.Tags.Select(b => b.Tag!.Name).ToList() })
+            .ToListAsync();
+
+        return AddedTags.Added(photoNames.ToDictionary(a => a.Id,
+            a => (IReadOnlyList<string>)a.Names.OrderBy(b => b, StringComparer.CurrentCultureIgnoreCase).ToList()));
+    }
+
     public async Task<IReadOnlyList<TaggedPhoto>> GetTaggedPhotosAsync(long userId, PhotoNeighborhood neighborhood,
         int top)
     {

@@ -226,6 +226,96 @@ public class UsersControllerTests
     }
 
     [Fact]
+    public async Task AddPhotoTags_ShouldReturnTheTagsOfEachPhoto()
+    {
+        // Arrange
+        _photoService
+            .Setup(a => a.AddTagsAsync(UserId, It.IsAny<IEnumerable<long>>(), It.IsAny<IEnumerable<string>>()))
+            .ReturnsAsync(AddedTags.Added(new Dictionary<long, IReadOnlyList<string>>
+            {
+                [5] = ["Family", "Paris"],
+                [6] = ["Paris"]
+            }));
+        var controller = CreateController();
+
+        // Act
+        var result = await controller.AddPhotoTags(UserId, new AddPhotoTagsDto { PhotoIds = [5, 6, 5], Tags = ["Paris"] });
+
+        // Assert
+        var photos = Assert.IsType<PhotoTagsDto[]>(Assert.IsType<OkObjectResult>(result).Value);
+        Assert.Equal([5L, 6L], photos.Select(a => a.PhotoId));
+        Assert.Equal(["Family", "Paris"], photos[0].Tags);
+        _photoService.Verify(a => a.AddTagsAsync(UserId, It.Is<IEnumerable<long>>(ids => ids.SequenceEqual(new long[] { 5, 6 })),
+            It.IsAny<IEnumerable<string>>()));
+    }
+
+    [Fact]
+    public async Task AddPhotoTags_ShouldReturnNotFound_WhenTheUserHasNoSuchPhoto()
+    {
+        // Arrange
+        _photoService
+            .Setup(a => a.AddTagsAsync(UserId, It.IsAny<IEnumerable<long>>(), It.IsAny<IEnumerable<string>>()))
+            .ReturnsAsync(AddedTags.PhotoNotFound);
+        var controller = CreateController();
+
+        // Act
+        var result = await controller.AddPhotoTags(UserId, new AddPhotoTagsDto { PhotoIds = [5], Tags = ["Paris"] });
+
+        // Assert
+        Assert.IsType<NotFoundResult>(result);
+    }
+
+    [Fact]
+    public async Task AddPhotoTags_ShouldReturnBadRequest_WhenAPhotoWouldHaveTooManyTags()
+    {
+        // Arrange
+        _photoService
+            .Setup(a => a.AddTagsAsync(UserId, It.IsAny<IEnumerable<long>>(), It.IsAny<IEnumerable<string>>()))
+            .ReturnsAsync(AddedTags.TooManyTags);
+        var controller = CreateController();
+
+        // Act
+        var result = await controller.AddPhotoTags(UserId, new AddPhotoTagsDto { PhotoIds = [5], Tags = ["Paris"] });
+
+        // Assert
+        var problem = Assert.IsType<ValidationProblemDetails>(Assert.IsAssignableFrom<ObjectResult>(result).Value);
+        Assert.Contains("Tags", problem.Errors.Keys);
+    }
+
+    [Theory]
+    [InlineData(new long[0], new[] { "Paris" }, "PhotoIds")]
+    [InlineData(new long[] { 5 }, new[] { "  ", "" }, "Tags")]
+    public async Task AddPhotoTags_ShouldReturnBadRequest_WhenThereAreNoPhotosOrNoTags(long[] photoIds, string[] tags,
+        string key)
+    {
+        // Arrange
+        var controller = CreateController();
+
+        // Act
+        var result = await controller.AddPhotoTags(UserId, new AddPhotoTagsDto { PhotoIds = photoIds, Tags = tags });
+
+        // Assert
+        var problem = Assert.IsType<ValidationProblemDetails>(Assert.IsAssignableFrom<ObjectResult>(result).Value);
+        Assert.Contains(key, problem.Errors.Keys);
+        _photoService.Verify(a => a.AddTagsAsync(It.IsAny<long>(), It.IsAny<IEnumerable<long>>(), It.IsAny<IEnumerable<string>>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task AddPhotoTags_ShouldReturnBadRequest_WhenThereAreTooManyPhotos()
+    {
+        // Arrange
+        var controller = CreateController();
+        var photoIds = Enumerable.Range(1, 1001).Select(a => (long)a).ToArray();
+
+        // Act
+        var result = await controller.AddPhotoTags(UserId, new AddPhotoTagsDto { PhotoIds = photoIds, Tags = ["Paris"] });
+
+        // Assert
+        Assert.IsType<ValidationProblemDetails>(Assert.IsAssignableFrom<ObjectResult>(result).Value);
+    }
+
+    [Fact]
     public async Task GetPhotoTagSuggestions_ShouldReturnNotFound_WhenTheUserHasNoSuchPhoto()
     {
         // Arrange

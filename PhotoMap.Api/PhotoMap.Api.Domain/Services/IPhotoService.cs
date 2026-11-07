@@ -56,6 +56,13 @@ namespace PhotoMap.Api.Domain.Services
         Task<IReadOnlyList<string>?> SetTagsAsync(long userId, long photoId, IEnumerable<string> names);
 
         /// <summary>
+        /// Adds tags to several photos of the user, keeping the tags they have. The names are cleaned as by
+        /// <see cref="SetTagsAsync"/>, and a photo given a tag it has keeps it once. The photos are all given the tags,
+        /// or none of them is.
+        /// </summary>
+        Task<AddedTags> AddTagsAsync(long userId, IEnumerable<long> photoIds, IEnumerable<string> names);
+
+        /// <summary>
         /// Suggests tags for a photo of the user by when and where it was taken, see <c>PhotoTagSuggester</c>.
         /// </summary>
         /// <returns>The tags suggested, the likeliest first, but the ones the photo has; null if the user has no

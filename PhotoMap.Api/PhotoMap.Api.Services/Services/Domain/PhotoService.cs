@@ -102,6 +102,17 @@ namespace PhotoMap.Api.Services.Services.Domain
             return _photoRepository.SetTagsAsync(userId, photoId, cleanNames);
         }
 
+        public Task<AddedTags> AddTagsAsync(long userId, IEnumerable<long> photoIds, IEnumerable<string> names)
+        {
+            var cleanNames = names
+                .Select(TagNames.Clean)
+                .Where(a => a.Length > 0)
+                .DistinctBy(TagNames.Normalize)
+                .ToList();
+
+            return _photoRepository.AddTagsAsync(userId, photoIds.Distinct().ToList(), cleanNames);
+        }
+
         public async Task<IReadOnlyList<TagSuggestion>?> SuggestTagsAsync(long userId, long photoId)
         {
             var photo = await _photoRepository.GetAsync(photoId);

@@ -54,6 +54,14 @@ public interface IPhotoRepository
     /// <returns>The names of the tags of the photo, by name, or null if the user has no such photo.</returns>
     Task<IReadOnlyList<string>?> SetTagsAsync(long userId, long photoId, IReadOnlyCollection<string> names);
 
+    /// <summary>
+    /// Adds tags to photos of the user, keeping the tags they have. A name the user has a tag of, whatever its case,
+    /// takes that tag; the other names make new tags. The photos are all given the tags, or none of them is.
+    /// </summary>
+    /// <param name="photoIds">The IDs of the photos, each once.</param>
+    /// <param name="names">The names of the tags, cleaned and of different names; see <see cref="TagNames"/>.</param>
+    Task<AddedTags> AddTagsAsync(long userId, IReadOnlyCollection<long> photoIds, IReadOnlyCollection<string> names);
+
     /// <returns>The photos of the user with tags, taken within the time or the box of coordinates of the
     /// neighborhood, the photo itself among them if it has tags. At most <paramref name="top"/> of each: of those
     /// taken within the box, the nearest to its middle.</returns>

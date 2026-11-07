@@ -154,6 +154,30 @@ public class PhotoServiceTests
     }
 
     [Fact]
+    public async Task AddTagsAsync_ShouldCleanTheNames_AndTakeEachNameAndPhotoOnce()
+    {
+        // Arrange
+        IReadOnlyCollection<long>? givenPhotoIds = null;
+        IReadOnlyCollection<string>? givenNames = null;
+        _photoRepository
+            .Setup(a => a.AddTagsAsync(UserId, It.IsAny<IReadOnlyCollection<long>>(), It.IsAny<IReadOnlyCollection<string>>()))
+            .Callback((long _, IReadOnlyCollection<long> photoIds, IReadOnlyCollection<string> names) =>
+            {
+                givenPhotoIds = photoIds;
+                givenNames = names;
+            })
+            .ReturnsAsync(AddedTags.PhotoNotFound);
+        var service = CreateService();
+
+        // Act
+        await service.AddTagsAsync(UserId, [5, 6, 5], ["  Paris  trip ", "paris TRIP", "", "Family"]);
+
+        // Assert
+        Assert.Equal([5L, 6L], givenPhotoIds);
+        Assert.Equal(["Paris trip", "Family"], givenNames);
+    }
+
+    [Fact]
     public async Task SuggestTagsAsync_ShouldSuggestNothing_WhenThePhotoIsOfAnotherUser()
     {
         // Arrange
