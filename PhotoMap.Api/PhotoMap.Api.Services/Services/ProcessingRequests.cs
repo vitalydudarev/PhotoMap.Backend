@@ -28,6 +28,15 @@ public class ProcessingRequests
         return requestId;
     }
 
+    /// <summary>
+    /// The request has not been sent, no result will come: what waits for it is left waiting, as when the run is
+    /// stopped.
+    /// </summary>
+    public void Forget(Guid requestId)
+    {
+        _pending.TryRemove(requestId, out _);
+    }
+
     /// <returns>Whether anything waited for the result.</returns>
     public bool Complete(Guid requestId, ProcessingResult result)
     {

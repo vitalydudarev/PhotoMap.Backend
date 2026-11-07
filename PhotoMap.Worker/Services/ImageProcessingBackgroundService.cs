@@ -2,20 +2,31 @@ using Microsoft.Extensions.Options;
 using PhotoMap.Shared.Messages;
 using PhotoMap.Shared.Messaging;
 using PhotoMap.Shared.Models;
-using PhotoMap.Shared.Queues;
 using PhotoMap.Worker.Services.Definitions;
 
 namespace PhotoMap.Worker.Services;
 
 /// <summary>
 /// Processes the requested images, several at a time, and sends what it makes of each, a
-/// <see cref="PhotoProcessed"/>, to the API. It knows the API only by the messages: nothing of the API goes with a
-/// request, so the worker can run in a process of its own.
+/// <see cref="PhotoProcessed"/>, to the API. It knows the API only by the messages, so it runs in the API or in a
+/// process of its own, PhotoMap.Worker.Host, as many of them as there are partitions of the requests.
 /// </summary>
+/// <remarks>
+/// The requests are taken a batch at a time and acknowledged once the results of the whole batch have been sent:
+/// a worker that stops or crashes meanwhile is handed them again, or another worker of the group is (at-least-once).
+/// The API skips the photo of a result it has saved already.
+/// </remarks>
 public class ImageProcessingBackgroundService : BackgroundService
 {
+    public const string GroupId = "photo-map.image-processors";
+
+    /// <summary>
+    /// How long a batch waits for more requests once the first has come.
+    /// </summary>
+    private static readonly TimeSpan BatchMaxWait = TimeSpan.FromMilliseconds(50);
+
     private readonly ILogger<ImageProcessingBackgroundService> _logger;
-    private readonly IMessageQueue<ProcessImageRequest> _requestQueue;
+    private readonly IMessageReceiver<ProcessImageRequest> _requestReceiver;
     private readonly IMessageSender<PhotoProcessed> _resultSender;
     private readonly IImageProcessingService _imageProcessingService;
     private readonly int _maxDegreeOfParallelism;
@@ -23,13 +34,13 @@ public class ImageProcessingBackgroundService : BackgroundService
 
     public ImageProcessingBackgroundService(
         ILogger<ImageProcessingBackgroundService> logger,
-        IMessageQueue<ProcessImageRequest> requestQueue,
+        IMessageReceiver<ProcessImageRequest> requestReceiver,
         IMessageSender<PhotoProcessed> resultSender,
         IImageProcessingService imageProcessingService,
         IOptions<ImageProcessingSettings> settings)
     {
         _logger = logger;
-        _requestQueue = requestQueue;
+        _requestReceiver = requestReceiver;
         _resultSender = resultSender;
         _imageProcessingService = imageProcessingService;
 
@@ -50,15 +61,43 @@ public class ImageProcessingBackgroundService : BackgroundService
         _logger.LogInformation("{ServiceName} is running, processing up to {MaxDegreeOfParallelism} images at a time.",
             nameof(ImageProcessingBackgroundService), _maxDegreeOfParallelism);
 
-        var parallelOptions = new ParallelOptions
-        {
-            MaxDegreeOfParallelism = _maxDegreeOfParallelism,
-            CancellationToken = stoppingToken
-        };
+        // Not cancelled by the service stopping: the images of the batch being processed are finished, and their
+        // results sent, rather than abandoned partway and processed again
+        var parallelOptions = new ParallelOptions { MaxDegreeOfParallelism = _maxDegreeOfParallelism };
 
         try
         {
-            await Parallel.ForEachAsync(_requestQueue.ReadAllAsync(stoppingToken), parallelOptions, ProcessImageAsync);
+            while (true)
+            {
+                // as many as are processed at a time
+                var requests = await _requestReceiver.ReceiveBatchAsync(_maxDegreeOfParallelism, BatchMaxWait, stoppingToken);
+                if (requests.Count == 0)
+                {
+                    break;
+                }
+
+                var unsentCount = 0;
+
+                await Parallel.ForEachAsync(requests, parallelOptions, async (request, _) =>
+                {
+                    if (!await ProcessImageAsync(request, stoppingToken))
+                    {
+                        Interlocked.Increment(ref unsentCount);
+                    }
+                });
+
+                if (unsentCount > 0 && stoppingToken.IsCancellationRequested)
+                {
+                    // stopped while results waited to be sent, e.g. with the broker down: the batch is handed again,
+                    // to this worker after a restart or to another one of the group, with its downloaded files
+                    _logger.LogInformation("Stopping with {UnsentCount} of {RequestCount} results not sent, their " +
+                                           "requests are left to be handed again", unsentCount, requests.Count);
+                    break;
+                }
+
+                // the results of the batch have been sent, it is done with
+                _requestReceiver.Acknowledge();
+            }
         }
         catch (OperationCanceledException)
         {
@@ -67,23 +106,21 @@ public class ImageProcessingBackgroundService : BackgroundService
     }
 
     /// <summary>
-    /// Never throws: an exception would stop the whole loop, while one image failing must only fail that image.
+    /// Processes the image and sends the result, then deletes the downloaded file: deleted before, a request handed
+    /// again, its result not having been sent, would find its file gone. Never throws: an exception would stop the
+    /// whole loop, while one image failing must only fail that image.
     /// </summary>
-    private async ValueTask ProcessImageAsync(ProcessImageRequest processImageRequest, CancellationToken cancellationToken)
+    /// <returns>Whether the result has been sent.</returns>
+    private async Task<bool> ProcessImageAsync(ProcessImageRequest processImageRequest, CancellationToken stoppingToken)
     {
         PhotoProcessed result;
 
         try
         {
-            // decoding and resizing are CPU-bound, they must not hold up the loop reading the queue
-            var processedImage = await Task.Run(() => _imageProcessingService.ProcessImage(processImageRequest), cancellationToken);
+            // decoding and resizing are CPU-bound, they must not hold up the loop reading the requests
+            var processedImage = await Task.Run(() => _imageProcessingService.ProcessImage(processImageRequest));
 
             result = PhotoProcessed.Success(processImageRequest, processedImage);
-        }
-        catch (OperationCanceledException)
-        {
-            // Prevent throwing if stoppingToken was signaled
-            return;
         }
         catch (Exception ex)
         {
@@ -91,27 +128,31 @@ public class ImageProcessingBackgroundService : BackgroundService
 
             result = PhotoProcessed.Failure(processImageRequest, "Failed to process the image: " + ex.Message);
         }
-        finally
+
+        if (!await SendAsync(result, stoppingToken))
         {
-            DeleteDownloadedFile(processImageRequest.FileName);
+            return false;
         }
 
-        await SendAsync(result, cancellationToken);
+        DeleteDownloadedFile(processImageRequest.FileName);
+        return true;
     }
 
     /// <summary>
-    /// Sends the result until the transport has it: the run that requested the image waits for it. Meanwhile this
-    /// image holds one of the images processed at a time, and once all of them wait, the requests wait in the queue
-    /// and the runs wait to hand over more: the pipeline slows down to the pace of the transport (backpressure).
+    /// Sends the result until the transport has it, or the service stops: the run that requested the image waits
+    /// for it. Meanwhile this image holds one of the images processed at a time, and once all of them wait, the
+    /// requests wait to be taken and the runs wait to hand over more: the pipeline slows down to the pace of the
+    /// transport (backpressure).
     /// </summary>
-    private async Task SendAsync(PhotoProcessed result, CancellationToken cancellationToken)
+    /// <returns>Whether the result has been sent.</returns>
+    private async Task<bool> SendAsync(PhotoProcessed result, CancellationToken stoppingToken)
     {
         while (true)
         {
             try
             {
-                await _resultSender.SendAsync(result, cancellationToken);
-                return;
+                await _resultSender.SendAsync(result, stoppingToken);
+                return true;
             }
             catch (MessagePublishException e)
             {
@@ -120,22 +161,21 @@ public class ImageProcessingBackgroundService : BackgroundService
             }
             catch (OperationCanceledException)
             {
-                // stopping: the run is stopped as well, it does not wait for the result any longer
-                return;
+                return false;
             }
             catch (Exception e)
             {
                 _logger.LogError(e, "Failed to send the result of {FileName}", result.FileName);
-                return;
+                return false;
             }
 
             try
             {
-                await Task.Delay(_sendRetryDelay, cancellationToken);
+                await Task.Delay(_sendRetryDelay, stoppingToken);
             }
             catch (OperationCanceledException)
             {
-                return;
+                return false;
             }
         }
     }

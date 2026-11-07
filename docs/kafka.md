@@ -1,17 +1,20 @@
 # Kafka
 
-Kafka carries two kinds of message:
+Kafka carries three kinds of message:
 
-- **`photo-processed`**, a pipeline message. The Worker sends one per image to the API, which saves the photo.
-  It replaced the in-memory `ProcessedImage` queue.
+- **`image-processing-requests`**, pipeline messages. The API sends one per downloaded image to the Workers,
+  which can run in processes of their own.
+- **`photo-processed`**, pipeline messages. A Worker sends one per image back to the API, which saves the photo.
 - **`photo-saved`**, a domain event. It is published through an outbox once a photo is in the database, for
   anyone who wants to react to it.
 
 ```
 API: PhotoSourceProcessingService
-   │  ProcessImageRequest { RequestId }            (still an in-memory queue, step 4 moves it to Kafka)
+   │  ProcessImageRequest { RequestId, FileName }  ──▶ [ image-processing-requests ]  key = RequestId (spread)
    ▼
-Worker: ImageProcessingBackgroundService
+Workers: ImageProcessingBackgroundService  (group photo-map.image-processors: PhotoMap.Worker.Host processes,
+   │                                         and/or one inside the API)
+   │  takes a batch → processes it in parallel → sends the results → acknowledges the batch
    │  thumbnails → staged files next to the download (claim-check)
    │  PhotoProcessed { RequestId, Image | Error }  ──▶ [ photo-processed ]  key = "{userId}:{photoSourceId}"
    ▼
@@ -30,12 +33,49 @@ outbox_messages ──OutboxRelayBackgroundService──▶ [ photo-saved ] ─�
 | Event contract | `PhotoMap.Shared/Events/PhotoSavedEvent.cs` |
 | Transports | `IMessageSender<T>` / `IMessageReceiver<T>`: `ChannelMessageTransport<T>` (in memory), `KafkaMessageSender<T>` / `KafkaMessageReceiver<T>` |
 | Request/reply correlation | `ProcessingRequests` |
+| Worker as its own process | `PhotoMap.Worker.Host` |
 | Outbox table | `OutboxMessageEntity`, migration `AddOutboxMessages` |
 | Relay | `OutboxRelay` (one round), `OutboxRelayBackgroundService` (the loop) |
 | Producer | `PhotoMap.Shared/Messaging/KafkaMessagePublisher.cs` |
 | Event consumer | `PhotoMap.Api/PhotoMap.Api/Services/PhotoSavedLogConsumer.cs` |
-| Registration | `Startup.AddKafka` |
-| Settings | `Kafka` section of `appsettings*.json`; `ImageProcessing:SendRetryDelay` |
+| Registration | `Startup.AddMessaging`, `MessagingServiceCollectionExtensions`, `AddWorkerKafkaTransports` |
+| Settings | `Kafka` section of `appsettings*.json`; `ImageProcessing:InProcess`, `ImageProcessing:SendRetryDelay` |
+
+## image-processing-requests: Workers in processes of their own
+
+With Kafka enabled, the API only *sends* requests. Any number of Workers, in the consumer group
+`photo-map.image-processors`, share them:
+
+```sh
+# the API without a Worker of its own (ImageProcessing:InProcess=false), then one or more of:
+dotnet run --project PhotoMap.Worker.Host
+```
+
+`ImageProcessing:InProcess` (default `true`) keeps a Worker inside the API too. With Kafka enabled, that Worker
+is just one more member of the same group. With Kafka disabled it's the only Worker, so the API refuses to start
+if the setting is `false`.
+
+- **The key is chosen for parallelism, not order.** Requests are keyed by `RequestId`, which is random, so one
+  run's requests spread over all 3 partitions and up to 3 Workers process them at once. A fourth Worker would sit
+  idle, waiting to take over a partition. Compare `photo-saved`, which is keyed by user and source because its
+  consumers care about order.
+- **Batch, then acknowledge.** A Worker takes up to `MaxDegreeOfParallelism` requests, processes them in
+  parallel, sends every result, and only then commits the offsets. If it crashes mid-batch, the whole batch is
+  redelivered (at-least-once).
+- **Delete the input only after the output is sent.** A Worker deletes a downloaded file only once its result has
+  been sent. If the file were deleted first, a redelivered request would find it gone. When a Worker stops, it
+  finishes the images it's processing and acknowledges the batch only if every result went out.
+- **A crash costs up to 45 seconds; a clean stop costs nothing.** A Worker that stops gracefully leaves the group,
+  and its partitions move to the others at once. A Worker that crashes keeps its partitions until the broker stops
+  hearing from it (`session.timeout.ms`, 45s by default), and until then its requests wait. Any Worker joining in
+  the meantime waits too, because the group can't rebalance yet.
+- **Requests survive having no Worker at all.** They wait in the topic, and the first Worker to start takes them.
+- **Shared disk.** A request carries the downloaded file's path, not the photo (claim-check), and the Worker
+  stages thumbnails next to it. Workers must see the same disk as the API: the same machine, or a shared volume
+  mounted at the same path. Workers on other machines would need object storage.
+- **Sending a request waits for Kafka.** If Kafka is down for longer than `Kafka:MessageTimeout` (30s), the
+  send fails and so does the run. Resume it once Kafka is back. Unlike the in-memory queue, Kafka doesn't block a
+  fast sender, but runs still wait for each page or chunk of photos to be processed before downloading the next.
 
 ## photo-processed: a pipeline over Kafka
 
@@ -90,6 +130,17 @@ photo does, and the relay keeps retrying until Kafka has it, whether that takes 
 
 ## Things to try
 
+- **Share the work:** run the API with `ImageProcessing:InProcess=false` and start `PhotoMap.Worker.Host` twice.
+  Each logs `assigned partitions`: one Worker gets 2 partitions and the other gets 1. Process a source and both
+  log `Processed image ...`. `kg --describe --group photo-map.image-processors` shows which Worker owns which
+  partition.
+- **Crash a Worker:** `kill -9` one Worker while it processes. Its share stops for about 45s, until the broker
+  gives up on it, then the other Worker logs `assigned partitions` for all 3 and processes the rest, including the
+  batch the crashed Worker never acknowledged. Compare `Ctrl+C`, after which the partitions move at once.
+- **No Worker at all:** stop every Worker and process a source. The requests wait in
+  `image-processing-requests` (Kafka UI shows the lag), and the run waits with them. Start a Worker and it takes
+  over from where the group left off.
+
 - **Watch the pipeline:** `kc --topic photo-processed --property print.key=true` shows each image's result as the
   Worker sends it: the `RequestId`, the processed image with its `ThumbnailFiles`, or an `Error`.
 - **Kafka down during a run:** `docker compose stop kafka`. The Worker logs `Failed to send the result ... trying
@@ -140,10 +191,13 @@ SELECT id, key, created_on, published_on, attempts, last_error FROM outbox_messa
 
 ## Delivery guarantees
 
+- **API to Workers (`image-processing-requests`):** at-least-once. A batch is acknowledged only after all its
+  results are sent, so a request a Worker crashed on goes to another Worker, or back to the same one when it
+  restarts. A redelivered request whose result was already sent finds its file gone and sends a failure, which the
+  API ignores because the run already has the result.
 - **Worker to API (`photo-processed`):** at-least-once. The Worker retries each send until Kafka has it, and the
   API commits a batch's offsets only after saving it. A redelivered message is harmless, because photos that are
-  already saved are skipped. One gap remains: the request queue is still in memory, so requests waiting in it are
-  lost on a restart. The paused run downloads those files again when it resumes, and step 4 closes the gap.
+  already saved are skipped.
 - **Database to outbox:** atomic. Photos and their events are saved in one transaction, or neither is.
 - **Outbox to Kafka:** at-least-once. The relay sends a batch of up to 200 rows at once and marks each row
   published only after Kafka acknowledges it (`Acks = All`, idempotent producer). Rows that fail stay pending and

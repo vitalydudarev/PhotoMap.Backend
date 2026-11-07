@@ -30,6 +30,7 @@ using PhotoMap.Api.Services.Services;
 using PhotoMap.Api.Services.Services.Domain;
 using PhotoMap.Shared.Messages;
 using PhotoMap.Shared.Messaging;
+using PhotoMap.Shared.Models;
 using PhotoMap.Worker;
 using Serilog;
 using Swashbuckle.AspNetCore.SwaggerGen;
@@ -122,10 +123,8 @@ namespace PhotoMap.Api
             services.AddSingleton<IFrontendNotificationService, FrontendNotificationService>();
             services.AddSingleton<ProcessingRequests>();
 
-            AddKafka(services);
-            
-            // worker, hosted in this application
-            services.AddWorker(Configuration);
+            AddMessaging(services);
+
             services.AddHostedService<ProcessedImageBackgroundService>();
             services.AddHostedService<PhotoCategorizationBackgroundService>();
             services.AddHostedService<FailedPreviewsBackgroundService>();
@@ -147,13 +146,25 @@ namespace PhotoMap.Api
         }
 
         /// <summary>
-        /// With Kafka enabled, the worker sends its results to the API through Kafka, and the events saved to the
-        /// outbox with the changes they report are published to it. Disabled, the results go through an in-process
-        /// queue and no events are saved: the application runs without a broker. See docs/kafka.md.
+        /// With Kafka enabled, the requests go to the worker, and its results come back, through Kafka; the worker runs
+        /// in this application, in its own processes (PhotoMap.Worker.Host), or both, sharing the requests as one
+        /// consumer group. The events saved to the outbox with the changes they report are published to it. Disabled,
+        /// the requests and results go through in-process queues, to the worker running in this application, and no
+        /// events are saved: the application runs without a broker. See docs/kafka.md.
         /// </summary>
-        private void AddKafka(IServiceCollection services)
+        private void AddMessaging(IServiceCollection services)
         {
             var kafkaSettings = Configuration.GetSection("Kafka").Get<KafkaSettings>() ?? new KafkaSettings();
+            var workerInProcess = Configuration.GetValue("ImageProcessing:InProcess", true);
+
+            if (!kafkaSettings.Enabled && !workerInProcess)
+            {
+                throw new InvalidOperationException("ImageProcessing:InProcess is false while Kafka is disabled: no " +
+                                                    "worker could get the requests, no image would be processed.");
+            }
+
+            // the API converts images as well (PhotoProvider), whether it runs the worker or not
+            services.AddImageServices();
 
             services.AddSingleton(kafkaSettings);
             services.AddSingleton<OutboxSignal>();
@@ -161,20 +172,24 @@ namespace PhotoMap.Api
 
             if (!kafkaSettings.Enabled)
             {
-                var transport = new ChannelMessageTransport<PhotoProcessed>();
-                services.AddSingleton<IMessageSender<PhotoProcessed>>(transport);
-                services.AddSingleton<IMessageReceiver<PhotoProcessed>>(transport);
+                services.AddChannelTransport<ProcessImageRequest>();
+                services.AddChannelTransport<PhotoProcessed>();
+                services.AddWorker(Configuration);
                 return;
             }
 
-            services.AddSingleton<IMessagePublisher, KafkaMessagePublisher>();
+            services.AddKafkaPublisher(kafkaSettings);
 
-            // the worker to the API
-            services.AddSingleton<IMessageSender<PhotoProcessed>>(provider => new KafkaMessageSender<PhotoProcessed>(
-                provider.GetRequiredService<IMessagePublisher>(), PhotoProcessed.Topic, a => a.GetKey()));
-            services.AddSingleton<IMessageReceiver<PhotoProcessed>>(provider => new KafkaMessageReceiver<PhotoProcessed>(
-                kafkaSettings, PhotoProcessed.Topic, ProcessedImageBackgroundService.GroupId,
-                provider.GetRequiredService<ILogger<KafkaMessageReceiver<PhotoProcessed>>>()));
+            // to the workers, and back
+            services.AddKafkaSender<ProcessImageRequest>(ProcessImageRequest.Topic, a => a.GetKey());
+            services.AddKafkaReceiver<PhotoProcessed>(PhotoProcessed.Topic, ProcessedImageBackgroundService.GroupId);
+
+            if (workerInProcess)
+            {
+                // one more member of the workers' group, as any PhotoMap.Worker.Host
+                services.AddWorkerKafkaTransports(kafkaSettings);
+                services.AddWorker(Configuration);
+            }
 
             // the outbox to whoever is interested
             services.AddScoped<OutboxRelay>();

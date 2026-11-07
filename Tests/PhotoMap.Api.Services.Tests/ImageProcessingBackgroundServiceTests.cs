@@ -27,19 +27,19 @@ public class ImageProcessingBackgroundServiceTests : IDisposable
         using var imagesInProcessing = new CountdownEvent(MaxDegreeOfParallelism);
         var imageProcessingService = new BlockingImageProcessingService(imagesInProcessing, Timeout);
 
-        var requestQueue = new ChannelMessageQueue<ProcessImageRequest>();
+        var requestQueue = new ChannelMessageTransport<ProcessImageRequest>();
         var results = new ChannelMessageTransport<PhotoProcessed>();
         var service = CreateService(requestQueue, results, imageProcessingService);
 
         var requests = Enumerable.Range(0, MaxDegreeOfParallelism).Select(a => CreateRequest(a.ToString())).ToList();
 
-        // Act
-        await service.StartAsync(CancellationToken.None);
-
+        // Act: sent before the service starts, so that they make one batch
         foreach (var request in requests)
         {
-            await requestQueue.EnqueueAsync(request);
+            await requestQueue.SendAsync(request, CancellationToken.None);
         }
+
+        await service.StartAsync(CancellationToken.None);
 
         var received = await ReadAsync(results, requests.Count);
 
@@ -55,7 +55,7 @@ public class ImageProcessingBackgroundServiceTests : IDisposable
     public async Task ExecuteAsync_ShouldDeleteDownloadedFile()
     {
         // Arrange
-        var requestQueue = new ChannelMessageQueue<ProcessImageRequest>();
+        var requestQueue = new ChannelMessageTransport<ProcessImageRequest>();
         var results = new ChannelMessageTransport<PhotoProcessed>();
         var service = CreateService(requestQueue, results, new ImageProcessingServiceStub());
 
@@ -65,8 +65,8 @@ public class ImageProcessingBackgroundServiceTests : IDisposable
         // Act
         await service.StartAsync(CancellationToken.None);
 
-        await requestQueue.EnqueueAsync(processedRequest);
-        await requestQueue.EnqueueAsync(failedRequest);
+        await requestQueue.SendAsync(processedRequest, CancellationToken.None);
+        await requestQueue.SendAsync(failedRequest, CancellationToken.None);
 
         var received = await ReadAsync(results, 2);
 
@@ -85,7 +85,7 @@ public class ImageProcessingBackgroundServiceTests : IDisposable
     public async Task ExecuteAsync_ShouldFailTheImage_WhenTheDownloadedFileIsEmpty()
     {
         // Arrange
-        var requestQueue = new ChannelMessageQueue<ProcessImageRequest>();
+        var requestQueue = new ChannelMessageTransport<ProcessImageRequest>();
         var results = new ChannelMessageTransport<PhotoProcessed>();
         var imageProcessingService = new ImageProcessingService(NullLogger<ImageProcessingService>.Instance,
             new Mock<IExifExtractor>().Object);
@@ -96,7 +96,7 @@ public class ImageProcessingBackgroundServiceTests : IDisposable
         // Act
         await service.StartAsync(CancellationToken.None);
 
-        await requestQueue.EnqueueAsync(request);
+        await requestQueue.SendAsync(request, CancellationToken.None);
 
         var result = Assert.Single(await ReadAsync(results, 1));
 
@@ -112,7 +112,7 @@ public class ImageProcessingBackgroundServiceTests : IDisposable
     public async Task ExecuteAsync_ShouldSendTheResultAgain_WhenTheTransportFailsIt()
     {
         // Arrange: the broker is down for the first attempt
-        var requestQueue = new ChannelMessageQueue<ProcessImageRequest>();
+        var requestQueue = new ChannelMessageTransport<ProcessImageRequest>();
         var results = new ChannelMessageTransport<PhotoProcessed>();
         var sender = new FlakySender(results, failures: 1);
 
@@ -122,7 +122,7 @@ public class ImageProcessingBackgroundServiceTests : IDisposable
         // Act
         await service.StartAsync(CancellationToken.None);
 
-        await requestQueue.EnqueueAsync(request);
+        await requestQueue.SendAsync(request, CancellationToken.None);
 
         var result = Assert.Single(await ReadAsync(results, 1));
 
@@ -134,13 +134,78 @@ public class ImageProcessingBackgroundServiceTests : IDisposable
         Assert.Equal(2, sender.Attempts);
     }
 
+    [Fact]
+    public async Task ExecuteAsync_ShouldAcknowledgeTheRequests_OnceTheirResultsHaveBeenSent()
+    {
+        // Arrange
+        var steps = new List<string>();
+        var request = CreateRequest("acknowledged");
+
+        var receiver = new Mock<IMessageReceiver<ProcessImageRequest>>();
+        receiver
+            .SetupSequence(a => a.ReceiveBatchAsync(It.IsAny<int>(), It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([request])
+            .ReturnsAsync([]);
+        receiver.Setup(a => a.Acknowledge()).Callback(() => steps.Add("acknowledged"));
+
+        var sender = new Mock<IMessageSender<PhotoProcessed>>();
+        sender
+            .Setup(a => a.SendAsync(It.IsAny<PhotoProcessed>(), It.IsAny<CancellationToken>()))
+            .Callback(() => steps.Add("sent"))
+            .Returns(Task.CompletedTask);
+
+        var service = CreateService(receiver.Object, sender.Object, new ImageProcessingServiceStub());
+
+        // Act
+        await service.StartAsync(CancellationToken.None);
+        await service.ExecuteTask!.WaitAsync(Timeout);
+        await service.StopAsync(CancellationToken.None);
+
+        // Assert: acknowledged before, a worker crashing in between would lose the request
+        Assert.Equal(["sent", "acknowledged"], steps);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_ShouldNeitherAcknowledgeTheRequests_NorDeleteTheirFiles_WhenStoppedBeforeTheResultsAreSent()
+    {
+        // Arrange: the broker is down, the result is never sent
+        var receiver = new Mock<IMessageReceiver<ProcessImageRequest>>();
+        var request = CreateRequest("unsent");
+        receiver
+            .SetupSequence(a => a.ReceiveBatchAsync(It.IsAny<int>(), It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([request])
+            .Returns(new TaskCompletionSource<IReadOnlyList<ProcessImageRequest>>().Task);
+
+        var sender = new FlakySender(new ChannelMessageTransport<PhotoProcessed>(), failures: int.MaxValue);
+        var service = CreateService(receiver.Object, sender, new ImageProcessingServiceStub());
+
+        // Act
+        await service.StartAsync(CancellationToken.None);
+        await WaitUntilAsync(() => sender.Attempts >= 2);
+        await service.StopAsync(CancellationToken.None);
+
+        // Assert: the request is handed again, to this worker after a restart or to another one, with its file
+        receiver.Verify(a => a.Acknowledge(), Times.Never);
+        Assert.True(File.Exists(request.FileName));
+    }
+
+    private static async Task WaitUntilAsync(Func<bool> condition)
+    {
+        using var cancellationTokenSource = new CancellationTokenSource(Timeout);
+
+        while (!condition())
+        {
+            await Task.Delay(10, cancellationTokenSource.Token);
+        }
+    }
+
     public void Dispose()
     {
         Directory.Delete(_directory, recursive: true);
     }
 
     private static ImageProcessingBackgroundService CreateService(
-        IMessageQueue<ProcessImageRequest> requestQueue,
+        IMessageReceiver<ProcessImageRequest> requestQueue,
         IMessageSender<PhotoProcessed> resultSender,
         IImageProcessingService imageProcessingService)
     {

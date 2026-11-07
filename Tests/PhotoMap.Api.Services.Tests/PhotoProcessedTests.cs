@@ -50,6 +50,38 @@ public class PhotoProcessedTests
     }
 
     [Fact]
+    public void Json_ShouldKeepAProcessImageRequest_AsKafkaCarriesIt()
+    {
+        // Arrange: DownloadedFileInfo has no parameterless constructor, the serializer goes through the other one
+        var request = new ProcessImageRequest
+        {
+            RequestId = Guid.NewGuid(),
+            DownloadedFileInfo = new DownloadedFileInfo("a.jpg", "disk:/a.jpg",
+                new DateTime(2020, 1, 2, 3, 4, 5, DateTimeKind.Utc), "id:a") { FromOtherUploads = true },
+            FileName = "/storage/Bin/1/2/abc-a.jpg",
+            Sizes = [640, 256],
+            UserId = 1,
+            PhotoSourceId = 2,
+            PhotoSourceName = "Yandex.Disk"
+        };
+
+        // Act
+        var received = JsonSerializer.Deserialize<ProcessImageRequest>(JsonSerializer.Serialize(request))!;
+
+        // Assert
+        Assert.Equal(request.RequestId, received.RequestId);
+        Assert.Equal("a.jpg", received.DownloadedFileInfo.ResourceName);
+        Assert.Equal("disk:/a.jpg", received.DownloadedFileInfo.Path);
+        Assert.Equal("id:a", received.DownloadedFileInfo.FileId);
+        Assert.Equal(DateTimeKind.Utc, received.DownloadedFileInfo.CreatedOn!.Value.Kind);
+        Assert.True(received.DownloadedFileInfo.FromOtherUploads);
+        Assert.Equal("/storage/Bin/1/2/abc-a.jpg", received.FileName);
+        Assert.Equal([640, 256], received.Sizes);
+        Assert.Equal("Yandex.Disk", received.PhotoSourceName);
+        Assert.Equal(request.RequestId.ToString("N"), received.GetKey());
+    }
+
+    [Fact]
     public void Json_ShouldKeepAFailure()
     {
         // Arrange

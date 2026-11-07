@@ -8,6 +8,7 @@ using PhotoMap.Api.Domain.Models;
 using PhotoMap.Api.Domain.Services;
 using PhotoMap.Api.Services.Factories;
 using PhotoMap.Api.Services.Services;
+using PhotoMap.Shared.Messaging;
 using PhotoMap.Shared.Models;
 using PhotoMap.Shared.Queues;
 
@@ -350,8 +351,8 @@ public class PhotoSourceProcessingServiceTests
         applicationLifetime.Setup(a => a.ApplicationStopping).Returns(applicationStopping);
 
         var serviceProvider = new Mock<IServiceProvider>();
-        serviceProvider.Setup(a => a.GetService(typeof(IMessageQueue<ProcessImageRequest>)))
-            .Returns(new ChannelMessageQueue<ProcessImageRequest>());
+        serviceProvider.Setup(a => a.GetService(typeof(IMessageSender<ProcessImageRequest>)))
+            .Returns(new ChannelMessageTransport<ProcessImageRequest>());
         serviceProvider.Setup(a => a.GetService(typeof(ProcessingRequests))).Returns(new ProcessingRequests());
         serviceProvider.Setup(a => a.GetService(typeof(IFileStorage))).Returns(new Mock<IFileStorage>().Object);
         serviceProvider.Setup(a => a.GetService(typeof(IFrontendNotificationService)))

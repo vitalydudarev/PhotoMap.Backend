@@ -9,7 +9,7 @@ using PhotoMap.Api.Services.Exceptions;
 using PhotoMap.Api.Services.Factories;
 using PhotoMap.Api.Services.Services;
 using PhotoMap.Shared.Models;
-using PhotoMap.Shared.Queues;
+using PhotoMap.Shared.Messaging;
 using PhotoMap.Shared.Yandex.Disk;
 using PhotoMap.Shared.Yandex.Disk.Models;
 
@@ -177,7 +177,7 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
             async (services, logger) =>
             {
                 var fileStorage = services.GetRequiredService<IFileStorage>();
-                var requestQueue = services.GetRequiredService<IMessageQueue<ProcessImageRequest>>();
+                var requestSender = services.GetRequiredService<IMessageSender<ProcessImageRequest>>();
                 var processingRequests = services.GetRequiredService<ProcessingRequests>();
 
                 await using var downloadService = services.GetRequiredService<IPhotoSourceDownloadServiceFactory>()
@@ -213,9 +213,8 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
                         continue;
                     }
 
-                    await requestQueue.EnqueueAsync(
-                        CreateRequest(run, downloadedFile.FileInfo, fileName, processingRequests.Register(downloadedFile.Processed)),
-                        cancellationToken);
+                    await SendRequestAsync(requestSender, processingRequests, run, downloadedFile.FileInfo, fileName,
+                        downloadedFile.Processed, cancellationToken);
                 }
             },
             cancellationToken);
@@ -239,7 +238,7 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
                 var photoService = services.GetRequiredService<IPhotoService>();
                 var failedFileService = services.GetRequiredService<IFailedFileService>();
                 var fileStorage = services.GetRequiredService<IFileStorage>();
-                var requestQueue = services.GetRequiredService<IMessageQueue<ProcessImageRequest>>();
+                var requestSender = services.GetRequiredService<IMessageSender<ProcessImageRequest>>();
                 var processingRequests = services.GetRequiredService<ProcessingRequests>();
                 var httpClientFactory = services.GetRequiredService<IHttpClientFactory>();
 
@@ -315,7 +314,7 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
                     var attempts = new ConcurrentBag<OtherUploadAttempt>();
 
                     await Parallel.ForEachAsync(chunk, parallelOptions, async (photo, token) =>
-                        attempts.Add(await EnqueuePhotoOrSkipAsync(otherUploads, fileStorage, requestQueue,
+                        attempts.Add(await EnqueuePhotoOrSkipAsync(otherUploads, fileStorage, requestSender,
                             processingRequests, logger, run, photo, token)));
 
                     // the photos of the chunk are saved before the next ones start, so that a stopped run loses no more
@@ -443,7 +442,7 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
     /// every other photo as well.
     /// </summary>
     private static async Task<OtherUploadAttempt> EnqueuePhotoOrSkipAsync(YandexDiskOtherUploads otherUploads,
-        IFileStorage fileStorage, IMessageQueue<ProcessImageRequest> requestQueue, ProcessingRequests processingRequests,
+        IFileStorage fileStorage, IMessageSender<ProcessImageRequest> requestSender, ProcessingRequests processingRequests,
         ILogger logger, ProcessingRun run, OtherUpload photo, CancellationToken cancellationToken)
     {
         byte[] contents;
@@ -482,7 +481,7 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
 
         var processed = new TaskCompletionSource<ProcessingResult>(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        await requestQueue.EnqueueAsync(CreateRequest(run, CreateFileInfo(resource), fileName, processingRequests.Register(processed)),
+        await SendRequestAsync(requestSender, processingRequests, run, CreateFileInfo(resource), fileName, processed,
             cancellationToken);
 
         return new OtherUploadAttempt(photo, processed.Task, FileFailureStage.Processing, null);
@@ -506,6 +505,29 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
         // a path of its own per download: files of the same name, from another folder of the source or from the run
         // of another user, would overwrite each other while waiting to be processed
         return fileStorage.SaveAsync($"Bin/{run.UserId}/{run.SourceId}/{Guid.NewGuid():N}-{name}", contents);
+    }
+
+    /// <summary>
+    /// Hands the downloaded file over to the worker: <paramref name="processed"/> is completed when its result
+    /// comes. Waits until the transport has the request: Kafka has acknowledged it, or there is room in the queue.
+    /// </summary>
+    /// <exception cref="MessagePublishException">The request has not been delivered, e.g. Kafka has been down for
+    /// longer than the producer waits; the run fails, to be resumed.</exception>
+    private static async Task SendRequestAsync(IMessageSender<ProcessImageRequest> requestSender,
+        ProcessingRequests processingRequests, ProcessingRun run, DownloadedFileInfo fileInfo, string fileName,
+        TaskCompletionSource<ProcessingResult> processed, CancellationToken cancellationToken)
+    {
+        var requestId = processingRequests.Register(processed);
+
+        try
+        {
+            await requestSender.SendAsync(CreateRequest(run, fileInfo, fileName, requestId), cancellationToken);
+        }
+        catch
+        {
+            processingRequests.Forget(requestId);
+            throw;
+        }
     }
 
     /// <param name="requestId">From <see cref="ProcessingRequests.Register"/>, for the result to be matched back to
