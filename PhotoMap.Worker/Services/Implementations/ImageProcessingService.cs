@@ -37,20 +37,19 @@ namespace PhotoMap.Worker.Services.Implementations
             using var imageProcessor = new ImageProcessor(fileContents, sizes.Max());
             imageProcessor.Rotate();
             
-            var sizeBytesMap = new Dictionary<int, byte[]>();
+            var thumbnailFiles = new Dictionary<int, string>();
 
             foreach (var size in sizes)
             {
                 imageProcessor.Crop(size);
-                var bytes = imageProcessor.GetImageBytes();
-                
-                sizeBytesMap.Add(size, bytes);
+
+                thumbnailFiles.Add(size, StageThumbnail(request, size, imageProcessor.GetImageBytes()));
             }
             
             var processedImage = new ProcessedImage
             {
                 FileName = fileInfo.ResourceName,
-                Thumbs = sizeBytesMap,
+                ThumbnailFiles = thumbnailFiles,
                 Path = fileInfo.Path,
                 ExternalId = fileInfo.FileId,
                 ContentHash = Convert.ToHexStringLower(SHA256.HashData(fileContents)),
@@ -58,8 +57,7 @@ namespace PhotoMap.Worker.Services.Implementations
                 UserId = request.UserId,
                 PhotoSourceId = request.PhotoSourceId,
                 PhotoSourceName = request.PhotoSourceName,
-                FromOtherUploads = fileInfo.FromOtherUploads,
-                Processed = request.Processed
+                FromOtherUploads = fileInfo.FromOtherUploads
             };
 
             var exif = _exifExtractor.GetDataAsync(fileContents);
@@ -75,6 +73,20 @@ namespace PhotoMap.Worker.Services.Implementations
             _logger.LogInformation("Processed image {FileName}", fileInfo.ResourceName);
 
             return processedImage;
+        }
+
+        /// <summary>
+        /// Next to the downloaded file, which is unique to the download, until the photo has been saved: the API
+        /// reads the thumbnail from there, then deletes it. Both need to see the same disk, as they do in one process.
+        /// </summary>
+        /// <returns>The path of the thumbnail.</returns>
+        public static string StageThumbnail(ProcessImageRequest request, int size, byte[] bytes)
+        {
+            var path = $"{request.FileName}.{size}.jpg";
+
+            File.WriteAllBytes(path, bytes);
+
+            return path;
         }
     }
 }

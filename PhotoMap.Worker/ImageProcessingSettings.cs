@@ -7,4 +7,9 @@ public class ImageProcessingSettings
     /// the work is CPU-bound, so that is as fast as the machine goes.
     /// </summary>
     public int MaxDegreeOfParallelism { get; set; }
+
+    /// <summary>
+    /// How long a result waits before it is sent again, the transport having failed it, e.g. the broker being down.
+    /// </summary>
+    public TimeSpan SendRetryDelay { get; set; } = TimeSpan.FromSeconds(5);
 }

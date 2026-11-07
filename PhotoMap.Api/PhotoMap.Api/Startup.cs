@@ -28,6 +28,7 @@ using PhotoMap.Api.Services.Implementations;
 using PhotoMap.Api.Services.Interfaces;
 using PhotoMap.Api.Services.Services;
 using PhotoMap.Api.Services.Services.Domain;
+using PhotoMap.Shared.Messages;
 using PhotoMap.Shared.Messaging;
 using PhotoMap.Worker;
 using Serilog;
@@ -119,6 +120,7 @@ namespace PhotoMap.Api
             services.AddScoped<HostInfo>();
 
             services.AddSingleton<IFrontendNotificationService, FrontendNotificationService>();
+            services.AddSingleton<ProcessingRequests>();
 
             AddKafka(services);
             
@@ -145,8 +147,9 @@ namespace PhotoMap.Api
         }
 
         /// <summary>
-        /// Events are saved to the outbox with the changes they report, and the relay publishes them to Kafka, only
-        /// when it is enabled; the application runs without a broker otherwise. See docs/kafka.md.
+        /// With Kafka enabled, the worker sends its results to the API through Kafka, and the events saved to the
+        /// outbox with the changes they report are published to it. Disabled, the results go through an in-process
+        /// queue and no events are saved: the application runs without a broker. See docs/kafka.md.
         /// </summary>
         private void AddKafka(IServiceCollection services)
         {
@@ -158,10 +161,22 @@ namespace PhotoMap.Api
 
             if (!kafkaSettings.Enabled)
             {
+                var transport = new ChannelMessageTransport<PhotoProcessed>();
+                services.AddSingleton<IMessageSender<PhotoProcessed>>(transport);
+                services.AddSingleton<IMessageReceiver<PhotoProcessed>>(transport);
                 return;
             }
 
             services.AddSingleton<IMessagePublisher, KafkaMessagePublisher>();
+
+            // the worker to the API
+            services.AddSingleton<IMessageSender<PhotoProcessed>>(provider => new KafkaMessageSender<PhotoProcessed>(
+                provider.GetRequiredService<IMessagePublisher>(), PhotoProcessed.Topic, a => a.GetKey()));
+            services.AddSingleton<IMessageReceiver<PhotoProcessed>>(provider => new KafkaMessageReceiver<PhotoProcessed>(
+                kafkaSettings, PhotoProcessed.Topic, ProcessedImageBackgroundService.GroupId,
+                provider.GetRequiredService<ILogger<KafkaMessageReceiver<PhotoProcessed>>>()));
+
+            // the outbox to whoever is interested
             services.AddScoped<OutboxRelay>();
             // registered before the processing services: hosted services stop in reverse order, so the relay still
             // publishes what is saved while those stop; what it does not, it publishes on the next start

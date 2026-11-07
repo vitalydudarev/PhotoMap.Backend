@@ -352,6 +352,7 @@ public class PhotoSourceProcessingServiceTests
         var serviceProvider = new Mock<IServiceProvider>();
         serviceProvider.Setup(a => a.GetService(typeof(IMessageQueue<ProcessImageRequest>)))
             .Returns(new ChannelMessageQueue<ProcessImageRequest>());
+        serviceProvider.Setup(a => a.GetService(typeof(ProcessingRequests))).Returns(new ProcessingRequests());
         serviceProvider.Setup(a => a.GetService(typeof(IFileStorage))).Returns(new Mock<IFileStorage>().Object);
         serviceProvider.Setup(a => a.GetService(typeof(IFrontendNotificationService)))
             .Returns(_frontendNotificationService.Object);

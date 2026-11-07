@@ -178,6 +178,7 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
             {
                 var fileStorage = services.GetRequiredService<IFileStorage>();
                 var requestQueue = services.GetRequiredService<IMessageQueue<ProcessImageRequest>>();
+                var processingRequests = services.GetRequiredService<ProcessingRequests>();
 
                 await using var downloadService = services.GetRequiredService<IPhotoSourceDownloadServiceFactory>()
                     .GetService(photoSource, parameters);
@@ -212,7 +213,8 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
                         continue;
                     }
 
-                    await requestQueue.EnqueueAsync(CreateRequest(run, downloadedFile.FileInfo, fileName, downloadedFile.Processed),
+                    await requestQueue.EnqueueAsync(
+                        CreateRequest(run, downloadedFile.FileInfo, fileName, processingRequests.Register(downloadedFile.Processed)),
                         cancellationToken);
                 }
             },
@@ -238,6 +240,7 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
                 var failedFileService = services.GetRequiredService<IFailedFileService>();
                 var fileStorage = services.GetRequiredService<IFileStorage>();
                 var requestQueue = services.GetRequiredService<IMessageQueue<ProcessImageRequest>>();
+                var processingRequests = services.GetRequiredService<ProcessingRequests>();
                 var httpClientFactory = services.GetRequiredService<IHttpClientFactory>();
 
                 // Yandex.Disk tokens are not refreshed, the user authorizes again when the token has expired
@@ -312,8 +315,8 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
                     var attempts = new ConcurrentBag<OtherUploadAttempt>();
 
                     await Parallel.ForEachAsync(chunk, parallelOptions, async (photo, token) =>
-                        attempts.Add(await EnqueuePhotoOrSkipAsync(otherUploads, fileStorage, requestQueue, logger, run,
-                            photo, token)));
+                        attempts.Add(await EnqueuePhotoOrSkipAsync(otherUploads, fileStorage, requestQueue,
+                            processingRequests, logger, run, photo, token)));
 
                     // the photos of the chunk are saved before the next ones start, so that a stopped run loses no more
                     await Task.WhenAll(attempts.Where(a => a.Processed != null).Select(a => a.Processed!))
@@ -440,8 +443,8 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
     /// every other photo as well.
     /// </summary>
     private static async Task<OtherUploadAttempt> EnqueuePhotoOrSkipAsync(YandexDiskOtherUploads otherUploads,
-        IFileStorage fileStorage, IMessageQueue<ProcessImageRequest> requestQueue, ILogger logger, ProcessingRun run,
-        OtherUpload photo, CancellationToken cancellationToken)
+        IFileStorage fileStorage, IMessageQueue<ProcessImageRequest> requestQueue, ProcessingRequests processingRequests,
+        ILogger logger, ProcessingRun run, OtherUpload photo, CancellationToken cancellationToken)
     {
         byte[] contents;
         Resource resource;
@@ -479,7 +482,8 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
 
         var processed = new TaskCompletionSource<ProcessingResult>(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        await requestQueue.EnqueueAsync(CreateRequest(run, CreateFileInfo(resource), fileName, processed), cancellationToken);
+        await requestQueue.EnqueueAsync(CreateRequest(run, CreateFileInfo(resource), fileName, processingRequests.Register(processed)),
+            cancellationToken);
 
         return new OtherUploadAttempt(photo, processed.Task, FileFailureStage.Processing, null);
     }
@@ -504,8 +508,10 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
         return fileStorage.SaveAsync($"Bin/{run.UserId}/{run.SourceId}/{Guid.NewGuid():N}-{name}", contents);
     }
 
+    /// <param name="requestId">From <see cref="ProcessingRequests.Register"/>, for the result to be matched back to
+    /// what waits for it.</param>
     private static ProcessImageRequest CreateRequest(ProcessingRun run, DownloadedFileInfo fileInfo, string fileName,
-        TaskCompletionSource<ProcessingResult> processed)
+        Guid requestId)
     {
         return new ProcessImageRequest
         {
@@ -515,7 +521,7 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
             UserId = run.UserId,
             PhotoSourceId = run.SourceId,
             PhotoSourceName = run.PhotoSourceName,
-            Processed = processed
+            RequestId = requestId
         };
     }
 

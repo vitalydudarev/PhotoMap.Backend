@@ -12,7 +12,13 @@ public class ProcessedImage
     public string? ExternalId { get; set; }
     public string ContentHash { get; set; } = null!;
     public DateTime? FileCreatedOn { get; set; }
-    public Dictionary<int, byte[]> Thumbs { get; set; } = null!;
+
+    /// <summary>
+    /// The paths of the thumbnails, by their sizes, in files of their own until the photo has been saved: the
+    /// thumbnails themselves are not sent along with the rest (the claim-check pattern), they would make messages
+    /// too large for Kafka at larger sizes.
+    /// </summary>
+    public Dictionary<int, string> ThumbnailFiles { get; set; } = null!;
     public DateTime? PhotoTakenOn { get; set; }
     public string? ExifString { get; set; }
     public double? Latitude { get; set; }
@@ -28,5 +34,4 @@ public class ProcessedImage
     /// The image is a photo outside the folder the source is processed from.
     /// </summary>
     public bool FromOtherUploads { get; set; }
-    public TaskCompletionSource<ProcessingResult>? Processed { get; set; }
 }

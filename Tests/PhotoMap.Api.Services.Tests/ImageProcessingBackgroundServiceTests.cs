@@ -1,6 +1,8 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Moq;
+using PhotoMap.Shared.Messages;
+using PhotoMap.Shared.Messaging;
 using PhotoMap.Shared.Models;
 using PhotoMap.Shared.Queues;
 using PhotoMap.Worker;
@@ -26,8 +28,8 @@ public class ImageProcessingBackgroundServiceTests : IDisposable
         var imageProcessingService = new BlockingImageProcessingService(imagesInProcessing, Timeout);
 
         var requestQueue = new ChannelMessageQueue<ProcessImageRequest>();
-        var processedImageQueue = new ChannelMessageQueue<ProcessedImage>();
-        var service = CreateService(requestQueue, processedImageQueue, imageProcessingService);
+        var results = new ChannelMessageTransport<PhotoProcessed>();
+        var service = CreateService(requestQueue, results, imageProcessingService);
 
         var requests = Enumerable.Range(0, MaxDegreeOfParallelism).Select(a => CreateRequest(a.ToString())).ToList();
 
@@ -39,13 +41,14 @@ public class ImageProcessingBackgroundServiceTests : IDisposable
             await requestQueue.EnqueueAsync(request);
         }
 
-        var processedImages = await ReadAsync(processedImageQueue, requests.Count);
+        var received = await ReadAsync(results, requests.Count);
 
         await service.StopAsync(CancellationToken.None);
 
         // Assert
         Assert.True(imagesInProcessing.IsSet, $"{MaxDegreeOfParallelism} images were expected to be processed at a time");
-        Assert.Equal(requests.Count, processedImages.Count);
+        Assert.Equal(requests.Select(a => a.RequestId).Order(), received.Select(a => a.RequestId).Order());
+        Assert.All(received, a => Assert.True(a.Succeeded));
     }
 
     [Fact]
@@ -53,8 +56,8 @@ public class ImageProcessingBackgroundServiceTests : IDisposable
     {
         // Arrange
         var requestQueue = new ChannelMessageQueue<ProcessImageRequest>();
-        var processedImageQueue = new ChannelMessageQueue<ProcessedImage>();
-        var service = CreateService(requestQueue, processedImageQueue, new ImageProcessingServiceStub());
+        var results = new ChannelMessageTransport<PhotoProcessed>();
+        var service = CreateService(requestQueue, results, new ImageProcessingServiceStub());
 
         var processedRequest = CreateRequest("processed");
         var failedRequest = CreateRequest(ImageProcessingServiceStub.FailingFileName);
@@ -65,12 +68,15 @@ public class ImageProcessingBackgroundServiceTests : IDisposable
         await requestQueue.EnqueueAsync(processedRequest);
         await requestQueue.EnqueueAsync(failedRequest);
 
-        await ReadAsync(processedImageQueue, 1);
-        Assert.False((await failedRequest.Processed!.Task.WaitAsync(Timeout)).Succeeded);
+        var received = await ReadAsync(results, 2);
 
         await service.StopAsync(CancellationToken.None);
 
-        // Assert
+        // Assert: the failure is sent as a result as well, with what went wrong
+        var failed = Assert.Single(received, a => a.RequestId == failedRequest.RequestId);
+        Assert.False(failed.Succeeded);
+        Assert.Contains("Unsupported image", failed.Error);
+        Assert.True(Assert.Single(received, a => a.RequestId == processedRequest.RequestId).Succeeded);
         Assert.False(File.Exists(processedRequest.FileName));
         Assert.False(File.Exists(failedRequest.FileName));
     }
@@ -80,10 +86,10 @@ public class ImageProcessingBackgroundServiceTests : IDisposable
     {
         // Arrange
         var requestQueue = new ChannelMessageQueue<ProcessImageRequest>();
-        var processedImageQueue = new ChannelMessageQueue<ProcessedImage>();
+        var results = new ChannelMessageTransport<PhotoProcessed>();
         var imageProcessingService = new ImageProcessingService(NullLogger<ImageProcessingService>.Instance,
             new Mock<IExifExtractor>().Object);
-        var service = CreateService(requestQueue, processedImageQueue, imageProcessingService);
+        var service = CreateService(requestQueue, results, imageProcessingService);
 
         var request = CreateRequest("empty", []);
 
@@ -92,13 +98,40 @@ public class ImageProcessingBackgroundServiceTests : IDisposable
 
         await requestQueue.EnqueueAsync(request);
 
-        var result = await request.Processed!.Task.WaitAsync(Timeout);
+        var result = Assert.Single(await ReadAsync(results, 1));
 
         await service.StopAsync(CancellationToken.None);
 
         // Assert
+        Assert.Equal(request.RequestId, result.RequestId);
         Assert.False(result.Succeeded);
         Assert.Contains("empty", result.Error);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_ShouldSendTheResultAgain_WhenTheTransportFailsIt()
+    {
+        // Arrange: the broker is down for the first attempt
+        var requestQueue = new ChannelMessageQueue<ProcessImageRequest>();
+        var results = new ChannelMessageTransport<PhotoProcessed>();
+        var sender = new FlakySender(results, failures: 1);
+
+        var service = CreateService(requestQueue, sender, new ImageProcessingServiceStub());
+        var request = CreateRequest("retried");
+
+        // Act
+        await service.StartAsync(CancellationToken.None);
+
+        await requestQueue.EnqueueAsync(request);
+
+        var result = Assert.Single(await ReadAsync(results, 1));
+
+        await service.StopAsync(CancellationToken.None);
+
+        // Assert
+        Assert.Equal(request.RequestId, result.RequestId);
+        Assert.True(result.Succeeded);
+        Assert.Equal(2, sender.Attempts);
     }
 
     public void Dispose()
@@ -108,13 +141,17 @@ public class ImageProcessingBackgroundServiceTests : IDisposable
 
     private static ImageProcessingBackgroundService CreateService(
         IMessageQueue<ProcessImageRequest> requestQueue,
-        IMessageQueue<ProcessedImage> processedImageQueue,
+        IMessageSender<PhotoProcessed> resultSender,
         IImageProcessingService imageProcessingService)
     {
-        var settings = Options.Create(new ImageProcessingSettings { MaxDegreeOfParallelism = MaxDegreeOfParallelism });
+        var settings = Options.Create(new ImageProcessingSettings
+        {
+            MaxDegreeOfParallelism = MaxDegreeOfParallelism,
+            SendRetryDelay = TimeSpan.FromMilliseconds(10)
+        });
 
         return new ImageProcessingBackgroundService(NullLogger<ImageProcessingBackgroundService>.Instance, requestQueue,
-            processedImageQueue, imageProcessingService, settings);
+            resultSender, imageProcessingService, settings);
     }
 
     private ProcessImageRequest CreateRequest(string fileName, byte[]? contents = null)
@@ -130,27 +167,41 @@ public class ImageProcessingBackgroundServiceTests : IDisposable
             UserId = 1,
             PhotoSourceId = 1,
             PhotoSourceName = "Dropbox",
-            Processed = new TaskCompletionSource<ProcessingResult>(TaskCreationOptions.RunContinuationsAsynchronously)
+            RequestId = Guid.NewGuid()
         };
     }
 
-    private static async Task<List<ProcessedImage>> ReadAsync(IMessageQueue<ProcessedImage> queue, int count)
+    private static async Task<List<PhotoProcessed>> ReadAsync(IMessageReceiver<PhotoProcessed> receiver, int count,
+        TimeSpan? timeout = null)
     {
-        using var cancellationTokenSource = new CancellationTokenSource(Timeout);
+        using var cancellationTokenSource = new CancellationTokenSource(timeout ?? Timeout);
 
-        var processedImages = new List<ProcessedImage>();
+        var received = new List<PhotoProcessed>();
 
-        await foreach (var processedImage in queue.ReadAllAsync(cancellationTokenSource.Token))
+        while (received.Count < count)
         {
-            processedImages.Add(processedImage);
-
-            if (processedImages.Count == count)
-            {
-                break;
-            }
+            received.AddRange(await receiver.ReceiveBatchAsync(count - received.Count, TimeSpan.FromMilliseconds(10),
+                cancellationTokenSource.Token));
         }
 
-        return processedImages;
+        return received;
+    }
+
+    /// <summary>
+    /// Fails the first sends, as a broker that is down, then hands the results over.
+    /// </summary>
+    private class FlakySender(IMessageSender<PhotoProcessed> inner, int failures) : IMessageSender<PhotoProcessed>
+    {
+        private int _attempts;
+
+        public int Attempts => _attempts;
+
+        public Task SendAsync(PhotoProcessed message, CancellationToken cancellationToken)
+        {
+            return Interlocked.Increment(ref _attempts) <= failures
+                ? Task.FromException(new MessagePublishException("Broker unavailable"))
+                : inner.SendAsync(message, cancellationToken);
+        }
     }
 
     private class ImageProcessingServiceStub : IImageProcessingService
@@ -172,8 +223,7 @@ public class ImageProcessingBackgroundServiceTests : IDisposable
                 PhotoSourceId = request.PhotoSourceId,
                 PhotoSourceName = request.PhotoSourceName,
                 ContentHash = "hash",
-                Thumbs = new Dictionary<int, byte[]>(),
-                Processed = request.Processed
+                ThumbnailFiles = new Dictionary<int, string>()
             };
         }
     }

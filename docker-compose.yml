@@ -1,7 +1,7 @@
 # Kafka for local development: one broker in KRaft mode (no ZooKeeper) and Kafka UI to browse it.
 #
 #   docker compose up -d      start, the API connects to localhost:9092
-#   http://localhost:8080     Kafka UI: topics, messages, consumer groups and their lag
+#   http://localhost:8081     Kafka UI: topics, messages, consumer groups and their lag
 #   docker compose down       stop and remove the containers, the topics and their messages go with them
 #
 # See docs/kafka.md.
@@ -47,13 +47,15 @@ services:
     command:
       - >
         /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --create --if-not-exists
-        --topic photo-saved --partitions 3 --replication-factor 1
+        --topic photo-saved --partitions 3 --replication-factor 1 &&
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --create --if-not-exists
+        --topic photo-processed --partitions 3 --replication-factor 1
 
   kafka-ui:
     image: kafbat/kafka-ui:v1.0.0
     container_name: photo-map-kafka-ui
     ports:
-      - "8080:8080"
+      - "8081:8080"
     depends_on:
       kafka:
         condition: service_healthy

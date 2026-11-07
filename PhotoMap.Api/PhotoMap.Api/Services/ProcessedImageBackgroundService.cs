@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text.Json;
 using System.Threading;
@@ -12,20 +13,27 @@ using PhotoMap.Api.Domain.Models;
 using PhotoMap.Api.Domain.Services;
 using PhotoMap.Api.Services.Services;
 using PhotoMap.Shared.Events;
+using PhotoMap.Shared.Messages;
 using PhotoMap.Shared.Messaging;
 using PhotoMap.Shared.Models;
-using PhotoMap.Shared.Queues;
 
 namespace PhotoMap.Api.Services
 {
     /// <summary>
-    /// Consumes the images processed by PhotoMap.Worker from the in-process queue,
-    /// stores their thumbnails and saves the photos, several at a time. Saves a <see cref="PhotoSavedEvent"/> to the
-    /// outbox with each photo, for the outbox relay to publish.
+    /// Receives what PhotoMap.Worker made of the images, <see cref="PhotoProcessed"/>, through Kafka or in memory,
+    /// stores the thumbnails and saves the photos, several at a time, and reports each result to the run waiting
+    /// for it. Saves a <see cref="PhotoSavedEvent"/> to the outbox with each photo, for the outbox relay to publish.
     /// </summary>
+    /// <remarks>
+    /// The messages are acknowledged once their batch has been handled: after a restart, Kafka hands again the ones
+    /// handled partly or not at all (at-least-once). Handling one twice does no harm, the photos saved are skipped.
+    /// </remarks>
     public class ProcessedImageBackgroundService : BackgroundService
     {
-        private readonly IMessageQueue<ProcessedImage> _processedImageQueue;
+        public const string GroupId = "photo-map.photo-processed-saver";
+
+        private readonly IMessageReceiver<PhotoProcessed> _receiver;
+        private readonly ProcessingRequests _processingRequests;
         private readonly IServiceScopeFactory _serviceScopeFactory;
         private readonly ILogger<ProcessedImageBackgroundService> _logger;
         private readonly KafkaSettings _kafkaSettings;
@@ -34,14 +42,16 @@ namespace PhotoMap.Api.Services
         private readonly TimeSpan _batchMaxWait;
 
         public ProcessedImageBackgroundService(
-            IMessageQueue<ProcessedImage> processedImageQueue,
+            IMessageReceiver<PhotoProcessed> receiver,
+            ProcessingRequests processingRequests,
             IServiceScopeFactory serviceScopeFactory,
             ILogger<ProcessedImageBackgroundService> logger,
             IOptions<PhotoProcessingSettings> settings,
             KafkaSettings kafkaSettings,
             OutboxSignal outboxSignal)
         {
-            _processedImageQueue = processedImageQueue;
+            _receiver = receiver;
+            _processingRequests = processingRequests;
             _serviceScopeFactory = serviceScopeFactory;
             _logger = logger;
             _kafkaSettings = kafkaSettings;
@@ -65,13 +75,15 @@ namespace PhotoMap.Api.Services
             {
                 while (true)
                 {
-                    var processedImages = await _processedImageQueue.ReadBatchAsync(_batchSize, _batchMaxWait, stoppingToken);
-                    if (processedImages.Count == 0)
+                    var messages = await _receiver.ReceiveBatchAsync(_batchSize, _batchMaxWait, stoppingToken);
+                    if (messages.Count == 0)
                     {
                         break;
                     }
 
-                    await SaveBatchAsync(processedImages);
+                    await HandleBatchAsync(messages);
+
+                    _receiver.Acknowledge();
                 }
             }
             catch (OperationCanceledException)
@@ -80,12 +92,36 @@ namespace PhotoMap.Api.Services
             }
         }
 
+        private async Task HandleBatchAsync(IReadOnlyList<PhotoProcessed> messages)
+        {
+            foreach (var failed in messages.Where(a => !a.Succeeded))
+            {
+                Complete(failed.RequestId, ProcessingResult.Failed(failed.Error ?? "Failed to process the image."));
+            }
+
+            var images = messages
+                .Where(a => a.Succeeded)
+                .Select(a => new ReceivedImage(a.RequestId, a.Image!))
+                .ToList();
+
+            if (images.Count == 0)
+            {
+                return;
+            }
+
+            await SaveBatchAsync(images);
+
+            // Before the messages are acknowledged: a message handed again after a restart finds its photo saved,
+            // and needs its thumbnails no longer; were they deleted after, a restart in between would leave them
+            DeleteThumbnailFiles(images);
+        }
+
         /// <summary>
         /// Saves the photos with one query for the ones saved already and one insert for the rest. When the insert
         /// fails, e.g. on one photo saved in the meantime, the photos are saved one at a time, so that only the
         /// photos that cannot be saved fail. A photo is reported processed only once it is in the database.
         /// </summary>
-        private async Task SaveBatchAsync(IReadOnlyList<ProcessedImage> processedImages)
+        private async Task SaveBatchAsync(IReadOnlyList<ReceivedImage> images)
         {
             try
             {
@@ -93,22 +129,21 @@ namespace PhotoMap.Api.Services
                 var photoService = scope.ServiceProvider.GetRequiredService<IPhotoService>();
                 var imageStore = scope.ServiceProvider.GetRequiredService<IImageStore>();
 
-                var newImages = await GetNewImagesAsync(photoService, processedImages);
+                var newImages = await GetNewImagesAsync(photoService, images);
 
-                var photos = new List<(ProcessedImage Image, Photo Photo)>();
+                var photos = new List<(ReceivedImage Received, Photo Photo)>();
 
-                foreach (var processedImage in newImages)
+                foreach (var received in newImages)
                 {
                     try
                     {
-                        photos.Add((processedImage, await CreatePhotoAsync(imageStore, processedImage)));
+                        photos.Add((received, await CreatePhotoAsync(imageStore, received.Image)));
                     }
                     catch (Exception e)
                     {
-                        _logger.LogError(e, "Failed to store the thumbnails of {FileName}.", processedImage.FileName);
+                        _logger.LogError(e, "Failed to store the thumbnails of {FileName}.", received.Image.FileName);
 
-                        processedImage.Processed?.TrySetResult(
-                            ProcessingResult.Failed("Failed to store the thumbnails: " + e.Message));
+                        Complete(received.RequestId, ProcessingResult.Failed("Failed to store the thumbnails: " + e.Message));
                     }
                 }
 
@@ -118,7 +153,7 @@ namespace PhotoMap.Api.Services
                     // after: a photo is saved exactly when its event is, neither is lost when the other is not
                     // (the outbox pattern). Kafka disabled, there is nothing to publish them to.
                     var outboxMessages = _kafkaSettings.Enabled
-                        ? photos.Select(a => CreateOutboxMessage(a.Image, a.Photo)).ToList()
+                        ? photos.Select(a => CreateOutboxMessage(a.Received.Image, a.Photo)).ToList()
                         : [];
 
                     await photoService.AddRangeAsync(photos.Select(a => a.Photo).ToList(), outboxMessages);
@@ -129,31 +164,30 @@ namespace PhotoMap.Api.Services
                     }
                 }
 
-                foreach (var (processedImage, _) in photos)
+                foreach (var (received, _) in photos)
                 {
-                    processedImage.Processed?.TrySetResult(ProcessingResult.Success);
+                    Complete(received.RequestId, ProcessingResult.Success);
                 }
 
-                _logger.LogInformation("Saved {SavedCount} of {ImageCount} processed images", photos.Count,
-                    processedImages.Count);
+                _logger.LogInformation("Saved {SavedCount} of {ImageCount} processed images", photos.Count, images.Count);
             }
-            catch (Exception e) when (processedImages.Count > 1)
+            catch (Exception e) when (images.Count > 1)
             {
                 _logger.LogWarning(e, "Failed to save {ImageCount} processed images at once, saving them one at a time",
-                    processedImages.Count);
+                    images.Count);
 
-                foreach (var processedImage in processedImages)
+                foreach (var received in images)
                 {
-                    await SaveBatchAsync([processedImage]);
+                    await SaveBatchAsync([received]);
                 }
             }
             catch (Exception e)
             {
-                var processedImage = processedImages[0];
+                var received = images[0];
 
-                _logger.LogError(e, "Failed to save processed image {FileName}.", processedImage.FileName);
+                _logger.LogError(e, "Failed to save processed image {FileName}.", received.Image.FileName);
 
-                processedImage.Processed?.TrySetResult(ProcessingResult.Failed("Failed to save the photo: " + e.Message));
+                Complete(received.RequestId, ProcessingResult.Failed("Failed to save the photo: " + e.Message));
             }
         }
 
@@ -161,38 +195,62 @@ namespace PhotoMap.Api.Services
         /// The images whose photos are not saved yet, the others are reported processed right away. The same file
         /// twice in the batch fails the insert on the unique index, the second is then found saved one at a time.
         /// </summary>
-        private async Task<List<ProcessedImage>> GetNewImagesAsync(IPhotoService photoService,
-            IReadOnlyList<ProcessedImage> processedImages)
+        private async Task<List<ReceivedImage>> GetNewImagesAsync(IPhotoService photoService,
+            IReadOnlyList<ReceivedImage> images)
         {
-            var newImages = new List<ProcessedImage>();
+            var newImages = new List<ReceivedImage>();
 
             // the images of a batch almost always come from one run, so this is usually one query
-            foreach (var sourceImages in processedImages.GroupBy(a => (a.UserId, a.PhotoSourceId)))
+            foreach (var sourceImages in images.GroupBy(a => (a.Image.UserId, a.Image.PhotoSourceId)))
             {
-                var externalIds = sourceImages.Select(a => a.ExternalId).OfType<string>().ToList();
+                var externalIds = sourceImages.Select(a => a.Image.ExternalId).OfType<string>().ToList();
                 var savedExternalIds = await photoService.GetSavedExternalIdsAsync(sourceImages.Key.UserId,
                     sourceImages.Key.PhotoSourceId, externalIds);
 
-                foreach (var processedImage in sourceImages)
+                foreach (var received in sourceImages)
                 {
-                    if (processedImage.ExternalId != null && savedExternalIds.Contains(processedImage.ExternalId))
+                    if (received.Image.ExternalId != null && savedExternalIds.Contains(received.Image.ExternalId))
                     {
-                        _logger.LogInformation("Image {FileName} already saved, skipping", processedImage.FileName);
+                        _logger.LogInformation("Image {FileName} already saved, skipping", received.Image.FileName);
 
-                        processedImage.Processed?.TrySetResult(ProcessingResult.Success);
+                        Complete(received.RequestId, ProcessingResult.Success);
                         continue;
                     }
 
-                    newImages.Add(processedImage);
+                    newImages.Add(received);
                 }
             }
 
             return newImages;
         }
 
+        private void Complete(Guid requestId, ProcessingResult result)
+        {
+            if (!_processingRequests.Complete(requestId, result))
+            {
+                // e.g. requested before a restart: the photo is saved all the same, nothing waits to count it
+                _logger.LogDebug("Nothing waits for the result of request {RequestId}", requestId);
+            }
+        }
+
+        private void DeleteThumbnailFiles(IEnumerable<ReceivedImage> images)
+        {
+            foreach (var path in images.SelectMany(a => a.Image.ThumbnailFiles.Values))
+            {
+                try
+                {
+                    File.Delete(path);
+                }
+                catch (Exception e)
+                {
+                    _logger.LogWarning(e, "Failed to delete the thumbnail {FilePath}", path);
+                }
+            }
+        }
+
         private static async Task<Photo> CreatePhotoAsync(IImageStore imageStore, ProcessedImage processedImage)
         {
-            var thumbs = processedImage.Thumbs.OrderBy(a => a.Key).ToList();
+            var thumbs = processedImage.ThumbnailFiles.OrderBy(a => a.Key).ToList();
             var userName = processedImage.UserId.ToString();
 
             string? thumbnailSmallFilePath = null;
@@ -203,11 +261,14 @@ namespace PhotoMap.Api.Services
                 var thumbSmall = thumbs.First();
                 var thumbLarge = thumbs.Last();
 
-                thumbnailSmallFilePath = await imageStore.SaveThumbnailAsync(thumbSmall.Value, processedImage.FileName,
-                    processedImage.ExternalId, userName, processedImage.PhotoSourceName, thumbSmall.Key);
+                // the worker has left the thumbnails in files, the message only says where (claim-check)
+                thumbnailSmallFilePath = await imageStore.SaveThumbnailAsync(await File.ReadAllBytesAsync(thumbSmall.Value),
+                    processedImage.FileName, processedImage.ExternalId, userName, processedImage.PhotoSourceName,
+                    thumbSmall.Key);
 
-                thumbnailLargeFilePath = await imageStore.SaveThumbnailAsync(thumbLarge.Value, processedImage.FileName,
-                    processedImage.ExternalId, userName, processedImage.PhotoSourceName, thumbLarge.Key);
+                thumbnailLargeFilePath = await imageStore.SaveThumbnailAsync(await File.ReadAllBytesAsync(thumbLarge.Value),
+                    processedImage.FileName, processedImage.ExternalId, userName, processedImage.PhotoSourceName,
+                    thumbLarge.Key);
             }
 
             return new Photo
@@ -263,5 +324,8 @@ namespace PhotoMap.Api.Services
 
             return new DateTimeOffset(dateTime);
         }
+
+        /// <param name="RequestId">Matches the image back to the run waiting for it.</param>
+        private sealed record ReceivedImage(Guid RequestId, ProcessedImage Image);
     }
 }

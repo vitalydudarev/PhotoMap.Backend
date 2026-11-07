@@ -31,7 +31,24 @@ public class ImageProcessingServiceTests : IDisposable
 
         // Assert
         Assert.True(processedImage.FromOtherUploads);
-        Assert.Equal([256], processedImage.Thumbs.Keys);
+        Assert.Equal([256], processedImage.ThumbnailFiles.Keys);
+    }
+
+    [Fact]
+    public void ProcessImage_ShouldLeaveTheThumbnailsInFilesNextToTheDownloadedFile()
+    {
+        // Arrange
+        var service = new ImageProcessingService(NullLogger<ImageProcessingService>.Instance, new Mock<IExifExtractor>().Object);
+        var request = CreateRequest(new DownloadedFileInfo("a.png", "/a.png", DateTime.UtcNow, "id"));
+
+        // Act
+        var processedImage = service.ProcessImage(request);
+
+        // Assert: the message carries where the thumbnail is, not the thumbnail (claim-check)
+        var thumbnailFile = Assert.Single(processedImage.ThumbnailFiles).Value;
+        Assert.Equal(request.FileName + ".256.jpg", thumbnailFile);
+        var bytes = File.ReadAllBytes(thumbnailFile);
+        Assert.Equal([0xFF, 0xD8], bytes[..2]);
     }
 
     [Fact]

@@ -34,6 +34,7 @@ public class PhotoSourceProcessingServiceOtherUploadsTests
     private readonly Mock<IFileStorage> _fileStorage = new();
     private readonly Mock<IFrontendNotificationService> _frontendNotificationService = new();
     private readonly ChannelMessageQueue<ProcessImageRequest> _requestQueue = new();
+    private readonly ProcessingRequests _processingRequests = new();
     private readonly List<UserPhotoSourceStatus> _reportedStatuses = [];
     private Func<CancellationToken, Task>? _startedRun;
 
@@ -525,7 +526,7 @@ public class PhotoSourceProcessingServiceOtherUploadsTests
             await foreach (var request in _requestQueue.ReadAllAsync(workerCancellation.Token))
             {
                 requests.Add(request);
-                request.Processed!.TrySetResult(process(request));
+                Assert.True(_processingRequests.Complete(request.RequestId, process(request)));
             }
         });
 
@@ -547,6 +548,7 @@ public class PhotoSourceProcessingServiceOtherUploadsTests
         services.AddSingleton(_fileStorage.Object);
         services.AddSingleton(_frontendNotificationService.Object);
         services.AddSingleton<IMessageQueue<ProcessImageRequest>>(_requestQueue);
+        services.AddSingleton(_processingRequests);
         services.AddSingleton(httpClientFactory.Object);
         services.AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
 

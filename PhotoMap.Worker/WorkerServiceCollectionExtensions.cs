@@ -13,15 +13,15 @@ public static class WorkerServiceCollectionExtensions
 {
     /// <summary>
     /// Registers the worker inside the hosting application: images are taken from the in-process
-    /// request queue, processed by <see cref="ImageProcessingBackgroundService"/> and put into the
-    /// processed image queue.
+    /// request queue and processed by <see cref="ImageProcessingBackgroundService"/>, which sends the results with
+    /// the <see cref="PhotoMap.Shared.Messaging.IMessageSender{T}"/> of <see cref="PhotoMap.Shared.Messages.PhotoProcessed"/>
+    /// the hosting application registers: in memory, or Kafka.
     /// </summary>
     public static IServiceCollection AddWorker(this IServiceCollection services, IConfiguration configuration)
     {
         services.Configure<ImageProcessingSettings>(configuration.GetSection("ImageProcessing"));
 
         services.AddMessageQueue<ProcessImageRequest>();
-        services.AddMessageQueue<ProcessedImage>();
 
         services.AddSingleton<IImageProcessingService, ImageProcessingService>();
         services.AddSingleton<IExifExtractor, ExifExtractor>();
