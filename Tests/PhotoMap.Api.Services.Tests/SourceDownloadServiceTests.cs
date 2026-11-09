@@ -136,6 +136,63 @@ public class SourceDownloadServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task StartAsync_ShouldKeepTheFilesFoundMissing_WithWhatHasBecomeOfEach()
+    {
+        // Arrange
+        _sourceFiles.Add("downloaded.jpg", [1, 2, 3]);
+        _sourceFiles.Add("partial.jpg", [1, 2, 3, 4]);
+        _sourceFiles.Add("missing.mp4", [5, 6], SourceDownloadContent.Videos);
+        _sourceFiles.Add("broken.jpg", [7], fails: true);
+
+        await StoreAsync("downloaded.jpg", [1, 2, 3]);
+        await StoreAsync("partial.jpg", [1, 2]);
+
+        var service = CreateService();
+
+        // Act
+        await service.StartAsync(UserId, YandexDiskSourceId, SourceDownloadContent.All);
+        await _startedRun!(CancellationToken.None);
+
+        // Assert
+        var missing = service.GetMissingDownloads(UserId, YandexDiskSourceId, SourceDownloadKind.ProcessingFolder);
+
+        Assert.Equal(
+        [
+            new MissingDownload("", "partial.jpg", 4, SourceDownloadContent.Photos, MissingDownloadStatus.Downloaded, null),
+            new MissingDownload("", "missing.mp4", 2, SourceDownloadContent.Videos, MissingDownloadStatus.Downloaded, null),
+            new MissingDownload("", "broken.jpg", 1, SourceDownloadContent.Photos, MissingDownloadStatus.Failed, "The connection was reset.")
+        ], missing);
+        Assert.Empty(service.GetMissingDownloads(UserId, YandexDiskSourceId, SourceDownloadKind.ChosenFolder));
+    }
+
+    [Fact]
+    public async Task StartAsync_ShouldKeepTheFilesNotGotTo_AsPending_WhenTheDownloadIsStopped()
+    {
+        // Arrange
+        _sourceFiles.Add("first.jpg", [1]);
+        _sourceFiles.Add("second.jpg", [2]);
+
+        using var cancellationTokenSource = new CancellationTokenSource();
+        _sourceFiles.BeforeDownload = async (_, _) =>
+        {
+            await cancellationTokenSource.CancelAsync();
+            cancellationTokenSource.Token.ThrowIfCancellationRequested();
+        };
+
+        var service = CreateService();
+
+        // Act
+        await service.StartAsync(UserId, YandexDiskSourceId, SourceDownloadContent.All);
+        await _startedRun!(cancellationTokenSource.Token);
+
+        // Assert
+        var missing = service.GetMissingDownloads(UserId, YandexDiskSourceId, SourceDownloadKind.ProcessingFolder);
+
+        Assert.Equal(["first.jpg", "second.jpg"], missing.Select(a => a.FileName));
+        Assert.All(missing, a => Assert.Equal(MissingDownloadStatus.Pending, a.Status));
+    }
+
+    [Fact]
     public async Task StartAsync_ShouldKeepDownloadingTheOtherFiles_WhileALargeFileIsDownloading()
     {
         // Arrange: the first file only finishes once all the others have, more of them than are recorded at a time

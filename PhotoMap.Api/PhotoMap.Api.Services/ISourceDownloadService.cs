@@ -51,6 +51,11 @@ public interface ISourceDownloadService
     /// started.</returns>
     SourceDownloadStatus? GetStatus(long userId, long sourceId, SourceDownloadKind kind);
 
+    /// <returns>The files the last download of the kind has found missing from the file storage, or there only in
+    /// part, with what has become of each: downloaded, failed, or not downloaded yet. Empty when there has been no
+    /// download since the application started.</returns>
+    IReadOnlyList<MissingDownload> GetMissingDownloads(long userId, long sourceId, SourceDownloadKind kind);
+
     /// <returns>The folder the downloads of the kind save their files to. A chosen folder is saved in the folders of
     /// its path within it.</returns>
     Task<string> GetTargetFolderAsync(long userId, long sourceId, SourceDownloadKind kind);

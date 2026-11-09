@@ -137,6 +137,28 @@ namespace PhotoMap.Api.Controllers
         }
 
         /// <summary>
+        /// The files of the folder the photos are processed from that the last download has found missing from the
+        /// file storage, in the order it has listed them, with what has become of each.
+        /// </summary>
+        [HttpGet("missing-files")]
+        [ProducesResponseType(typeof(IEnumerable<MissingDownloadDto>), StatusCodes.Status200OK)]
+        public IActionResult GetMissingFiles(long userId, long sourceId)
+        {
+            return GetMissingFiles(userId, sourceId, SourceDownloadKind.ProcessingFolder);
+        }
+
+        /// <summary>
+        /// The files of the chosen folder that the last folder download has found missing from the file storage, as
+        /// for the folder the photos are processed from.
+        /// </summary>
+        [HttpGet("folder/missing-files")]
+        [ProducesResponseType(typeof(IEnumerable<MissingDownloadDto>), StatusCodes.Status200OK)]
+        public IActionResult GetFolderMissingFiles(long userId, long sourceId)
+        {
+            return GetMissingFiles(userId, sourceId, SourceDownloadKind.ChosenFolder);
+        }
+
+        /// <summary>
         /// Stops the download of the folder the photos are processed from. The files downloaded so far are kept.
         /// </summary>
         [HttpPost("stop")]
@@ -207,6 +229,21 @@ namespace PhotoMap.Api.Controllers
                 Error = a.Error,
                 Attempts = a.Attempts,
                 FailedAt = a.FailedAt.UtcDateTime.ToString("o")
+            });
+
+            return Ok(dtos);
+        }
+
+        private IActionResult GetMissingFiles(long userId, long sourceId, SourceDownloadKind kind)
+        {
+            var dtos = _sourceDownloadService.GetMissingDownloads(userId, sourceId, kind).Select(a => new MissingDownloadDto
+            {
+                Folder = a.Folder,
+                FileName = a.FileName,
+                Size = a.Size,
+                Content = Enum.Parse<SourceDownloadContentDto>(a.Content.ToString()),
+                Status = a.Status.ToString(),
+                Error = a.Error
             });
 
             return Ok(dtos);

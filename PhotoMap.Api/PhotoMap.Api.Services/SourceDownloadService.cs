@@ -98,6 +98,11 @@ public class SourceDownloadService : ISourceDownloadService
         return _statuses.Get(userId, sourceId, kind);
     }
 
+    public IReadOnlyList<MissingDownload> GetMissingDownloads(long userId, long sourceId, SourceDownloadKind kind)
+    {
+        return _statuses.GetMissing(userId, sourceId, kind);
+    }
+
     public async Task<string> GetTargetFolderAsync(long userId, long sourceId, SourceDownloadKind kind)
     {
         var photoSource = await _photoSourceService.GetByIdAsync(sourceId);
@@ -177,6 +182,9 @@ public class SourceDownloadService : ISourceDownloadService
 
         try
         {
+            // the files missing from the last download are no longer the missing ones, until the folder is listed
+            statuses.SetMissing(run.UserId, run.SourceId, run.Kind, []);
+
             await ReportStatusAsync(statuses, frontendNotificationService, logger, run, PhotoSourceStatus.InProgress, progress,
                 alreadyDownloadedCount);
 
@@ -192,6 +200,9 @@ public class SourceDownloadService : ISourceDownloadService
             var (downloadedFiles, missingFiles) = SplitDownloaded(fileStorage, run, files);
             alreadyDownloadedCount = downloadedFiles.Count;
 
+            statuses.SetMissing(run.UserId, run.SourceId, run.Kind, missingFiles.Select(a => new MissingDownload(GetKey(run, a).Folder,
+                a.Name, a.Size, a.Content, MissingDownloadStatus.Pending, Error: null)));
+
             logger.LogInformation(
                 "{DownloadedCount} of {TotalCount} {Files} of {Folder} of {PhotoSourceName} for user {UserId} are downloaded already, {MissingCount} missing",
                 downloadedFiles.Count, files.Count, run.RetryFailed ? "failed files" : "files", run.Folder ?? run.Kind.ToString(),
@@ -206,7 +217,7 @@ public class SourceDownloadService : ISourceDownloadService
             reportingTask = ReportStatusPeriodicallyAsync(statuses, frontendNotificationService, logger, run, progress,
                 alreadyDownloadedCount, reportingCancellationTokenSource.Token);
 
-            await DownloadAllAsync(sourceFiles, fileStorage, failedDownloadService, logger, run, missingFiles, progress,
+            await DownloadAllAsync(sourceFiles, fileStorage, failedDownloadService, statuses, logger, run, missingFiles, progress,
                 cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -242,8 +253,8 @@ public class SourceDownloadService : ISourceDownloadService
     /// <exception cref="OperationCanceledException">The download has been stopped. The outcomes of the files
     /// finished before have been recorded.</exception>
     private static async Task DownloadAllAsync(ISourceFiles sourceFiles, IFileStorage fileStorage,
-        IFailedDownloadService failedDownloadService, ILogger logger, DownloadRun run, IReadOnlyCollection<SourceFile> files,
-        ProcessingProgress progress, CancellationToken cancellationToken)
+        IFailedDownloadService failedDownloadService, SourceDownloadStatuses statuses, ILogger logger, DownloadRun run,
+        IReadOnlyCollection<SourceFile> files, ProcessingProgress progress, CancellationToken cancellationToken)
     {
         var outcomes = Channel.CreateUnbounded<DownloadOutcome>(new UnboundedChannelOptions { SingleReader = true });
 
@@ -271,6 +282,7 @@ public class SourceDownloadService : ISourceDownloadService
                     progress.FileFailed();
                 }
 
+                statuses.RecordMissing(run.UserId, run.SourceId, run.Kind, GetKey(run, file).Folder, file.Name, error);
                 outcomes.Writer.TryWrite(new DownloadOutcome(file, error));
             });
         }
