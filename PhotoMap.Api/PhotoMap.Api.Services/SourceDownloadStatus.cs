@@ -12,6 +12,8 @@ namespace PhotoMap.Api.Services;
 /// <param name="DownloadedCount">The files downloaded whole, the ones found downloaded already among them.</param>
 /// <param name="AlreadyDownloadedCount">The files found downloaded whole when the download started.</param>
 /// <param name="FailedCount">The files that failed to download this time.</param>
+/// <param name="OtherUploads">The chosen folder download has taken the photos of the other uploads rather than a
+/// folder.</param>
 public sealed record SourceDownloadStatus(
     PhotoSourceStatus Status,
     SourceDownloadContent Content,
@@ -21,4 +23,5 @@ public sealed record SourceDownloadStatus(
     int DownloadedCount,
     int AlreadyDownloadedCount,
     int FailedCount,
-    DateTimeOffset LastUpdatedAt);
+    DateTimeOffset LastUpdatedAt,
+    bool OtherUploads = false);

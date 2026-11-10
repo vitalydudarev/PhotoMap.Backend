@@ -79,6 +79,32 @@ public sealed class YandexDiskSourceFiles : ISourceFiles
     }
 
     /// <summary>
+    /// The photos <see cref="YandexDiskOtherUploads"/> lists, every photo of the disk but those right in the folder
+    /// the photos are processed from, and the videos it lists the same way when asked for.
+    /// </summary>
+    public async Task<IReadOnlyList<SourceFile>> ListOtherUploadsAsync(SourceDownloadContent content,
+        CancellationToken cancellationToken)
+    {
+        var sourceFolder = await YandexDiskDownloadService.GetSourceFolderAsync(_apiClient, _settings, _logger, cancellationToken);
+        var otherUploads = new YandexDiskOtherUploads(_apiClient, _logger);
+        var files = new List<SourceFile>();
+
+        if (content.HasFlag(SourceDownloadContent.Photos))
+        {
+            var photos = await otherUploads.ListPhotosAsync(sourceFolder, cancellationToken);
+            files.AddRange(photos.Select(a => new SourceFile(a.Name, a.Path, a.Size, SourceDownloadContent.Photos)));
+        }
+
+        if (content.HasFlag(SourceDownloadContent.Videos))
+        {
+            var videos = await otherUploads.ListVideosAsync(sourceFolder, cancellationToken);
+            files.AddRange(videos.Select(a => new SourceFile(a.Name, a.Path, a.Size, SourceDownloadContent.Videos)));
+        }
+
+        return files;
+    }
+
+    /// <summary>
     /// The files and folders directly within the folder, a page at a time.
     /// </summary>
     private async IAsyncEnumerable<Resource> ListFolderAsync(string folder,

@@ -23,6 +23,14 @@ public interface ISourceFiles : IDisposable
         CancellationToken cancellationToken);
 
     /// <summary>
+    /// Lists the photos of the other uploads, the ones outside the folder the photos are processed from, as the
+    /// processing of the other uploads takes them, and the videos outside that folder as well when asked for.
+    /// </summary>
+    /// <param name="content">Photos, or All for the videos as well.</param>
+    /// <exception cref="NotSupportedException">The source has no other uploads.</exception>
+    Task<IReadOnlyList<SourceFile>> ListOtherUploadsAsync(SourceDownloadContent content, CancellationToken cancellationToken);
+
+    /// <summary>
     /// Downloads the file into the stream, as its contents come.
     /// </summary>
     Task CopyToAsync(SourceFile file, Stream destination, CancellationToken cancellationToken);

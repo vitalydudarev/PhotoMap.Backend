@@ -31,6 +31,16 @@ public interface ISourceDownloadService
     Task<bool> StartFolderAsync(long userId, long sourceId, string folder, SourceDownloadContent content);
 
     /// <summary>
+    /// Starts downloading the photos of the other uploads, those outside the folder the photos are processed from, as
+    /// the processing of the other uploads lists them. It is a download of a chosen folder, the photos are saved in
+    /// the folders of their paths with those of the chosen folders, so it does not run at the same time as one.
+    /// </summary>
+    /// <param name="includeVideos">Download the videos outside the folder the photos are processed from as well,
+    /// which are not imported as other uploads.</param>
+    /// <returns>false if the download of the chosen folders is already running.</returns>
+    Task<bool> StartOtherUploadsAsync(long userId, long sourceId, bool includeVideos = false);
+
+    /// <summary>
     /// Starts downloading again only the files of the downloads of the kind that failed, without listing a folder.
     /// </summary>
     /// <returns>false if the download of the kind is already running.</returns>

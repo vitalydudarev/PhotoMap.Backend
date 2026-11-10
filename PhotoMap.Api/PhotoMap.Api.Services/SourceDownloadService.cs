@@ -62,6 +62,13 @@ public class SourceDownloadService : ISourceDownloadService
         return StartAsync(userId, sourceId, SourceDownloadKind.ProcessingFolder, content, folder: null, retryFailed: false);
     }
 
+    public Task<bool> StartOtherUploadsAsync(long userId, long sourceId, bool includeVideos = false)
+    {
+        return StartAsync(userId, sourceId, SourceDownloadKind.ChosenFolder,
+            includeVideos ? SourceDownloadContent.All : SourceDownloadContent.Photos, folder: null, retryFailed: false,
+            otherUploads: true);
+    }
+
     public Task<bool> StartFolderAsync(long userId, long sourceId, string folder, SourceDownloadContent content)
     {
         ValidateContent(content);
@@ -128,8 +135,10 @@ public class SourceDownloadService : ISourceDownloadService
     /// <param name="folder">The folder a chosen folder download lists, null for any other.</param>
     /// <param name="retryFailed">Download the files that failed before rather than list the folder. The run is the
     /// same task as a regular one of its kind, so that the two do not run at the same time.</param>
+    /// <param name="otherUploads">Download the photos of the other uploads rather than list a folder; a chosen folder
+    /// download only.</param>
     private async Task<bool> StartAsync(long userId, long sourceId, SourceDownloadKind kind, SourceDownloadContent content,
-        string? folder, bool retryFailed)
+        string? folder, bool retryFailed, bool otherUploads = false)
     {
         var taskName = GetTaskName(userId, sourceId, kind);
         if (_backgroundTaskManager.IsRunning(taskName))
@@ -151,7 +160,7 @@ public class SourceDownloadService : ISourceDownloadService
             throw new NotAuthorizedException("User is not authorized.");
         }
 
-        var run = new DownloadRun(userId, sourceId, photoSource, authResult, kind, content, folder, retryFailed);
+        var run = new DownloadRun(userId, sourceId, photoSource, authResult, kind, content, folder, retryFailed, otherUploads);
         var serviceScopeFactory = _serviceScopeFactory;
 
         return _backgroundTaskManager.TryStartTask(taskName, cancellationToken => DoWork(run, serviceScopeFactory, cancellationToken));
@@ -192,10 +201,12 @@ public class SourceDownloadService : ISourceDownloadService
 
             var files = run.RetryFailed
                 ? (await failedDownloadService.GetAsync(run.UserId, run.SourceId, run.Kind)).Select(ToSourceFile).ToList()
-                // a chosen folder is downloaded whole, with its subfolders; the processing of the photos takes the
-                // files of its folder only, so does the download of it
-                : await sourceFiles.ListAsync(run.Content, run.Folder, includeSubfolders: run.Kind == SourceDownloadKind.ChosenFolder,
-                    cancellationToken);
+                : run.OtherUploads
+                    ? await sourceFiles.ListOtherUploadsAsync(run.Content, cancellationToken)
+                    // a chosen folder is downloaded whole, with its subfolders; the processing of the photos takes the
+                    // files of its folder only, so does the download of it
+                    : await sourceFiles.ListAsync(run.Content, run.Folder,
+                        includeSubfolders: run.Kind == SourceDownloadKind.ChosenFolder, cancellationToken);
 
             var (downloadedFiles, missingFiles) = SplitDownloaded(fileStorage, run, files);
             alreadyDownloadedCount = downloadedFiles.Count;
@@ -205,7 +216,8 @@ public class SourceDownloadService : ISourceDownloadService
 
             logger.LogInformation(
                 "{DownloadedCount} of {TotalCount} {Files} of {Folder} of {PhotoSourceName} for user {UserId} are downloaded already, {MissingCount} missing",
-                downloadedFiles.Count, files.Count, run.RetryFailed ? "failed files" : "files", run.Folder ?? run.Kind.ToString(),
+                downloadedFiles.Count, files.Count, run.RetryFailed ? "failed files" : "files",
+                run.OtherUploads ? "the other uploads" : run.Folder ?? run.Kind.ToString(),
                 run.PhotoSource.Name, run.UserId, missingFiles.Count);
 
             // a file found whole is no longer failed, whatever it failed with before
@@ -479,7 +491,8 @@ public class SourceDownloadService : ISourceDownloadService
         var lastUpdatedAt = DateTimeOffset.UtcNow;
 
         statuses.Set(run.UserId, run.SourceId, run.Kind, new SourceDownloadStatus(status, run.Content, run.Folder, run.RetryFailed,
-            progress.TotalCount, progress.ProcessedCount, alreadyDownloadedCount, progress.FailedCount, lastUpdatedAt));
+            progress.TotalCount, progress.ProcessedCount, alreadyDownloadedCount, progress.FailedCount, lastUpdatedAt,
+            run.OtherUploads));
 
         try
         {
@@ -515,6 +528,8 @@ public class SourceDownloadService : ISourceDownloadService
     private sealed record DownloadOutcome(SourceFile File, string? Error);
 
     /// <param name="Folder">The folder a chosen folder download lists, null for any other.</param>
+    /// <param name="OtherUploads">The chosen folder download takes the photos of the other uploads rather than a
+    /// folder.</param>
     private sealed record DownloadRun(long UserId, long SourceId, PhotoSource PhotoSource, UserAuthResult AuthResult,
-        SourceDownloadKind Kind, SourceDownloadContent Content, string? Folder, bool RetryFailed);
+        SourceDownloadKind Kind, SourceDownloadContent Content, string? Folder, bool RetryFailed, bool OtherUploads);
 }

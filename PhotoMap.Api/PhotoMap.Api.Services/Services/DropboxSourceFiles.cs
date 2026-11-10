@@ -97,6 +97,11 @@ public sealed class DropboxSourceFiles : ISourceFiles
         return files;
     }
 
+    public Task<IReadOnlyList<SourceFile>> ListOtherUploadsAsync(SourceDownloadContent content, CancellationToken cancellationToken)
+    {
+        throw new NotSupportedException("The other uploads of Dropbox are not imported, there are none to download.");
+    }
+
     /// <summary>
     /// The download waits <see cref="DownloadTimeout"/> to start, and is tried again up to
     /// <see cref="DownloadMaxRetries"/> times.

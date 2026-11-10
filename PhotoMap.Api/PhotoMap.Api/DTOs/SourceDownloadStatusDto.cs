@@ -21,6 +21,11 @@ public class SourceDownloadStatusDto : PhotoSourceProgressDto
     public string? Folder { get; set; }
 
     /// <summary>
+    /// The last chosen folder download has taken the photos of the other uploads rather than a folder.
+    /// </summary>
+    public bool OtherUploads { get; set; }
+
+    /// <summary>
     /// The files found downloaded whole when the last download started, which it has skipped.
     /// </summary>
     public int AlreadyDownloadedCount { get; set; }

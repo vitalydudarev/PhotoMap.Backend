@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using PhotoMap.Shared.Yandex.Disk;
+using PhotoMap.Api.Domain.Models;
 using PhotoMap.Shared.Yandex.Disk.Models;
 
 namespace PhotoMap.Api.Services.Services;
@@ -10,6 +11,7 @@ namespace PhotoMap.Api.Services.Services;
 public class YandexDiskOtherUploads
 {
     private const string ImageMediaType = "image";
+    private const string VideoMediaType = "video";
     private const int PageSize = 500;
 
     /// <summary>
@@ -34,24 +36,45 @@ public class YandexDiskOtherUploads
     /// <see cref="ExcludedFolder"/>, and of the folders within it, are left out too.
     /// </summary>
     /// <param name="excludedFolder">The folder the disk is processed from, such as <c>disk:/Camera Uploads/</c>.</param>
-    public async Task<IReadOnlyList<Resource>> ListPhotosAsync(string excludedFolder, CancellationToken cancellationToken)
+    public Task<IReadOnlyList<Resource>> ListPhotosAsync(string excludedFolder, CancellationToken cancellationToken)
+    {
+        return ListAsync(ImageMediaType, a => SupportedImageFormats.IsSupported(a.Name), excludedFolder, cancellationToken);
+    }
+
+    /// <summary>
+    /// Lists every video of the disk outside the folder given, as <see cref="ListPhotosAsync"/> does the photos. The
+    /// videos are not imported as other uploads, only downloaded along with them.
+    /// </summary>
+    /// <param name="excludedFolder">The folder the disk is processed from, such as <c>disk:/Camera Uploads/</c>.</param>
+    public Task<IReadOnlyList<Resource>> ListVideosAsync(string excludedFolder, CancellationToken cancellationToken)
+    {
+        return ListAsync(VideoMediaType, a => DownloadableFormats.GetContent(a.Name, a.MediaType) == SourceDownloadContent.Videos,
+            excludedFolder, cancellationToken);
+    }
+
+    /// <summary>
+    /// Lists the files of the media type that are of the formats taken, outside the folder given and
+    /// <see cref="ExcludedFolder"/>, each once.
+    /// </summary>
+    private async Task<IReadOnlyList<Resource>> ListAsync(string mediaType, Func<Resource, bool> isTaken, string excludedFolder,
+        CancellationToken cancellationToken)
     {
         var folder = YandexDiskPaths.NormalizeFolder(excludedFolder);
-        var photos = new List<Resource>();
+        var files = new List<Resource>();
         var resourceIds = new HashSet<string>();
         var offset = 0;
 
         while (true)
         {
             var page = await YandexDiskApiCalls.WrapAsync(_logger,
-                () => _apiClient.GetFlatFilesListAsync(cancellationToken, ImageMediaType, PageSize, offset), cancellationToken);
+                () => _apiClient.GetFlatFilesListAsync(cancellationToken, mediaType, PageSize, offset), cancellationToken);
             var items = page.Items ?? [];
 
-            photos.AddRange(items.Where(a => a.Type == "file" &&
-                                             SupportedImageFormats.IsSupported(a.Name) &&
-                                             !string.Equals(YandexDiskPaths.GetFolder(a.Path), folder, StringComparison.Ordinal) &&
-                                             !a.Path.StartsWith(ExcludedFolder, StringComparison.Ordinal) &&
-                                             resourceIds.Add(a.ResourceId)));
+            files.AddRange(items.Where(a => a.Type == "file" &&
+                                            isTaken(a) &&
+                                            !string.Equals(YandexDiskPaths.GetFolder(a.Path), folder, StringComparison.Ordinal) &&
+                                            !a.Path.StartsWith(ExcludedFolder, StringComparison.Ordinal) &&
+                                            resourceIds.Add(a.ResourceId)));
             offset += items.Length;
 
             if (items.Length == 0)
@@ -60,7 +83,7 @@ public class YandexDiskOtherUploads
             }
         }
 
-        return photos;
+        return files;
     }
 
     /// <summary>

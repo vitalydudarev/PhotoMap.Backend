@@ -193,6 +193,76 @@ public class SourceDownloadServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task StartOtherUploadsAsync_ShouldDownloadTheMissingOtherUploads_IntoTheFoldersOfTheirPaths()
+    {
+        // Arrange
+        _sourceFiles.Add("camera.jpg", [1]);
+        _sourceFiles.Add("downloaded.jpg", [2, 3], folder: "disk:/Photos/2020");
+        _sourceFiles.Add("missing.jpg", [4], folder: "disk:/Photos/2020");
+        _sourceFiles.Add("broken.jpg", [5], fails: true, folder: "disk:/Trips/Rome");
+
+        Directory.CreateDirectory(FolderStoredPath("Photos", "2020"));
+        await File.WriteAllBytesAsync(FolderStoredPath("Photos", "2020", "downloaded.jpg"), [2, 3]);
+
+        var service = CreateService();
+
+        // Act
+        await service.StartOtherUploadsAsync(UserId, YandexDiskSourceId);
+        await _startedRun!(CancellationToken.None);
+
+        // Assert
+        Assert.True(_sourceFiles.ListedOtherUploads);
+        Assert.Equal(["broken.jpg", "missing.jpg"], _sourceFiles.Downloaded.Order());
+        Assert.Equal([4], await File.ReadAllBytesAsync(FolderStoredPath("Photos", "2020", "missing.jpg")));
+        Assert.All(_recorded, a => Assert.Equal(SourceDownloadKind.ChosenFolder, a.Kind));
+
+        var status = service.GetStatus(UserId, YandexDiskSourceId, SourceDownloadKind.ChosenFolder)!;
+        Assert.True(status.OtherUploads);
+        Assert.Null(status.Folder);
+        Assert.Equal(3, status.TotalCount);
+        Assert.Equal(1, status.AlreadyDownloadedCount);
+
+        Assert.Equal(
+        [
+            new MissingDownload("disk:/Photos/2020", "missing.jpg", 1, SourceDownloadContent.Photos, MissingDownloadStatus.Downloaded, null),
+            new MissingDownload("disk:/Trips/Rome", "broken.jpg", 1, SourceDownloadContent.Photos, MissingDownloadStatus.Failed,
+                "The connection was reset.")
+        ], service.GetMissingDownloads(UserId, YandexDiskSourceId, SourceDownloadKind.ChosenFolder));
+    }
+
+    [Theory]
+    [InlineData(false, new[] { "photo.jpg" })]
+    [InlineData(true, new[] { "photo.jpg", "video.mp4" })]
+    public async Task StartOtherUploadsAsync_ShouldDownloadTheVideos_OnlyWhenAskedFor(bool includeVideos, string[] expected)
+    {
+        // Arrange
+        _sourceFiles.Add("photo.jpg", [1], folder: "disk:/Photos");
+        _sourceFiles.Add("video.mp4", [2], SourceDownloadContent.Videos, folder: "disk:/Photos");
+
+        var service = CreateService();
+
+        // Act
+        await service.StartOtherUploadsAsync(UserId, YandexDiskSourceId, includeVideos);
+        await _startedRun!(CancellationToken.None);
+
+        // Assert
+        Assert.Equal(expected, _sourceFiles.Downloaded.Order());
+        Assert.Equal(includeVideos ? SourceDownloadContent.All : SourceDownloadContent.Photos,
+            service.GetStatus(UserId, YandexDiskSourceId, SourceDownloadKind.ChosenFolder)!.Content);
+    }
+
+    [Fact]
+    public async Task StartOtherUploadsAsync_ShouldNotStartTheDownload_WhileAFolderDownloadIsRunning()
+    {
+        _backgroundTaskManager.Setup(a => a.IsRunning($"FolderDownload-UserId={UserId}-SourceId={YandexDiskSourceId}")).Returns(true);
+
+        var service = CreateService();
+
+        Assert.False(await service.StartOtherUploadsAsync(UserId, YandexDiskSourceId));
+        Assert.Null(_startedRun);
+    }
+
+    [Fact]
     public async Task StartAsync_ShouldKeepDownloadingTheOtherFiles_WhileALargeFileIsDownloading()
     {
         // Arrange: the first file only finishes once all the others have, more of them than are recorded at a time
@@ -810,6 +880,7 @@ public class SourceDownloadServiceTests : IDisposable
         public SourceDownloadContent? ListedContent { get; private set; }
         public string? ListedFolder { get; private set; }
         public bool? ListedSubfolders { get; private set; }
+        public bool ListedOtherUploads { get; private set; }
         public IEnumerable<string> Downloaded => _downloaded;
         public string? AuthErrorOn { get; set; }
 
@@ -844,6 +915,18 @@ public class SourceDownloadServiceTests : IDisposable
             var files = _files.Where(a => content.HasFlag(a.Content) &&
                                           (YandexDiskPaths.GetFolder(a.Path) == listedFolder ||
                                            includeSubfolders && a.Path.StartsWith(listedFolder.TrimEnd('/') + "/")));
+
+            return Task.FromResult<IReadOnlyList<SourceFile>>(files.ToList());
+        }
+
+        /// <summary>
+        /// The photos outside the folder the photos are processed from, as the other uploads take them.
+        /// </summary>
+        public Task<IReadOnlyList<SourceFile>> ListOtherUploadsAsync(SourceDownloadContent content, CancellationToken cancellationToken)
+        {
+            ListedOtherUploads = true;
+
+            var files = _files.Where(a => content.HasFlag(a.Content) && YandexDiskPaths.GetFolder(a.Path) != ProcessingFolder);
 
             return Task.FromResult<IReadOnlyList<SourceFile>>(files.ToList());
         }

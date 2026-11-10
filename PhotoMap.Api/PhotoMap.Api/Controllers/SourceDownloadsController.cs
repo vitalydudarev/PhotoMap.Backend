@@ -91,6 +91,31 @@ namespace PhotoMap.Api.Controllers
         }
 
         /// <summary>
+        /// Starts downloading the photos of the other uploads, those outside the folder the photos are processed from,
+        /// as the processing of the other uploads lists them. Only Yandex.Disk has them. It is a download of a chosen
+        /// folder: the photos are saved in the folders of their paths, the photos downloaded whole already skipped.
+        /// </summary>
+        /// <param name="userId">The ID of the user.</param>
+        /// <param name="sourceId">The ID of the photo source.</param>
+        /// <param name="includeVideos">Download the videos outside the folder the photos are processed from as well,
+        /// which are not imported as other uploads.</param>
+        [HttpPost("folder/other-uploads")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status409Conflict)]
+        public async Task<IActionResult> StartOtherUploads(long userId, long sourceId, [FromQuery] bool includeVideos = false)
+        {
+            if (!await _sourceDownloadService.SupportsDownloadsAsync(sourceId, SourceDownloadKind.ChosenFolder))
+            {
+                return BadRequest("The other uploads of the photo source cannot be downloaded.");
+            }
+
+            var accepted = await _sourceDownloadService.StartOtherUploadsAsync(userId, sourceId, includeVideos);
+
+            return accepted ? Ok() : Conflict("The folder download of the photo source is already running.");
+        }
+
+        /// <summary>
         /// Starts downloading again only the files of the folder the photos are processed from that failed.
         /// </summary>
         [HttpPost("retry-failed")]
@@ -260,6 +285,7 @@ namespace PhotoMap.Api.Controllers
                 Status = Enum.Parse<UserPhotoSourceStatusDto>((status?.Status ?? PhotoSourceStatus.NotStarted).ToString()),
                 Content = status != null ? Enum.Parse<SourceDownloadContentDto>(status.Content.ToString()) : null,
                 RetryingFailed = status?.RetryingFailed ?? false,
+                OtherUploads = status?.OtherUploads ?? false,
                 Folder = status?.Folder,
                 AlreadyDownloadedCount = status?.AlreadyDownloadedCount ?? 0,
                 FailedFileCount = failedDownloads.Count,
