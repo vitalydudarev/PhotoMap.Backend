@@ -1,3 +1,6 @@
+using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
+
 namespace PhotoMap.Api.Domain.Models;
 
 /// <summary>
@@ -12,4 +15,45 @@ public record PhotoNeighborhood(
 /// <summary>
 /// A box of coordinates, in degrees.
 /// </summary>
-public record GeoBox(double MinLatitude, double MaxLatitude, double MinLongitude, double MaxLongitude);
+public record GeoBox(double MinLatitude, double MaxLatitude, double MinLongitude, double MaxLongitude)
+{
+    /// <summary>
+    /// Reads a box written as <c>west,south,east,north</c>, the order of a GeoJSON bounding box, such as
+    /// <c>-9.23,38.69,-9.09,38.8</c>: the longitudes from -180 to 180, the latitudes from -90 to 90, the west and the
+    /// south sides no further than the east and the north ones.
+    /// </summary>
+    /// <returns>Whether the text is such a box.</returns>
+    public static bool TryParse(string? text, [NotNullWhen(true)] out GeoBox? box)
+    {
+        box = null;
+
+        var parts = text?.Split(',');
+
+        if (parts is not { Length: 4 })
+        {
+            return false;
+        }
+
+        var values = new double[4];
+
+        for (var i = 0; i < 4; i++)
+        {
+            if (!double.TryParse(parts[i], NumberStyles.Float, CultureInfo.InvariantCulture, out values[i]) ||
+                !double.IsFinite(values[i]))
+            {
+                return false;
+            }
+        }
+
+        var (west, south, east, north) = (values[0], values[1], values[2], values[3]);
+
+        if (west < -180 || east > 180 || west > east || south < -90 || north > 90 || south > north)
+        {
+            return false;
+        }
+
+        box = new GeoBox(south, north, west, east);
+
+        return true;
+    }
+}

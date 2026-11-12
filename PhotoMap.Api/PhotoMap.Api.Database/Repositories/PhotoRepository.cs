@@ -438,6 +438,13 @@ public class PhotoRepository : IPhotoRepository
             photos = photos.Where(a => a.HasGps == filter.HasGps.Value);
         }
 
+        if (filter.Area is { } area)
+        {
+            photos = photos.Where(a => a.HasGps &&
+                                       a.Latitude >= area.MinLatitude && a.Latitude <= area.MaxLatitude &&
+                                       a.Longitude >= area.MinLongitude && a.Longitude <= area.MaxLongitude);
+        }
+
         if (filter.FiltersByTags)
         {
             var tagIds = filter.TagIds?.ToArray() ?? [];

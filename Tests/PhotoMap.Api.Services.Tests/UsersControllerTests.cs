@@ -146,6 +146,57 @@ public class UsersControllerTests
     }
 
     [Fact]
+    public async Task GetUserPhotos_ShouldTakeThePhotosWithinTheGivenArea()
+    {
+        // Arrange
+        var controller = CreateController();
+        var box = new GeoBox(38.69, 38.8, -9.23, -9.09);
+
+        // Act
+        await controller.GetUserPhotos(UserId, 100, 0, area: "-9.23,38.69,-9.09,38.8");
+
+        // Assert
+        _photoService.Verify(a => a.GetByUserIdAsync(UserId, It.Is<PhotoFilter>(f => f.Area == box), 100, 0,
+            PhotoSortOrder.Asc));
+        _photoService.Verify(a => a.GetTotalCountByUserIdAsync(UserId, It.Is<PhotoFilter>(f => f.Area == box)));
+    }
+
+    [Fact]
+    public async Task GetUserPhotos_ShouldNotFilterByArea_WhenNoneIsGiven()
+    {
+        // Arrange
+        var controller = CreateController();
+
+        // Act
+        await controller.GetUserPhotos(UserId, 100, 0);
+
+        // Assert
+        _photoService.Verify(a => a.GetByUserIdAsync(UserId, It.Is<PhotoFilter>(f => f.Area == null), 100, 0,
+            PhotoSortOrder.Asc));
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("-9.23,38.69,-9.09")]
+    [InlineData("-9.23,38.69,-9.09,north")]
+    [InlineData("-9.09,38.69,-9.23,38.8")]
+    [InlineData("-9.23,91,-9.09,92")]
+    public async Task GetUserPhotos_ShouldReturnBadRequest_WhenTheAreaIsNotABox(string area)
+    {
+        // Arrange
+        var controller = CreateController();
+
+        // Act
+        var result = await controller.GetUserPhotos(UserId, 100, 0, area: area);
+
+        // Assert
+        var problem = Assert.IsType<ValidationProblemDetails>(Assert.IsAssignableFrom<ObjectResult>(result).Value);
+        Assert.Contains("area", problem.Errors.Keys);
+        _photoService.Verify(a => a.GetByUserIdAsync(It.IsAny<long>(), It.IsAny<PhotoFilter>(), It.IsAny<int>(),
+            It.IsAny<int>(), It.IsAny<PhotoSortOrder>()), Times.Never);
+    }
+
+    [Fact]
     public async Task GetUserPhotos_ShouldTellTheTagsOfThePhotos()
     {
         // Arrange

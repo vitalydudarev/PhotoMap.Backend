@@ -16,6 +16,8 @@ namespace PhotoMap.Api.Domain.Models;
 /// are taken too.</param>
 /// <param name="Untagged">Whether the photos with no tag are taken, along with those of <paramref name="TagIds"/>;
 /// only they are when no tag is given.</param>
+/// <param name="Area">The box of coordinates the photos were taken within, sides included, or null for the photos
+/// taken anywhere, and those with no GPS location. The photos with no GPS location are taken in no box.</param>
 public record PhotoFilter(
     IReadOnlyCollection<long> PhotoSourceIds,
     IReadOnlyCollection<int> Years,
@@ -23,7 +25,8 @@ public record PhotoFilter(
     bool? HasGps = null,
     bool IncludeOtherUploads = false,
     IReadOnlyCollection<long>? TagIds = null,
-    bool Untagged = false)
+    bool Untagged = false,
+    GeoBox? Area = null)
 {
     public static PhotoFilter All { get; } = new([], [], []);
 

@@ -67,6 +67,9 @@ namespace PhotoMap.Api.Controllers
         /// given.</param>
         /// <param name="untagged">Whether the photos with no tag are taken, along with the ones of <c>tag</c>; only
         /// they are when no tag is given.</param>
+        /// <param name="area">The box of coordinates the photos were taken within, as <c>west,south,east,north</c> in
+        /// degrees, such as <c>area=-9.23,38.69,-9.09,38.8</c>; the photos with no GPS location are left out. The
+        /// photos taken anywhere, and those with no location, when not given.</param>
         [HttpGet("{id:long}/photos")]
         [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(PagedResponse<PhotoDto>))]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -80,7 +83,8 @@ namespace PhotoMap.Api.Controllers
             [FromQuery] bool? gps = null,
             [FromQuery] bool allFolders = false,
             [FromQuery] long[]? tag = null,
-            [FromQuery] bool untagged = false)
+            [FromQuery] bool untagged = false,
+            [FromQuery] string? area = null)
         {
             // a number binds to the enum whether it names a category or not
             if (category != null && !category.All(Enum.IsDefined))
@@ -90,7 +94,18 @@ namespace PhotoMap.Api.Controllers
                 return ValidationProblem(ModelState);
             }
 
-            var filter = new PhotoFilter(source ?? [], year ?? [], category ?? [], gps, allFolders, tag ?? [], untagged);
+            GeoBox? box = null;
+
+            if (area != null && !GeoBox.TryParse(area, out box))
+            {
+                ModelState.AddModelError(nameof(area),
+                    "The area is not a box of coordinates written as west,south,east,north, in degrees.");
+
+                return ValidationProblem(ModelState);
+            }
+
+            var filter = new PhotoFilter(source ?? [], year ?? [], category ?? [], gps, allFolders, tag ?? [], untagged,
+                box);
 
             var userPhotos = await _photoService.GetByUserIdAsync(id, filter, top, skip, sort);
             var totalPhotosCount = await _photoService.GetTotalCountByUserIdAsync(id, filter);
