@@ -206,7 +206,8 @@ public class PhotoRepository : IPhotoRepository
     {
         return await _context.Photos
             .AsNoTracking()
-            .Select(a => new PhotoDuplicateKey(a.Id, a.UserId, a.ContentHash, a.DeletedOn != null, a.DuplicateGroupId))
+            .Select(a => new PhotoDuplicateKey(a.Id, a.UserId, a.ContentHash, a.DeletedOn != null, a.DuplicateGroupId,
+                a.FileName))
             .ToListAsync();
     }
 
