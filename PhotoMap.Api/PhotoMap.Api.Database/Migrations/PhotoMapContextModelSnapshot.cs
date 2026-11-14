@@ -23,6 +23,22 @@ namespace PhotoMap.Api.Database.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("PhotoMap.Api.Database.Entities.CompletedMaintenanceTaskEntity", b =>
+                {
+                    b.Property<string>("Name")
+                        .HasColumnType("text")
+                        .HasColumnName("name");
+
+                    b.Property<DateTimeOffset>("CompletedOn")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("completed_on");
+
+                    b.HasKey("Name")
+                        .HasName("pk_completed_maintenance_tasks");
+
+                    b.ToTable("completed_maintenance_tasks", (string)null);
+                });
+
             modelBuilder.Entity("PhotoMap.Api.Database.Entities.FailedDownloadEntity", b =>
                 {
                     b.Property<long>("Id")

@@ -82,6 +82,7 @@ namespace PhotoMap.Api
             services.AddSingleton<PhotoYearsCache>();
             services.AddSingleton<PhotoCategorizationSignal>();
             services.AddScoped<PhotoCategorizationService>();
+            services.AddScoped<PhotoDateTakenFixService>();
             services.AddScoped<IUserService, UserService>();
             services.AddScoped<IPhotoSourceService, PhotoSourceService>();
             services.AddScoped<IUserPhotoSourceService, UserPhotoSourceService>();
@@ -98,6 +99,7 @@ namespace PhotoMap.Api
             
             // repositories
             services.AddScoped<IPhotoRepository, PhotoRepository>();
+            services.AddScoped<IMaintenanceTaskRepository, MaintenanceTaskRepository>();
             services.AddScoped<IUserRepository, UserRepository>();
             services.AddScoped<IPhotoSourceRepository, PhotoSourceRepository>();
 
@@ -127,6 +129,7 @@ namespace PhotoMap.Api
 
             services.AddHostedService<ProcessedImageBackgroundService>();
             services.AddHostedService<PhotoCategorizationBackgroundService>();
+            services.AddHostedService<PhotoDateTakenFixBackgroundService>();
             services.AddHostedService<FailedPreviewsBackgroundService>();
             services.AddHostedService<DuplicateGroupsBackgroundService<VideoDuplicatesSignal, VideoDuplicatesService>>();
             services.AddHostedService<DuplicateGroupsBackgroundService<PhotoDuplicatesSignal, PhotoDuplicatesService>>();

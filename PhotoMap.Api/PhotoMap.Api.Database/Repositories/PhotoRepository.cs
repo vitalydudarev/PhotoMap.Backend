@@ -153,6 +153,38 @@ public class PhotoRepository : IPhotoRepository
         await transaction.CommitAsync();
     }
 
+    /// <summary>
+    /// The photos taken at exactly the given time, with an ID greater than the given one, by their ID.
+    /// </summary>
+    public async Task<IReadOnlyList<Photo>> GetTakenAtAsync(DateTimeOffset dateTimeTaken, long afterId, int top)
+    {
+        var photos = await _context.Photos
+            .AsNoTracking()
+            .Where(a => a.DateTimeTaken == dateTimeTaken && a.Id > afterId)
+            .OrderBy(a => a.Id)
+            .Take(top)
+            .ToListAsync();
+
+        return photos.Select(EntityToModel).ToList();
+    }
+
+    /// <summary>
+    /// Sets when the photos were taken, a statement for each photo, all in one transaction.
+    /// </summary>
+    public async Task SetDatesTakenAsync(IReadOnlyDictionary<long, DateTimeOffset> datesTakenByPhotoId)
+    {
+        await using var transaction = await _context.Database.BeginTransactionAsync();
+
+        foreach (var (photoId, dateTimeTaken) in datesTakenByPhotoId)
+        {
+            await _context.Photos
+                .Where(a => a.Id == photoId)
+                .ExecuteUpdateAsync(a => a.SetProperty(photo => photo.DateTimeTaken, dateTimeTaken));
+        }
+
+        await transaction.CommitAsync();
+    }
+
     public async Task<IReadOnlyList<Photo>> GetDuplicatesAsync(long userId)
     {
         var photos = await _context.Photos

@@ -25,6 +25,15 @@ public interface IPhotoRepository
     /// </summary>
     Task SetCategoriesAsync(IReadOnlyDictionary<long, IReadOnlyCollection<PhotoCategory>> categoriesByPhotoId, int version);
 
+    /// <returns>The photos taken at exactly the given time, with an ID greater than <paramref name="afterId"/>, by
+    /// their ID.</returns>
+    Task<IReadOnlyList<Photo>> GetTakenAtAsync(DateTimeOffset dateTimeTaken, long afterId, int top);
+
+    /// <summary>
+    /// Sets when the photos were taken. The photos are all updated, or none of them is.
+    /// </summary>
+    Task SetDatesTakenAsync(IReadOnlyDictionary<long, DateTimeOffset> datesTakenByPhotoId);
+
     /// <returns>The photos of the user that have copies, by their groups, the groups of the photos taken first first, and
     /// the photos of a group by their ID.</returns>
     Task<IReadOnlyList<Photo>> GetDuplicatesAsync(long userId);

@@ -4,9 +4,20 @@ namespace PhotoMap.Worker.Helpers;
 
 public static class ExifHelper
 {
+    /// <summary>
+    /// The GPS time some apps, Instagram among them, write when they have none: it tells nothing about the photo.
+    /// </summary>
+    public static readonly DateTime NoGpsTime = DateTime.UnixEpoch;
+
     public static DateTime? GetDate(ExifData exif)
     {
-        return exif.Gps?.DateTimeStamp?.ToUniversalTime() ?? exif.ExifSubIfd?.DateTimeOriginal?.ToUniversalTime();
+        var gpsTime = exif.Gps?.DateTimeStamp?.ToUniversalTime();
+        if (gpsTime == NoGpsTime)
+        {
+            gpsTime = null;
+        }
+
+        return gpsTime ?? exif.ExifSubIfd?.DateTimeOriginal?.ToUniversalTime();
     }
 
     public static double? GetLatitude(ExifData exif)
