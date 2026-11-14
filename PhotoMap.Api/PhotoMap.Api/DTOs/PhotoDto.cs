@@ -19,6 +19,11 @@ namespace PhotoMap.Api.DTOs
         public string FileName { get; set; } = null!;
 
         /// <summary>
+        /// The photo source the photo is kept in.
+        /// </summary>
+        public long PhotoSourceId { get; set; }
+
+        /// <summary>
         /// The path of the photo in its photo source, with its file name.
         /// </summary>
         public string? Path { get; set; }

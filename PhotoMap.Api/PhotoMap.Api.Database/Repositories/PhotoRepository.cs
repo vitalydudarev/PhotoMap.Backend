@@ -96,6 +96,7 @@ public class PhotoRepository : IPhotoRepository
                 Id = a.Id,
                 UserId = a.UserId,
                 FileName = a.FileName,
+                PhotoSourceId = a.PhotoSourceId,
                 Path = a.Path,
                 DateTimeTaken = a.DateTimeTaken,
                 Latitude = a.Latitude,
@@ -190,6 +191,10 @@ public class PhotoRepository : IPhotoRepository
         var photos = await _context.Photos
             .AsNoTracking()
             .Where(a => a.UserId == userId && a.DuplicateGroupId != null)
+            // the tags too, as a copy may take the place of another in the gallery
+            .Include(a => a.Tags)
+            .ThenInclude(a => a.Tag)
+            .AsSplitQuery()
             .ToListAsync();
 
         // the groups are ordered by their first photo, which the database cannot do without a join of its own
@@ -200,6 +205,17 @@ public class PhotoRepository : IPhotoRepository
             .SelectMany(a => a.OrderBy(b => b.Id))
             .Select(EntityToModel)
             .ToList();
+    }
+
+    public async Task<IReadOnlyList<Photo>> GetDuplicateGroupAsync(long userId, long duplicateGroupId)
+    {
+        var photos = await _context.Photos
+            .AsNoTracking()
+            .Where(a => a.UserId == userId && a.DuplicateGroupId == duplicateGroupId)
+            .OrderBy(a => a.Id)
+            .ToListAsync();
+
+        return photos.Select(EntityToModel).ToList();
     }
 
     public async Task<IReadOnlyList<PhotoDuplicateKey>> GetDuplicateKeysAsync()
@@ -486,7 +502,12 @@ public class PhotoRepository : IPhotoRepository
             photos = photos.Where(a => a.Tags.Any(t => tagIds.Contains(t.TagId)) || (untagged && !a.Tags.Any()));
         }
 
-        return photos;
+        // a photo with copies is shown once, as the first of its copies the filter takes, so that a copy in another
+        // source or folder still shows when the filter leaves the first copy of all out
+        var filtered = photos;
+
+        return filtered.Where(a => a.DuplicateGroupId == null ||
+                                   !filtered.Any(b => b.DuplicateGroupId == a.DuplicateGroupId && b.Id < a.Id));
     }
 
     private static Photo EntityToModel(PhotoEntity photoEntity)

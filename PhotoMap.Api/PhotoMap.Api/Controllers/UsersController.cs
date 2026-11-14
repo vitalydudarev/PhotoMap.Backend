@@ -330,6 +330,7 @@ namespace PhotoMap.Api.Controllers
             {
                 DateTimeTaken = photo.DateTimeTaken.UtcDateTime,
                 FileName = photo.FileName,
+                PhotoSourceId = photo.PhotoSourceId,
                 Path = photo.Path,
                 Id = photo.Id,
                 Latitude = photo.Latitude,

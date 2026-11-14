@@ -34,6 +34,12 @@ namespace PhotoMap.Api.Domain.Services
         Task<IReadOnlyList<Photo>> GetDuplicatesAsync(long userId);
 
         /// <summary>
+        /// The other photos the photo is a copy of, by their ID; none when it has no copies, or they have not been
+        /// looked for yet.
+        /// </summary>
+        Task<IReadOnlyList<Photo>> GetCopiesAsync(Photo photo);
+
+        /// <summary>
         /// Marks a photo of the user as deleted: it is kept, with its files, but only shows among the deleted photos.
         /// </summary>
         /// <returns>false if the user has no such photo.</returns>

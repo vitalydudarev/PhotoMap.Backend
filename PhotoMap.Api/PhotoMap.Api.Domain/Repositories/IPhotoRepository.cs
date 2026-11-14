@@ -38,6 +38,9 @@ public interface IPhotoRepository
     /// the photos of a group by their ID.</returns>
     Task<IReadOnlyList<Photo>> GetDuplicatesAsync(long userId);
 
+    /// <returns>The photos of the user in the group of copies, by their ID.</returns>
+    Task<IReadOnlyList<Photo>> GetDuplicateGroupAsync(long userId, long duplicateGroupId);
+
     /// <returns>What tells the copies of every photo of every user.</returns>
     Task<IReadOnlyList<PhotoDuplicateKey>> GetDuplicateKeysAsync();
 

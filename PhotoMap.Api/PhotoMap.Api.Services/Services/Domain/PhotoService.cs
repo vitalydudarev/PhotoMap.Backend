@@ -77,6 +77,18 @@ namespace PhotoMap.Api.Services.Services.Domain
             return _photoRepository.GetDuplicatesAsync(userId);
         }
 
+        public async Task<IReadOnlyList<Photo>> GetCopiesAsync(Photo photo)
+        {
+            if (photo.DuplicateGroupId is not { } duplicateGroupId)
+            {
+                return [];
+            }
+
+            var group = await _photoRepository.GetDuplicateGroupAsync(photo.UserId, duplicateGroupId);
+
+            return group.Where(a => a.Id != photo.Id).ToList();
+        }
+
         public Task<bool> MarkAsDeletedAsync(long userId, long photoId)
         {
             return SetDeletedOnAsync(userId, photoId, DateTimeOffset.UtcNow);

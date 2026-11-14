@@ -121,6 +121,60 @@ public class PhotoProviderTests
     }
 
     [Fact]
+    public async Task GetPhotoAsync_ShouldDownloadACopy_FromASourceTheUserIsAuthorizedIn()
+    {
+        // Arrange
+        const long copySourceId = 3;
+        var photo = CreatePhoto("id:abc123", "/Camera Uploads/photo.png");
+        photo.DuplicateGroupId = PhotoId;
+        var copy = CreatePhoto("disk:/Photos/photo.png", "/Photos/photo.png");
+        copy.Id = 11;
+        copy.PhotoSourceId = copySourceId;
+        var copySource = CreatePhotoSource();
+        copySource.Id = copySourceId;
+
+        var downloadService = CreateDownloadService();
+        var downloadServiceFactory = new Mock<IPhotoSourceDownloadServiceFactory>();
+        downloadServiceFactory
+            .Setup(a => a.GetService(copySource, It.IsAny<DownloadServiceParameters>()))
+            .Returns(downloadService.Object);
+
+        var photoProvider = CreatePhotoProvider(photo, CreatePhotoSource(), null, downloadServiceFactory.Object,
+            copies: [(copy, copySource, CreateAuthResult())]);
+
+        // Act
+        var photoFile = await photoProvider.GetPhotoAsync(PhotoId, CancellationToken.None);
+
+        // Assert
+        Assert.NotNull(photoFile);
+        Assert.Equal(FileContents, photoFile.Contents);
+        downloadService.Verify(a => a.DownloadFileAsync(copy.ExternalId, copy.Path, It.IsAny<CancellationToken>()));
+        downloadServiceFactory.Verify(a => a.GetService(copySource,
+            It.Is<DownloadServiceParameters>(b => b.SourceId == copySourceId)));
+    }
+
+    [Fact]
+    public async Task GetPhotoAsync_ShouldThrow_WhenTheUserIsAuthorizedInNoSourceOfTheCopies()
+    {
+        // Arrange
+        const long copySourceId = 3;
+        var photo = CreatePhoto("id:abc123", "/photo.png");
+        photo.DuplicateGroupId = PhotoId;
+        var copy = CreatePhoto("disk:/photo.png", "/photo.png");
+        copy.Id = 11;
+        copy.PhotoSourceId = copySourceId;
+        var copySource = CreatePhotoSource();
+        copySource.Id = copySourceId;
+
+        var photoProvider = CreatePhotoProvider(photo, CreatePhotoSource(), null,
+            new Mock<IPhotoSourceDownloadServiceFactory>().Object, copies: [(copy, copySource, null)]);
+
+        // Act, Assert
+        await Assert.ThrowsAsync<NotAuthorizedException>(
+            () => photoProvider.GetPhotoAsync(PhotoId, CancellationToken.None));
+    }
+
+    [Fact]
     public async Task GetPhotoAsync_ShouldThrow_WhenPhotoHasNoFileReference()
     {
         // Arrange
@@ -185,19 +239,28 @@ public class PhotoProviderTests
     private static PhotoProvider CreatePhotoProvider(
         Photo? photo,
         PhotoSource photoSource,
-        UserAuthResult authResult,
+        UserAuthResult? authResult,
         IPhotoSourceDownloadServiceFactory downloadServiceFactory,
         IImageConverter? imageConverter = null,
-        IFileStorage? fileStorage = null)
+        IFileStorage? fileStorage = null,
+        (Photo Photo, PhotoSource Source, UserAuthResult? AuthResult)[]? copies = null)
     {
         var photoService = new Mock<IPhotoService>();
         photoService.Setup(a => a.GetAsync(PhotoId)).ReturnsAsync(photo);
+        photoService.Setup(a => a.GetCopiesAsync(It.IsAny<Photo>()))
+            .ReturnsAsync((copies ?? []).Select(a => a.Photo).ToList());
 
         var photoSourceService = new Mock<IPhotoSourceService>();
         photoSourceService.Setup(a => a.GetByIdAsync(PhotoSourceId)).ReturnsAsync(photoSource);
 
         var userPhotoSourceService = new Mock<IUserPhotoSourceService>();
         userPhotoSourceService.Setup(a => a.GetAuthResultAsync(UserId, PhotoSourceId)).ReturnsAsync(authResult);
+
+        foreach (var copy in copies ?? [])
+        {
+            photoSourceService.Setup(a => a.GetByIdAsync(copy.Source.Id)).ReturnsAsync(copy.Source);
+            userPhotoSourceService.Setup(a => a.GetAuthResultAsync(UserId, copy.Source.Id)).ReturnsAsync(copy.AuthResult);
+        }
 
         return new PhotoProvider(photoService.Object, photoSourceService.Object, userPhotoSourceService.Object,
             downloadServiceFactory, fileStorage ?? new Mock<IFileStorage>().Object,
