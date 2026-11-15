@@ -42,6 +42,12 @@ public class Photo
     public bool FromOtherUploads { get; set; }
 
     /// <summary>
+    /// The address of the GPS location, the response of the Mapbox reverse geocoding as is (a GeoJSON
+    /// FeatureCollection); null until the photo has been geocoded, and for the photos without GPS.
+    /// </summary>
+    public string? Geocoding { get; set; }
+
+    /// <summary>
     /// The names of the tags of the photo, by name. Only read along with the photos of the gallery.
     /// </summary>
     public IReadOnlyList<string> Tags { get; set; } = [];

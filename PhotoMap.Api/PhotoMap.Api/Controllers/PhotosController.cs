@@ -3,7 +3,9 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using PhotoMap.Api.Domain.Services;
+using PhotoMap.Api.DTOs;
 using PhotoMap.Api.Services.Interfaces;
+using PhotoMap.Api.Services.Services;
 
 namespace PhotoMap.Api.Controllers
 {
@@ -53,6 +55,26 @@ namespace PhotoMap.Api.Controllers
 
             // already JSON, so it is sent as it is rather than serialized again into a string
             return Content(string.IsNullOrEmpty(photo.ExifString) ? "{}" : photo.ExifString, "application/json");
+        }
+
+        /// <summary>
+        /// The address of the GPS location of the photo, by its reverse geocoding: of the feature of the type
+        /// "address", or of the first feature when there is none of that type. Null when the photo has not been
+        /// geocoded (yet), or nothing was found at its location.
+        /// </summary>
+        /// <param name="id">The ID of the photo.</param>
+        [HttpGet("{id:long}/address")]
+        [ProducesResponseType(typeof(PhotoAddressDto), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> GetAddressAsync(long id)
+        {
+            var photo = await _photoService.GetAsync(id);
+            if (photo == null)
+            {
+                return NotFound();
+            }
+
+            return Ok(new PhotoAddressDto(GeocodedAddress.Get(photo.Geocoding)));
         }
 
         [HttpGet("{id:long}/thumb/{size:regex(^(small|large)$)}")]

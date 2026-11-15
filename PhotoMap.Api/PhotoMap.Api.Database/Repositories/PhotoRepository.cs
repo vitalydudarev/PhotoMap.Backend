@@ -567,6 +567,7 @@ public class PhotoRepository : IPhotoRepository
             DeletedOn = photoEntity.DeletedOn,
             DuplicateGroupId = photoEntity.DuplicateGroupId,
             FromOtherUploads = photoEntity.FromOtherUploads,
+            Geocoding = photoEntity.Geocoding,
             // only loaded along with the photos of the gallery
             Tags = photoEntity.Tags
                 .Where(a => a.Tag != null)

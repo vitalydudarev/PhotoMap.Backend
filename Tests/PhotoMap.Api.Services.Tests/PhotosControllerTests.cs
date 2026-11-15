@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Moq;
 using PhotoMap.Api.Controllers;
+using PhotoMap.Api.DTOs;
 using PhotoMap.Api.Domain.Models;
 using PhotoMap.Api.Domain.Services;
 using PhotoMap.Api.Services.Interfaces;
@@ -53,6 +54,52 @@ public class PhotosControllerTests
 
         // Act
         var result = await controller.GetExifAsync(PhotoId);
+
+        // Assert
+        Assert.IsType<NotFoundResult>(result);
+    }
+
+    [Fact]
+    public async Task GetAddressAsync_ShouldReturnTheGeocodedAddress()
+    {
+        // Arrange
+        var photo = CreatePhoto(null);
+        photo.Geocoding = "{\"type\":\"FeatureCollection\",\"features\":[" +
+                          "{\"properties\":{\"feature_type\":\"street\",\"full_address\":\"Main Street\"}}," +
+                          "{\"properties\":{\"feature_type\":\"address\",\"full_address\":\"12 Main Street\"}}]}";
+        _photoService.Setup(a => a.GetAsync(PhotoId)).ReturnsAsync(photo);
+        var controller = CreateController();
+
+        // Act
+        var result = await controller.GetAddressAsync(PhotoId);
+
+        // Assert
+        var dto = Assert.IsType<PhotoAddressDto>(Assert.IsType<OkObjectResult>(result).Value);
+        Assert.Equal("12 Main Street", dto.Address);
+    }
+
+    [Fact]
+    public async Task GetAddressAsync_ShouldReturnNoAddress_WhenThePhotoIsNotGeocoded()
+    {
+        // Arrange
+        _photoService.Setup(a => a.GetAsync(PhotoId)).ReturnsAsync(CreatePhoto(null));
+        var controller = CreateController();
+
+        // Act
+        var result = await controller.GetAddressAsync(PhotoId);
+
+        // Assert
+        Assert.Null(Assert.IsType<PhotoAddressDto>(Assert.IsType<OkObjectResult>(result).Value).Address);
+    }
+
+    [Fact]
+    public async Task GetAddressAsync_ShouldReturnNotFound_WhenThereIsNoSuchPhoto()
+    {
+        // Arrange
+        var controller = CreateController();
+
+        // Act
+        var result = await controller.GetAddressAsync(PhotoId);
 
         // Assert
         Assert.IsType<NotFoundResult>(result);
