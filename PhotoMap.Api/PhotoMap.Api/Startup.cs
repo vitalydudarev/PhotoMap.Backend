@@ -63,6 +63,12 @@ namespace PhotoMap.Api
 
             services.AddHttpClient();
 
+            // the access token is in the user secrets, or the environment, not in the appsettings
+            services.Configure<MapboxSettings>(Configuration.GetSection(MapboxSettings.SectionName));
+            services.AddHttpClient(MapboxGeocoder.HttpClientName,
+                client => client.Timeout = TimeSpan.FromSeconds(30));
+            services.AddSingleton<IGeocoder, MapboxGeocoder>();
+
             services.AddScoped<IImageStore, ImageStore>();
             services.AddScoped<IPhotoProvider, PhotoProvider>();
             services.AddScoped<IVideoProvider, VideoProvider>();
@@ -82,6 +88,8 @@ namespace PhotoMap.Api
             services.AddSingleton<PhotoYearsCache>();
             services.AddSingleton<PhotoCategorizationSignal>();
             services.AddScoped<PhotoCategorizationService>();
+            services.AddSingleton<PhotoGeocodingSignal>();
+            services.AddScoped<PhotoGeocodingService>();
             services.AddScoped<PhotoDateTakenFixService>();
             services.AddScoped<IUserService, UserService>();
             services.AddScoped<IPhotoSourceService, PhotoSourceService>();
@@ -129,6 +137,7 @@ namespace PhotoMap.Api
 
             services.AddHostedService<ProcessedImageBackgroundService>();
             services.AddHostedService<PhotoCategorizationBackgroundService>();
+            services.AddHostedService<PhotoGeocodingBackgroundService>();
             services.AddHostedService<PhotoDateTakenFixBackgroundService>();
             services.AddHostedService<FailedPreviewsBackgroundService>();
             services.AddHostedService<DuplicateGroupsBackgroundService<VideoDuplicatesSignal, VideoDuplicatesService>>();

@@ -28,6 +28,7 @@ namespace PhotoMap.Api.Database.Configurations
             builder.Property(a => a.DeletedOn);
             builder.Property(a => a.DuplicateGroupId);
             builder.Property(a => a.FromOtherUploads).IsRequired();
+            builder.Property(a => a.Geocoding).HasColumnType("jsonb");
             builder.ToTable("photos");
 
             // file ID assigned by the photo source (Dropbox file ID, Yandex.Disk resource_id)
@@ -38,6 +39,10 @@ namespace PhotoMap.Api.Database.Configurations
             builder.HasIndex(a => a.CategoriesVersion);
             // the duplicates of a user are listed by their groups
             builder.HasIndex(a => new { a.UserId, a.DuplicateGroupId });
+            // the photos still to be geocoded, looked for whenever photos are saved
+            builder.HasIndex(a => a.Id)
+                .HasDatabaseName("ix_photos_not_geocoded")
+                .HasFilter("has_gps AND geocoding IS NULL");
 
             builder.HasOne(a => a.User).WithMany().HasForeignKey(a => a.UserId);
             builder.HasOne(a => a.PhotoSource).WithMany().HasForeignKey(a => a.PhotoSourceId);

@@ -15,14 +15,17 @@ namespace PhotoMap.Api.Services.Services.Domain
         private readonly PhotoYearsCache _yearsCache;
         private readonly PhotoCategorizationSignal _categorizationSignal;
         private readonly PhotoDuplicatesSignal _duplicatesSignal;
+        private readonly PhotoGeocodingSignal _geocodingSignal;
 
         public PhotoService(IPhotoRepository photoRepository, PhotoYearsCache yearsCache,
-            PhotoCategorizationSignal categorizationSignal, PhotoDuplicatesSignal duplicatesSignal)
+            PhotoCategorizationSignal categorizationSignal, PhotoDuplicatesSignal duplicatesSignal,
+            PhotoGeocodingSignal geocodingSignal)
         {
             _photoRepository = photoRepository;
             _yearsCache = yearsCache;
             _categorizationSignal = categorizationSignal;
             _duplicatesSignal = duplicatesSignal;
+            _geocodingSignal = geocodingSignal;
         }
 
         public async Task AddRangeAsync(IReadOnlyCollection<Photo> photos,
@@ -39,6 +42,12 @@ namespace PhotoMap.Api.Services.Services.Domain
             _categorizationSignal.Notify();
             // and in no group of copies, until the duplicates are looked for again
             _duplicatesSignal.Notify();
+
+            // and without their address, until the geocoding gets to the ones with GPS
+            if (photos.Any(a => a.HasGps))
+            {
+                _geocodingSignal.Notify();
+            }
         }
 
         public Task<Photo?> GetAsync(long id)

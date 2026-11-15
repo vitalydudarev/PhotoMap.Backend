@@ -45,6 +45,12 @@ public class PhotoEntity
     /// The version of the rules the photo was put in its categories by, 0 until it has been.
     /// </summary>
     public int CategoriesVersion { get; set; }
+
+    /// <summary>
+    /// The address of the GPS location, the response of the Mapbox reverse geocoding as is (a GeoJSON
+    /// FeatureCollection); null until the photo has been geocoded, and for the photos without GPS.
+    /// </summary>
+    public string? Geocoding { get; set; }
     public List<PhotoCategoryEntity> Categories { get; set; } = [];
     public List<PhotoTagEntity> Tags { get; set; } = [];
 }

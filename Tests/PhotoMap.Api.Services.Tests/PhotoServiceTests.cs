@@ -14,6 +14,7 @@ public class PhotoServiceTests
     private readonly PhotoYearsCache _yearsCache = new();
     private readonly PhotoCategorizationSignal _categorizationSignal = new();
     private readonly PhotoDuplicatesSignal _duplicatesSignal = new();
+    private readonly PhotoGeocodingSignal _geocodingSignal = new();
 
     public PhotoServiceTests()
     {
@@ -47,6 +48,34 @@ public class PhotoServiceTests
 
         // Assert
         Assert.True(_categorizationSignal.WaitAsync(CancellationToken.None).IsCompletedSuccessfully);
+    }
+
+    [Fact]
+    public async Task AddRangeAsync_ShouldSignalTheGeocoding_WhenAPhotoHasGps()
+    {
+        // Arrange
+        var service = CreateService();
+        var photo = CreatePhoto(DateTimeOffset.UtcNow);
+        photo.HasGps = true;
+
+        // Act
+        await service.AddRangeAsync([photo]);
+
+        // Assert
+        Assert.True(_geocodingSignal.WaitAsync(CancellationToken.None).IsCompletedSuccessfully);
+    }
+
+    [Fact]
+    public async Task AddRangeAsync_ShouldNotSignalTheGeocoding_WhenNoPhotoHasGps()
+    {
+        // Arrange
+        var service = CreateService();
+
+        // Act
+        await service.AddRangeAsync([CreatePhoto(DateTimeOffset.UtcNow)]);
+
+        // Assert
+        Assert.False(_geocodingSignal.WaitAsync(CancellationToken.None).IsCompleted);
     }
 
     [Fact]
@@ -220,7 +249,8 @@ public class PhotoServiceTests
 
     private PhotoService CreateService()
     {
-        return new PhotoService(_photoRepository.Object, _yearsCache, _categorizationSignal, _duplicatesSignal);
+        return new PhotoService(_photoRepository.Object, _yearsCache, _categorizationSignal, _duplicatesSignal,
+            _geocodingSignal);
     }
 
     private static Photo CreatePhoto(DateTimeOffset dateTimeTaken)

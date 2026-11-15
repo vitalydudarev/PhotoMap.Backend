@@ -155,6 +155,40 @@ public class PhotoRepository : IPhotoRepository
     }
 
     /// <summary>
+    /// The location of the photos with GPS not geocoded yet, past the given ID, by their ID. The photos with a
+    /// location no geocoding could take (out of the range of the coordinates) are left out.
+    /// </summary>
+    public async Task<IReadOnlyList<PhotoLocation>> GetNotGeocodedAsync(long afterId, int top)
+    {
+        return await _context.Photos
+            .AsNoTracking()
+            .Where(a => a.HasGps && a.Geocoding == null && a.Id > afterId)
+            .Where(a => a.Latitude != null && a.Latitude >= -90 && a.Latitude <= 90 &&
+                        a.Longitude != null && a.Longitude >= -180 && a.Longitude <= 180)
+            .OrderBy(a => a.Id)
+            .Take(top)
+            .Select(a => new PhotoLocation(a.Id, a.Latitude!.Value, a.Longitude!.Value))
+            .ToListAsync();
+    }
+
+    /// <summary>
+    /// Saves the geocoding of the photos, a statement for each photo, all in one transaction.
+    /// </summary>
+    public async Task SetGeocodingsAsync(IReadOnlyDictionary<long, string> geocodingsByPhotoId)
+    {
+        await using var transaction = await _context.Database.BeginTransactionAsync();
+
+        foreach (var (photoId, geocoding) in geocodingsByPhotoId)
+        {
+            await _context.Photos
+                .Where(a => a.Id == photoId)
+                .ExecuteUpdateAsync(a => a.SetProperty(photo => photo.Geocoding, geocoding));
+        }
+
+        await transaction.CommitAsync();
+    }
+
+    /// <summary>
     /// The photos taken at exactly the given time, with an ID greater than the given one, by their ID.
     /// </summary>
     public async Task<IReadOnlyList<Photo>> GetTakenAtAsync(DateTimeOffset dateTimeTaken, long afterId, int top)

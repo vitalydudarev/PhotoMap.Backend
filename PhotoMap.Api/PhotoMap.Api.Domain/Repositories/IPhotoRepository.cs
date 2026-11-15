@@ -25,6 +25,16 @@ public interface IPhotoRepository
     /// </summary>
     Task SetCategoriesAsync(IReadOnlyDictionary<long, IReadOnlyCollection<PhotoCategory>> categoriesByPhotoId, int version);
 
+    /// <returns>The location of the photos with GPS not geocoded yet, with an ID greater than
+    /// <paramref name="afterId"/>, by their ID.</returns>
+    Task<IReadOnlyList<PhotoLocation>> GetNotGeocodedAsync(long afterId, int top);
+
+    /// <summary>
+    /// Saves the results of the geocoding of the photos, the responses of the geocoding API as they are. The photos are
+    /// all updated, or none of them is.
+    /// </summary>
+    Task SetGeocodingsAsync(IReadOnlyDictionary<long, string> geocodingsByPhotoId);
+
     /// <returns>The photos taken at exactly the given time, with an ID greater than <paramref name="afterId"/>, by
     /// their ID.</returns>
     Task<IReadOnlyList<Photo>> GetTakenAtAsync(DateTimeOffset dateTimeTaken, long afterId, int top);

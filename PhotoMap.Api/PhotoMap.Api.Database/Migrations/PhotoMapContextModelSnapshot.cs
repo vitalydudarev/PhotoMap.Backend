@@ -339,6 +339,10 @@ namespace PhotoMap.Api.Database.Migrations
                         .HasColumnType("boolean")
                         .HasColumnName("from_other_uploads");
 
+                    b.Property<string>("Geocoding")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("geocoding");
+
                     b.Property<bool>("HasGps")
                         .HasColumnType("boolean")
                         .HasColumnName("has_gps");
@@ -380,6 +384,10 @@ namespace PhotoMap.Api.Database.Migrations
 
                     b.HasIndex("CategoriesVersion")
                         .HasDatabaseName("ix_photos_categories_version");
+
+                    b.HasIndex("Id")
+                        .HasDatabaseName("ix_photos_not_geocoded")
+                        .HasFilter("has_gps AND geocoding IS NULL");
 
                     b.HasIndex("PhotoSourceId")
                         .HasDatabaseName("ix_photos_photo_source_id");
