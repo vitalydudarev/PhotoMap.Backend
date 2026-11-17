@@ -153,6 +153,27 @@ namespace PhotoMap.Api.Controllers
         }
 
         /// <summary>
+        /// The metadata read from the video file, as the EXIF of the photos: an object of its directories, each an
+        /// object of its tags. An empty object when the file has none, or it has not been read yet.
+        /// </summary>
+        /// <param name="id">The ID of the video.</param>
+        [HttpGet("api/videos/{id:long}/exif")]
+        [Produces("application/json")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> GetExifAsync(long id)
+        {
+            var video = await _videoService.GetAsync(id);
+            if (video == null)
+            {
+                return NotFound();
+            }
+
+            // already JSON, so it is sent as it is rather than serialized again into a string
+            return Content(string.IsNullOrEmpty(video.ExifString) ? "{}" : video.ExifString, "application/json");
+        }
+
+        /// <summary>
         /// The preview image of the video, as the photo source made it.
         /// </summary>
         /// <param name="id">The ID of the video.</param>

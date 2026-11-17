@@ -51,6 +51,13 @@ public static class YandexDiskApiCalls
 
                 throw new YandexDiskException("The resource has not been found: " + e.Message);
             }
+            catch (RangeNotSupportedException e)
+            {
+                // the server sends no range of the file, on a retry neither: the caller downloads all of it instead
+                logger.LogInformation("The server does not send ranges of the file: {ErrorMessage}", e.Message);
+
+                throw;
+            }
             catch (Exception e) when (attempt <= maxRetries)
             {
                 // without this the file would be counted as failed and skipped until the next run

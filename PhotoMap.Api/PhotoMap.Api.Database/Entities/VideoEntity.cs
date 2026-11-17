@@ -14,6 +14,7 @@ public class VideoEntity
     public long Size { get; set; }
     public required DateTimeOffset DateTimeTaken { get; set; }
     public DateTimeOffset? ExifDateTime { get; set; }
+    public string? ExifString { get; set; }
     public double? Latitude { get; set; }
     public double? Longitude { get; set; }
     public string? PreviewFilePath { get; set; }

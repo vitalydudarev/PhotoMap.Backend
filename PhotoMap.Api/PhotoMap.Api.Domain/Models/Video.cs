@@ -27,12 +27,23 @@ public class Video
     public DateTimeOffset DateTimeTaken { get; set; }
 
     /// <summary>
-    /// The date the video was taken, as the photo source read it from the EXIF of the file, null when it has none.
+    /// The date the video was taken, as the photo source read it from the EXIF of the file, or else as the
+    /// metadata of the file says; null when neither has it.
     /// </summary>
     public DateTimeOffset? ExifDateTime { get; set; }
 
+    /// <summary>
+    /// The GPS location, as the photo source read it, or else from the metadata of the file.
+    /// </summary>
     public double? Latitude { get; set; }
+
     public double? Longitude { get; set; }
+
+    /// <summary>
+    /// The metadata read from the file itself, as JSON, see <see cref="VideoExif.ExifString"/>; null until it has
+    /// been read, which a run of the videos tries again.
+    /// </summary>
+    public string? ExifString { get; set; }
 
     /// <summary>
     /// The preview image as the photo source made it, stored without any processing.

@@ -125,6 +125,55 @@ namespace PhotoMap.Shared.Yandex.Disk
             }
         }
 
+        /// <summary>
+        /// Downloads the bytes of the file from the offset given, by a download URL of
+        /// <see cref="GetDownloadUrlAsync"/>, which serves any number of ranges of the file: up to the count given,
+        /// fewer at the end of the file.
+        /// </summary>
+        /// <exception cref="TimeoutException">The bytes have not been downloaded within <see cref="OpenDownloadTimeout"/>.</exception>
+        /// <exception cref="RangeNotSupportedException">The server has sent the file from its start rather than the
+        /// range asked for, or has refused the range.</exception>
+        public async Task<byte[]> DownloadRangeAsync(string downloadUrl, long offset, int count, CancellationToken cancellationToken)
+        {
+            using var timeoutCancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeoutCancellationTokenSource.CancelAfter(OpenDownloadTimeout);
+
+            var timeoutCancellationToken = timeoutCancellationTokenSource.Token;
+
+            try
+            {
+                using var request = new HttpRequestMessage(HttpMethod.Get, downloadUrl);
+                request.Headers.Range = new RangeHeaderValue(offset, offset + count - 1);
+
+                using var responseMessage = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead,
+                    timeoutCancellationToken);
+
+                if (responseMessage.StatusCode == HttpStatusCode.RequestedRangeNotSatisfiable)
+                    throw new RangeNotSupportedException($"The server has refused the range of the file from {offset}.");
+
+                if (!responseMessage.IsSuccessStatusCode)
+                    throw await CreateApiExceptionAsync(responseMessage, timeoutCancellationToken);
+
+                // a server that ignores the range sends the whole file, of which the start is only the range asked
+                // for when it starts at the start
+                if (responseMessage.StatusCode != HttpStatusCode.PartialContent && offset != 0)
+                    throw new RangeNotSupportedException($"The server has not sent the range of the file from {offset}.");
+
+                await using var stream = await responseMessage.Content.ReadAsStreamAsync(timeoutCancellationToken);
+
+                // the whole file comes when the range is ignored, only as much of it as asked for is read
+                var buffer = new byte[count];
+                var read = await stream.ReadAtLeastAsync(buffer, count, throwOnEndOfStream: false, timeoutCancellationToken);
+
+                return read == count ? buffer : buffer[..read];
+            }
+            catch (OperationCanceledException e) when (!cancellationToken.IsCancellationRequested)
+            {
+                // the caller has not cancelled, the timeout has run out
+                throw new TimeoutException($"The range of the file from {offset} has not been downloaded within {OpenDownloadTimeout.TotalSeconds:0} seconds.", e);
+            }
+        }
+
         public async Task<FilesResourceList> GetFlatFilesListAsync(CancellationToken cancellationToken, string? mediaType = null, int limit = 20,
             int offset = 0)
         {

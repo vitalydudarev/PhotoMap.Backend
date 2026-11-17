@@ -181,8 +181,9 @@ public class VideoProcessingService : IVideoProcessingService
     /// <summary>
     /// Runs in the background, with its own service scope: the scope of the request that started it is disposed
     /// by the time the run proceeds. Every video of the disk is listed, and the ones not saved yet have their
-    /// preview downloaded and saved, several at a time. A video that fails is not saved, so the next run tries it
-    /// again.
+    /// preview downloaded and saved, several at a time, along with the metadata of the file, see
+    /// <see cref="VideoExifReader"/>. A video that fails is not saved, so the next run tries it again, as it reads
+    /// the metadata of the videos saved without it.
     /// </summary>
     private static async Task DoWork(VideoRun run, IServiceScopeFactory serviceScopeFactory, CancellationToken cancellationToken)
     {
@@ -211,16 +212,27 @@ public class VideoProcessingService : IVideoProcessingService
             var savedExternalIds = await videoService.GetSavedExternalIdsAsync(run.UserId, run.SourceId,
                 videos.Select(a => a.ResourceId));
 
+            // the videos saved before their metadata was read, or whose metadata could not be downloaded, have it
+            // read now
+            var idsWithoutExif = await videoService.GetIdsWithoutExifAsync(run.UserId, run.SourceId);
+            var videosToReadExif = videos
+                .Where(a => savedExternalIds.Contains(a.ResourceId) && idsWithoutExif.ContainsKey(a.ResourceId))
+                .Select(a => (Id: idsWithoutExif[a.ResourceId], Resource: a))
+                .ToList();
+
             // the videos saved by earlier runs count as processed, a run resumed carries on from them
-            progress = new ProcessingProgress(savedExternalIds.Count, 0) { TotalCount = videos.Count };
+            progress = new ProcessingProgress(savedExternalIds.Count - videosToReadExif.Count, 0) { TotalCount = videos.Count };
 
             reportingTask = ReportStatusPeriodicallyAsync(serviceScopeFactory, logger, run, progress,
                 reportingCancellationTokenSource.Token);
 
             var videosToSave = videos.Where(a => !savedExternalIds.Contains(a.ResourceId)).ToList();
 
-            logger.LogInformation("{VideoCount} of {TotalCount} videos of {PhotoSourceName} to save for user {UserId}",
-                videosToSave.Count, videos.Count, run.PhotoSourceName, run.UserId);
+            logger.LogInformation(
+                "{VideoCount} of {TotalCount} videos of {PhotoSourceName} to save, and {ExifCount} to read the metadata of, for user {UserId}",
+                videosToSave.Count, videos.Count, run.PhotoSourceName, videosToReadExif.Count, run.UserId);
+
+            await ReadMissingExifAsync(videoSource, videoService, logger, run, videosToReadExif, progress, cancellationToken);
 
             foreach (var chunk in videosToSave.Chunk(SaveEvery))
             {
@@ -308,7 +320,7 @@ public class VideoProcessingService : IVideoProcessingService
 
             await fileStorage.SaveAsync(previewFilePath, contents);
 
-            return new Video
+            var video = new Video
             {
                 UserId = run.UserId,
                 PhotoSourceId = run.SourceId,
@@ -326,6 +338,12 @@ public class VideoProcessingService : IVideoProcessingService
                 PreviewContentType = contentType ?? "image/jpeg",
                 AddedOn = DateTimeOffset.UtcNow
             };
+
+            // the video is saved without its metadata when it cannot be downloaded, the next run reads it
+            var exif = await TryReadExifAsync(videoSource, logger, resource, cancellationToken);
+            exif?.ApplyTo(video);
+
+            return video;
         }
         catch (PhotoSourceException e) when (!e.IsAuthError)
         {
@@ -337,6 +355,73 @@ public class VideoProcessingService : IVideoProcessingService
             logger.LogError(e, "Failed to store the preview of {FileName}", resource.Name);
 
             return null;
+        }
+    }
+
+    /// <summary>
+    /// Reads the metadata of the videos saved without it, several at a time, and saves it a chunk at a time. A
+    /// video whose metadata cannot be downloaded counts as failed, and is left for the next run.
+    /// </summary>
+    private static async Task ReadMissingExifAsync(YandexDiskVideoSource videoSource, IVideoService videoService, ILogger logger,
+        VideoRun run, IReadOnlyList<(long Id, Resource Resource)> videos, ProcessingProgress progress,
+        CancellationToken cancellationToken)
+    {
+        foreach (var chunk in videos.Chunk(SaveEvery))
+        {
+            var exifByVideoId = new ConcurrentDictionary<long, VideoExif>();
+            var parallelOptions = new ParallelOptions
+            {
+                MaxDegreeOfParallelism = run.MaxParallelDownloads,
+                CancellationToken = cancellationToken
+            };
+
+            await Parallel.ForEachAsync(chunk, parallelOptions, async (video, token) =>
+            {
+                var exif = await TryReadExifAsync(videoSource, logger, video.Resource, token);
+                if (exif != null)
+                {
+                    exifByVideoId[video.Id] = exif;
+                }
+                else
+                {
+                    progress.FileFailed();
+                }
+            });
+
+            await videoService.UpdateExifAsync(exifByVideoId);
+
+            foreach (var _ in exifByVideoId)
+            {
+                progress.FileProcessed();
+            }
+        }
+    }
+
+    /// <summary>
+    /// Reads the metadata of the video file. A file whose metadata cannot be made out has none, so that it is not
+    /// read again, while one that cannot be downloaded is read on the next run.
+    /// </summary>
+    /// <returns>The metadata, null when the file cannot be downloaded.</returns>
+    /// <exception cref="PhotoSourceException">Yandex.Disk no longer accepts the token.</exception>
+    private static async Task<VideoExif?> TryReadExifAsync(YandexDiskVideoSource videoSource, ILogger logger,
+        Resource resource, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await videoSource.ReadExifAsync(resource, cancellationToken);
+        }
+        catch (PhotoSourceException e) when (!e.IsAuthError)
+        {
+            logger.LogWarning(e, "The metadata of {FileName} cannot be downloaded, it is left for the next run", resource.Name);
+
+            return null;
+        }
+        catch (Exception e) when (e is not PhotoSourceException and not OperationCanceledException)
+        {
+            // MetadataExtractor fails the same way on the same file
+            logger.LogWarning(e, "The metadata of {FileName} cannot be read, it is saved without it", resource.Name);
+
+            return VideoExif.Empty;
         }
     }
 

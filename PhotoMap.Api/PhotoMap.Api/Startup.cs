@@ -99,6 +99,7 @@ namespace PhotoMap.Api
             services.AddScoped<IFailedPreviewService, FailedPreviewService>();
             services.AddSingleton<FailedPreviewsSignal>();
             services.AddScoped<FailedPreviewsDownloader>();
+            services.AddScoped<VideoExifBackfiller>();
             services.AddScoped<IVideoService, VideoService>();
             services.AddSingleton<VideoDuplicatesSignal>();
             services.AddScoped<VideoDuplicatesService>();
@@ -140,6 +141,7 @@ namespace PhotoMap.Api
             services.AddHostedService<PhotoGeocodingBackgroundService>();
             services.AddHostedService<PhotoDateTakenFixBackgroundService>();
             services.AddHostedService<FailedPreviewsBackgroundService>();
+            services.AddHostedService<VideoExifBackgroundService>();
             services.AddHostedService<DuplicateGroupsBackgroundService<VideoDuplicatesSignal, VideoDuplicatesService>>();
             services.AddHostedService<DuplicateGroupsBackgroundService<PhotoDuplicatesSignal, PhotoDuplicatesService>>();
             // registered after the image processing services: hosted services stop in reverse order, so processing

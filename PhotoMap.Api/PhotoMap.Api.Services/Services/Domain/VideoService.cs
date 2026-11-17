@@ -52,6 +52,7 @@ public class VideoService : IVideoService
             // timestamptz columns only accept UTC
             DateTimeTaken = a.DateTimeTaken.ToUniversalTime(),
             ExifDateTime = a.ExifDateTime?.ToUniversalTime(),
+            ExifString = a.ExifString,
             Latitude = a.Latitude,
             Longitude = a.Longitude,
             PreviewFilePath = a.PreviewFilePath,
@@ -169,6 +170,62 @@ public class VideoService : IVideoService
         return savedIds.ToHashSet();
     }
 
+    public async Task<IReadOnlyDictionary<string, long>> GetIdsWithoutExifAsync(long userId, long photoSourceId)
+    {
+        return await _context.Videos
+            .Where(a => a.UserId == userId && a.PhotoSourceId == photoSourceId && a.ExifString == null)
+            .ToDictionaryAsync(a => a.ExternalId, a => a.Id);
+    }
+
+    public async Task<IReadOnlyList<Video>> GetWithoutExifAsync(long afterId, int count)
+    {
+        var entities = await _context.Videos
+            .AsNoTracking()
+            .Where(a => a.ExifString == null && a.Id > afterId)
+            .OrderBy(a => a.Id)
+            .Take(count)
+            .ToListAsync();
+
+        return entities.Select(ToModel).ToList();
+    }
+
+    public async Task UpdateExifAsync(IReadOnlyDictionary<long, VideoExif> exifByVideoId)
+    {
+        if (exifByVideoId.Count == 0)
+        {
+            return;
+        }
+
+        var ids = exifByVideoId.Keys.ToList();
+        var entities = await _context.Videos.Where(a => ids.Contains(a.Id)).ToListAsync();
+
+        foreach (var entity in entities)
+        {
+            // the metadata decides what to keep of the video as it is
+            var video = ToModel(entity);
+            exifByVideoId[entity.Id].ApplyTo(video);
+
+            entity.ExifString = video.ExifString;
+            entity.ExifDateTime = video.ExifDateTime?.ToUniversalTime();
+            entity.DateTimeTaken = video.DateTimeTaken.ToUniversalTime();
+            entity.Latitude = video.Latitude;
+            entity.Longitude = video.Longitude;
+        }
+
+        try
+        {
+            await _context.SaveChangesAsync();
+        }
+        finally
+        {
+            // a run updates chunk after chunk with one context, as it saves them
+            foreach (var entity in entities)
+            {
+                _context.Entry(entity).State = EntityState.Detached;
+            }
+        }
+    }
+
     public async Task<IReadOnlyCollection<string>> DeleteByPhotoSourceAsync(long userId, long photoSourceId)
     {
         var videos = _context.Videos.Where(a => a.UserId == userId && a.PhotoSourceId == photoSourceId);
@@ -274,6 +331,7 @@ public class VideoService : IVideoService
             Size = entity.Size,
             DateTimeTaken = entity.DateTimeTaken,
             ExifDateTime = entity.ExifDateTime,
+            ExifString = entity.ExifString,
             Latitude = entity.Latitude,
             Longitude = entity.Longitude,
             PreviewFilePath = entity.PreviewFilePath,

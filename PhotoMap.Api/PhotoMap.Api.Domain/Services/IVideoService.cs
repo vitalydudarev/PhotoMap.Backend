@@ -44,6 +44,22 @@ public interface IVideoService
     Task<IReadOnlySet<string>> GetSavedExternalIdsAsync(long userId, long photoSourceId, IEnumerable<string> externalIds);
 
     /// <summary>
+    /// The IDs of the videos of the photo source saved without the metadata of their files, by the IDs the photo
+    /// source assigned.
+    /// </summary>
+    Task<IReadOnlyDictionary<string, long>> GetIdsWithoutExifAsync(long userId, long photoSourceId);
+
+    /// <summary>
+    /// The next videos of every user saved without the metadata of their files, past the ID given, by their IDs.
+    /// </summary>
+    Task<IReadOnlyList<Video>> GetWithoutExifAsync(long afterId, int count);
+
+    /// <summary>
+    /// Saves the metadata read from the files of the videos, by their IDs, see <see cref="VideoExif.ApplyTo"/>.
+    /// </summary>
+    Task UpdateExifAsync(IReadOnlyDictionary<long, VideoExif> exifByVideoId);
+
+    /// <summary>
     /// Deletes the videos of the photo source.
     /// </summary>
     /// <returns>The paths of their preview images, which are left for the caller to delete.</returns>

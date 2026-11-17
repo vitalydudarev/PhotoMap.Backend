@@ -686,6 +686,10 @@ namespace PhotoMap.Api.Database.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("exif_date_time");
 
+                    b.Property<string>("ExifString")
+                        .HasColumnType("text")
+                        .HasColumnName("exif_string");
+
                     b.Property<string>("ExternalId")
                         .IsRequired()
                         .HasColumnType("text")
