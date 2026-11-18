@@ -53,6 +53,8 @@ namespace PhotoMap.Api.Controllers
         /// <param name="sort">The order of the videos by the date they were taken.</param>
         /// <param name="folder">The folders to take the videos from, without the file name, repeated for each one,
         /// such as <c>folder=disk:/Camera Uploads&amp;folder=disk:/Videos</c>. All the folders when not given.</param>
+        /// <param name="year">The years, in UTC, the videos were taken in, repeated for each one, such as
+        /// <c>year=2016&amp;year=2019</c>. All the years when not given.</param>
         [HttpGet("api/users/{userId:long}/videos")]
         [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(PagedResponse<VideoDto>))]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -60,12 +62,14 @@ namespace PhotoMap.Api.Controllers
             [FromQuery, BindRequired, Range(1, MaxPageSize)] int top,
             [FromQuery, Range(0, int.MaxValue)] int skip,
             [FromQuery] PhotoSortOrder sort = PhotoSortOrder.Asc,
-            [FromQuery] string[]? folder = null)
+            [FromQuery] string[]? folder = null,
+            [FromQuery] int[]? year = null)
         {
             var folderPaths = folder ?? [];
+            var years = year ?? [];
 
-            var videos = await _videoService.GetByUserIdAsync(userId, folderPaths, top, skip, sort);
-            var total = await _videoService.GetTotalCountByUserIdAsync(userId, folderPaths);
+            var videos = await _videoService.GetByUserIdAsync(userId, folderPaths, years, top, skip, sort);
+            var total = await _videoService.GetTotalCountByUserIdAsync(userId, folderPaths, years);
 
             var values = videos.Select(ToDto).ToArray();
 
@@ -97,6 +101,17 @@ namespace PhotoMap.Api.Controllers
                 .ToArray();
 
             return Ok(groups);
+        }
+
+        /// <summary>
+        /// The years, in UTC, the videos of the user were taken in, oldest first.
+        /// </summary>
+        /// <param name="userId">The ID of the user.</param>
+        [HttpGet("api/users/{userId:long}/videos/years")]
+        [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(int[]))]
+        public async Task<IActionResult> GetUserVideoYears([FromRoute] long userId)
+        {
+            return Ok(await _videoService.GetYearsAsync(userId));
         }
 
         /// <summary>

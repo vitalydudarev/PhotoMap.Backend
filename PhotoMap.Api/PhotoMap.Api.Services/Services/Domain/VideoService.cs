@@ -87,10 +87,10 @@ public class VideoService : IVideoService
         return entity == null ? null : ToModel(entity);
     }
 
-    public async Task<IReadOnlyList<Video>> GetByUserIdAsync(long userId, IReadOnlyCollection<string> folderPaths, int top,
-        int skip, PhotoSortOrder sortOrder)
+    public async Task<IReadOnlyList<Video>> GetByUserIdAsync(long userId, IReadOnlyCollection<string> folderPaths,
+        IReadOnlyCollection<int> years, int top, int skip, PhotoSortOrder sortOrder)
     {
-        var videos = GetUserVideos(userId, folderPaths).AsNoTracking();
+        var videos = GetUserVideos(userId, folderPaths, years).AsNoTracking();
 
         var ordered = sortOrder == PhotoSortOrder.Desc
             ? videos.OrderByDescending(a => a.DateTimeTaken).ThenByDescending(a => a.Id)
@@ -101,9 +101,20 @@ public class VideoService : IVideoService
         return entities.Select(ToModel).ToList();
     }
 
-    public Task<int> GetTotalCountByUserIdAsync(long userId, IReadOnlyCollection<string> folderPaths)
+    public Task<int> GetTotalCountByUserIdAsync(long userId, IReadOnlyCollection<string> folderPaths,
+        IReadOnlyCollection<int> years)
     {
-        return GetUserVideos(userId, folderPaths).CountAsync();
+        return GetUserVideos(userId, folderPaths, years).CountAsync();
+    }
+
+    public async Task<IReadOnlyList<int>> GetYearsAsync(long userId)
+    {
+        return await _context.Videos
+            .Where(a => a.UserId == userId)
+            .Select(a => a.DateTimeTaken.Year)
+            .Distinct()
+            .OrderBy(a => a)
+            .ToListAsync();
     }
 
     public async Task<IReadOnlyList<string>> GetFolderPathsAsync(long userId)
@@ -310,11 +321,22 @@ public class VideoService : IVideoService
         return entities.Count;
     }
 
-    private IQueryable<VideoEntity> GetUserVideos(long userId, IReadOnlyCollection<string> folderPaths)
+    private IQueryable<VideoEntity> GetUserVideos(long userId, IReadOnlyCollection<string> folderPaths,
+        IReadOnlyCollection<int> years)
     {
         var videos = _context.Videos.Where(a => a.UserId == userId);
 
-        return folderPaths.Count > 0 ? videos.Where(a => a.FolderPath != null && folderPaths.Contains(a.FolderPath)) : videos;
+        if (folderPaths.Count > 0)
+        {
+            videos = videos.Where(a => a.FolderPath != null && folderPaths.Contains(a.FolderPath));
+        }
+
+        if (years.Count > 0)
+        {
+            videos = videos.Where(a => years.Contains(a.DateTimeTaken.Year));
+        }
+
+        return videos;
     }
 
     private static Video ToModel(VideoEntity entity)
