@@ -146,6 +146,76 @@ public class UsersControllerTests
     }
 
     [Fact]
+    public async Task GetUserPhotos_ShouldTakeThePhotosTakenInTheGivenLocations()
+    {
+        // Arrange
+        var controller = CreateController();
+
+        // Act
+        await controller.GetUserPhotos(UserId, 100, 0, location: [12, 40]);
+
+        // Assert
+        _photoService.Verify(a => a.GetByUserIdAsync(UserId,
+            It.Is<PhotoFilter>(f => f.LocationIds!.SequenceEqual(new long[] { 12, 40 })), 100, 0, PhotoSortOrder.Asc));
+        _photoService.Verify(a => a.GetTotalCountByUserIdAsync(UserId,
+            It.Is<PhotoFilter>(f => f.LocationIds!.SequenceEqual(new long[] { 12, 40 }))));
+    }
+
+    [Fact]
+    public async Task GetUserPhotos_ShouldTakeThePhotosOfTheGivenLocations_AndThoseInNone()
+    {
+        // Arrange
+        var controller = CreateController();
+
+        // Act
+        await controller.GetUserPhotos(UserId, 100, 0, location: [12], unknownLocation: true);
+
+        // Assert
+        _photoService.Verify(a => a.GetByUserIdAsync(UserId,
+            It.Is<PhotoFilter>(f => f.LocationIds!.SequenceEqual(new long[] { 12 }) && f.UnknownLocation), 100, 0,
+            PhotoSortOrder.Asc));
+        _photoService.Verify(a => a.GetTotalCountByUserIdAsync(UserId,
+            It.Is<PhotoFilter>(f => f.LocationIds!.SequenceEqual(new long[] { 12 }) && f.UnknownLocation)));
+    }
+
+    [Fact]
+    public async Task GetUserPhotos_ShouldNotFilterByLocations_WhenNoneIsGiven()
+    {
+        // Arrange
+        var controller = CreateController();
+
+        // Act
+        await controller.GetUserPhotos(UserId, 100, 0);
+
+        // Assert
+        _photoService.Verify(a => a.GetByUserIdAsync(UserId, It.Is<PhotoFilter>(f => !f.FiltersByLocations), 100,
+            0, PhotoSortOrder.Asc));
+    }
+
+    [Fact]
+    public async Task GetUserPhotoLocations_ShouldReturnTheLocationsWithTheirLevelByName()
+    {
+        // Arrange
+        _photoService.Setup(a => a.GetLocationsAsync(UserId)).ReturnsAsync(
+        [
+            new Location(3, LocationLevel.Country, "Belarus", null, 20),
+            new Location(8, LocationLevel.City, "Minsk", "Belarus", 15)
+        ]);
+        var controller = CreateController();
+
+        // Act
+        var result = await controller.GetUserPhotoLocations(UserId);
+
+        // Assert
+        var locations = Assert.IsType<LocationDto[]>(Assert.IsType<OkObjectResult>(result).Value);
+        Assert.Equal(["Country", "City"], locations.Select(a => a.Level));
+        Assert.Equal(8, locations[1].Id);
+        Assert.Equal("Minsk", locations[1].Name);
+        Assert.Equal("Belarus", locations[1].Description);
+        Assert.Equal(15, locations[1].PhotoCount);
+    }
+
+    [Fact]
     public async Task GetUserPhotos_ShouldTakeThePhotosWithinTheGivenArea()
     {
         // Arrange

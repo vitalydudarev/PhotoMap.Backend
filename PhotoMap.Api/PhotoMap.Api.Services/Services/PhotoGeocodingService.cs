@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using PhotoMap.Api.Domain.Models;
 using PhotoMap.Api.Domain.Repositories;
 using PhotoMap.Api.Services.Exceptions;
 
@@ -26,8 +27,9 @@ public class PhotoGeocodingService
     }
 
     /// <summary>
-    /// Geocodes the next photos not geocoded yet, past the given ID. The ones that fail are left as they are, for the
-    /// next round. What was geocoded is saved also when the geocoding becomes unavailable halfway.
+    /// Geocodes the next photos not geocoded yet, past the given ID, and saves the locations they were taken in along.
+    /// The ones that fail are left as they are, for the next round. What was geocoded is saved also when the geocoding
+    /// becomes unavailable halfway.
     /// </summary>
     /// <exception cref="GeocodingUnavailableException">No photo can be geocoded for now.</exception>
     public async Task<PhotoGeocodingBatch> GeocodeNextAsync(long afterId, int batchSize,
@@ -84,7 +86,8 @@ public class PhotoGeocodingService
         if (!geocodings.IsEmpty)
         {
             // saved also when stopping, the requests count towards the quota
-            await _photoRepository.SetGeocodingsAsync(geocodings);
+            await _photoRepository.SetGeocodingsAsync(geocodings.ToDictionary(a => a.Key,
+                a => new PhotoGeocoding(a.Value, GeocodedLocations.Get(a.Value))));
         }
 
         if (unavailable != null)

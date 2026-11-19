@@ -172,9 +172,9 @@ public class PhotoRepository : IPhotoRepository
     }
 
     /// <summary>
-    /// Saves the geocoding of the photos, a statement for each photo, all in one transaction.
+    /// Saves the geocoding of the photos, a statement for each photo, and their locations, all in one transaction.
     /// </summary>
-    public async Task SetGeocodingsAsync(IReadOnlyDictionary<long, string> geocodingsByPhotoId)
+    public async Task SetGeocodingsAsync(IReadOnlyDictionary<long, PhotoGeocoding> geocodingsByPhotoId)
     {
         await using var transaction = await _context.Database.BeginTransactionAsync();
 
@@ -182,10 +182,60 @@ public class PhotoRepository : IPhotoRepository
         {
             await _context.Photos
                 .Where(a => a.Id == photoId)
-                .ExecuteUpdateAsync(a => a.SetProperty(photo => photo.Geocoding, geocoding));
+                .ExecuteUpdateAsync(a => a.SetProperty(photo => photo.Geocoding, geocoding.Response));
         }
 
+        await ReplaceLocationsAsync(geocodingsByPhotoId.ToDictionary(a => a.Key, a => a.Value.Locations));
+
         await transaction.CommitAsync();
+    }
+
+    public async Task<IReadOnlyList<(long PhotoId, string Geocoding)>> GetGeocodedAsync(long afterId, int top)
+    {
+        var photos = await _context.Photos
+            .AsNoTracking()
+            .Where(a => a.Geocoding != null && a.Id > afterId)
+            .OrderBy(a => a.Id)
+            .Take(top)
+            .Select(a => new { a.Id, a.Geocoding })
+            .ToListAsync();
+
+        return photos.Select(a => (a.Id, a.Geocoding!)).ToList();
+    }
+
+    public async Task SetLocationsAsync(
+        IReadOnlyDictionary<long, IReadOnlyCollection<GeocodedLocation>> locationsByPhotoId)
+    {
+        await using var transaction = await _context.Database.BeginTransactionAsync();
+
+        await ReplaceLocationsAsync(locationsByPhotoId);
+
+        await transaction.CommitAsync();
+    }
+
+    public async Task<IReadOnlyList<Location>> GetLocationsAsync(long userId)
+    {
+        // a location is left behind when its last photo is deleted, and offered again once a photo is taken in it
+        var counts = await _context.PhotoLocations
+            .Where(a => a.Photo!.UserId == userId)
+            .GroupBy(a => a.LocationId)
+            .Select(a => new { LocationId = a.Key, PhotoCount = a.Count() })
+            .ToListAsync();
+
+        var photoCounts = counts.ToDictionary(a => a.LocationId, a => a.PhotoCount);
+        var locationIds = photoCounts.Keys.ToArray();
+
+        var locations = await _context.Locations
+            .AsNoTracking()
+            .Where(a => locationIds.Contains(a.Id))
+            .ToListAsync();
+
+        return locations
+            .OrderBy(a => a.Level)
+            .ThenBy(a => a.Name, StringComparer.CurrentCultureIgnoreCase)
+            .ThenBy(a => a.Description, StringComparer.CurrentCultureIgnoreCase)
+            .Select(a => new Location(a.Id, a.Level, a.Name, a.Description, photoCounts[a.Id]))
+            .ToList();
     }
 
     /// <summary>
@@ -528,6 +578,15 @@ public class PhotoRepository : IPhotoRepository
                                        a.Longitude >= area.MinLongitude && a.Longitude <= area.MaxLongitude);
         }
 
+        if (filter.FiltersByLocations)
+        {
+            var locationIds = filter.LocationIds?.ToArray() ?? [];
+            var unknownLocation = filter.UnknownLocation;
+
+            photos = photos.Where(a => a.Locations.Any(l => locationIds.Contains(l.LocationId)) ||
+                                       (unknownLocation && !a.Locations.Any()));
+        }
+
         if (filter.FiltersByTags)
         {
             var tagIds = filter.TagIds?.ToArray() ?? [];
@@ -542,6 +601,55 @@ public class PhotoRepository : IPhotoRepository
 
         return filtered.Where(a => a.DuplicateGroupId == null ||
                                    !filtered.Any(b => b.DuplicateGroupId == a.DuplicateGroupId && b.Id < a.Id));
+    }
+
+    /// <summary>
+    /// Replaces the locations of the photos, within the transaction of the caller. The locations not saved yet are
+    /// saved first; one saved meanwhile, by another photo, is taken as it is.
+    /// </summary>
+    private async Task ReplaceLocationsAsync(
+        IReadOnlyDictionary<long, IReadOnlyCollection<GeocodedLocation>> locationsByPhotoId)
+    {
+        var photoIds = locationsByPhotoId.Keys.ToArray();
+
+        await _context.PhotoLocations.Where(a => photoIds.Contains(a.PhotoId)).ExecuteDeleteAsync();
+
+        var locations = locationsByPhotoId.Values
+            .SelectMany(a => a)
+            .DistinctBy(a => (a.Level, a.Key))
+            .ToList();
+
+        if (locations.Count == 0)
+        {
+            return;
+        }
+
+        var levels = locations.Select(a => (int)a.Level).ToArray();
+        var keys = locations.Select(a => a.Key).ToArray();
+        var names = locations.Select(a => a.Name).ToArray();
+        var descriptions = locations.Select(a => a.Description).ToArray();
+
+        // EF Core has no upsert; ON CONFLICT keeps a location saved meanwhile as it is
+        await _context.Database.ExecuteSqlAsync($"""
+            INSERT INTO locations (level, key, name, description)
+            SELECT * FROM unnest({levels}, {keys}, {names}, {descriptions})
+            ON CONFLICT (level, key) DO NOTHING
+            """);
+
+        var distinctKeys = keys.Distinct().ToArray();
+        var saved = await _context.Locations
+            .AsNoTracking()
+            .Where(a => distinctKeys.Contains(a.Key))
+            .Select(a => new { a.Id, a.Level, a.Key })
+            .ToListAsync();
+
+        var locationIds = saved.ToDictionary(a => (a.Level, a.Key), a => a.Id);
+
+        await _context.PhotoLocations.AddRangeAsync(locationsByPhotoId.SelectMany(photo => photo.Value
+            .Select(a => locationIds[(a.Level, a.Key)])
+            .Distinct()
+            .Select(locationId => new PhotoLocationEntity { PhotoId = photo.Key, LocationId = locationId })));
+        await _context.SaveChangesAsync();
     }
 
     private static Photo EntityToModel(PhotoEntity photoEntity)

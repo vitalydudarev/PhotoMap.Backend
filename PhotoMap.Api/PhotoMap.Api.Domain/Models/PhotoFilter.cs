@@ -18,6 +18,12 @@ namespace PhotoMap.Api.Domain.Models;
 /// only they are when no tag is given.</param>
 /// <param name="Area">The box of coordinates the photos were taken within, sides included, or null for the photos
 /// taken anywhere, and those with no GPS location. The photos with no GPS location are taken in no box.</param>
+/// <param name="LocationIds">The locations the photos were taken in, any of them, see <see cref="Location"/>; the
+/// photos not geocoded are in none. With <paramref name="UnknownLocation"/>, the photos in no location are taken too.
+/// The photos taken anywhere, and those with no location, when neither is given.</param>
+/// <param name="UnknownLocation">Whether the photos in no location are taken, along with those of
+/// <paramref name="LocationIds"/>: those with no GPS, not geocoded yet, or where the geocoding found nothing. Only they
+/// are when no location is given.</param>
 public record PhotoFilter(
     IReadOnlyCollection<long> PhotoSourceIds,
     IReadOnlyCollection<int> Years,
@@ -26,7 +32,9 @@ public record PhotoFilter(
     bool IncludeOtherUploads = false,
     IReadOnlyCollection<long>? TagIds = null,
     bool Untagged = false,
-    GeoBox? Area = null)
+    GeoBox? Area = null,
+    IReadOnlyCollection<long>? LocationIds = null,
+    bool UnknownLocation = false)
 {
     public static PhotoFilter All { get; } = new([], [], []);
 
@@ -34,4 +42,9 @@ public record PhotoFilter(
     /// Whether the photos are narrowed down by their tags.
     /// </summary>
     public bool FiltersByTags => (TagIds?.Count ?? 0) > 0 || Untagged;
+
+    /// <summary>
+    /// Whether the photos are narrowed down by the locations they were taken in.
+    /// </summary>
+    public bool FiltersByLocations => (LocationIds?.Count ?? 0) > 0 || UnknownLocation;
 }

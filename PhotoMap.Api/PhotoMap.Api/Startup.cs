@@ -90,6 +90,7 @@ namespace PhotoMap.Api
             services.AddScoped<PhotoCategorizationService>();
             services.AddSingleton<PhotoGeocodingSignal>();
             services.AddScoped<PhotoGeocodingService>();
+            services.AddScoped<PhotoLocationsBackfillService>();
             services.AddScoped<PhotoDateTakenFixService>();
             services.AddScoped<IUserService, UserService>();
             services.AddScoped<IPhotoSourceService, PhotoSourceService>();
@@ -140,6 +141,7 @@ namespace PhotoMap.Api
             services.AddHostedService<PhotoCategorizationBackgroundService>();
             services.AddHostedService<PhotoGeocodingBackgroundService>();
             services.AddHostedService<PhotoDateTakenFixBackgroundService>();
+            services.AddHostedService<PhotoLocationsBackfillBackgroundService>();
             services.AddHostedService<FailedPreviewsBackgroundService>();
             services.AddHostedService<VideoExifBackgroundService>();
             services.AddHostedService<DuplicateGroupsBackgroundService<VideoDuplicatesSignal, VideoDuplicatesService>>();

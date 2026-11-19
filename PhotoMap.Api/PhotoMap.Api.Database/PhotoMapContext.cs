@@ -28,6 +28,8 @@ namespace PhotoMap.Api.Database
         public DbSet<UserOtherUploadsStatusEntity> UserOtherUploadsStatuses { get; set; } = null!;
         public DbSet<OutboxMessageEntity> OutboxMessages { get; set; } = null!;
         public DbSet<CompletedMaintenanceTaskEntity> CompletedMaintenanceTasks { get; set; } = null!;
+        public DbSet<LocationEntity> Locations { get; set; } = null!;
+        public DbSet<PhotoLocationEntity> PhotoLocations { get; set; } = null!;
 
         public PhotoMapContext(IConfiguration? configuration, DbContextOptions<PhotoMapContext> options)
             : base(options)
@@ -52,6 +54,8 @@ namespace PhotoMap.Api.Database
             modelBuilder.ApplyConfiguration(new UserOtherUploadsStatusEntityConfiguration());
             modelBuilder.ApplyConfiguration(new OutboxMessageEntityConfiguration());
             modelBuilder.ApplyConfiguration(new CompletedMaintenanceTaskEntityConfiguration());
+            modelBuilder.ApplyConfiguration(new LocationEntityConfiguration());
+            modelBuilder.ApplyConfiguration(new PhotoLocationEntityConfiguration());
         }
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)

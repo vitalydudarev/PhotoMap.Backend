@@ -30,10 +30,24 @@ public interface IPhotoRepository
     Task<IReadOnlyList<PhotoLocation>> GetNotGeocodedAsync(long afterId, int top);
 
     /// <summary>
-    /// Saves the results of the geocoding of the photos, the responses of the geocoding API as they are. The photos are
-    /// all updated, or none of them is.
+    /// Saves the results of the geocoding of the photos, the responses of the geocoding API as they are, and the
+    /// locations they tell, see <see cref="SetLocationsAsync"/>. The photos are all updated, or none of them is.
     /// </summary>
-    Task SetGeocodingsAsync(IReadOnlyDictionary<long, string> geocodingsByPhotoId);
+    Task SetGeocodingsAsync(IReadOnlyDictionary<long, PhotoGeocoding> geocodingsByPhotoId);
+
+    /// <returns>The geocoded photos with an ID greater than <paramref name="afterId"/>, by their ID: their ID and the
+    /// response of the geocoding.</returns>
+    Task<IReadOnlyList<(long PhotoId, string Geocoding)>> GetGeocodedAsync(long afterId, int top);
+
+    /// <summary>
+    /// Replaces the locations the photos were taken in. A location no photo was taken in yet is saved for every user,
+    /// once, under the level and the key of <see cref="GeocodedLocation"/>. The photos are all updated, or none of
+    /// them is.
+    /// </summary>
+    Task SetLocationsAsync(IReadOnlyDictionary<long, IReadOnlyCollection<GeocodedLocation>> locationsByPhotoId);
+
+    /// <returns>The locations the photos of the user were taken in, the deleted ones too, by level and name.</returns>
+    Task<IReadOnlyList<Location>> GetLocationsAsync(long userId);
 
     /// <returns>The photos taken at exactly the given time, with an ID greater than <paramref name="afterId"/>, by
     /// their ID.</returns>

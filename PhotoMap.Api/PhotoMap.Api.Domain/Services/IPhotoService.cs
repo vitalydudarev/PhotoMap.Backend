@@ -54,6 +54,10 @@ namespace PhotoMap.Api.Domain.Services
         /// <returns>The tags of the user that a photo has at least, by name.</returns>
         Task<IReadOnlyList<PhotoTag>> GetTagsAsync(long userId);
 
+        /// <returns>The locations the photos of the user were taken in, the deleted ones too, by level and
+        /// name.</returns>
+        Task<IReadOnlyList<Location>> GetLocationsAsync(long userId);
+
         /// <summary>
         /// Replaces the tags of a photo of the user. The names are cleaned, see <see cref="TagNames.Clean"/>, the empty
         /// ones dropped, and a name given twice, whatever its case, taken once. A name the user has a tag of takes

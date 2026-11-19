@@ -13,12 +13,17 @@ public class PhotoGeocodingServiceTests
     private readonly Mock<IPhotoRepository> _photoRepository = new();
     private readonly Mock<IGeocoder> _geocoder = new();
     private IReadOnlyDictionary<long, string>? _saved;
+    private IReadOnlyDictionary<long, PhotoGeocoding>? _savedGeocodings;
 
     public PhotoGeocodingServiceTests()
     {
         _photoRepository
-            .Setup(a => a.SetGeocodingsAsync(It.IsAny<IReadOnlyDictionary<long, string>>()))
-            .Callback<IReadOnlyDictionary<long, string>>(a => _saved = a.ToDictionary())
+            .Setup(a => a.SetGeocodingsAsync(It.IsAny<IReadOnlyDictionary<long, PhotoGeocoding>>()))
+            .Callback<IReadOnlyDictionary<long, PhotoGeocoding>>(a =>
+            {
+                _savedGeocodings = a.ToDictionary();
+                _saved = a.ToDictionary(b => b.Key, b => b.Value.Response);
+            })
             .Returns(Task.CompletedTask);
     }
 
@@ -37,6 +42,30 @@ public class PhotoGeocodingServiceTests
         // Assert
         Assert.Equal(new PhotoGeocodingBatch(2, 2, 0, 2), batch);
         Assert.Equal(new Dictionary<long, string> { [1] = "minsk", [2] = "warsaw" }, _saved);
+    }
+
+    [Fact]
+    public async Task GeocodeNextAsync_ShouldSaveTheLocationsTheResponsesTell()
+    {
+        // Arrange
+        const string response = """
+            {"type":"FeatureCollection","features":[{"type":"Feature","properties":{"context":{
+              "country":{"name":"Belarus","mapbox_id":"by","country_code":"BY"},
+              "place":{"name":"Minsk","mapbox_id":"minsk"}}}}]}
+            """;
+        _photoRepository.Setup(a => a.GetNotGeocodedAsync(0, 10)).ReturnsAsync([new PhotoLocation(1, 53.9, 27.5)]);
+        _geocoder.Setup(a => a.ReverseGeocodeAsync(53.9, 27.5, It.IsAny<CancellationToken>())).ReturnsAsync(response);
+
+        // Act
+        await CreateService().GeocodeNextAsync(0, 10, CancellationToken.None);
+
+        // Assert
+        Assert.Equal(
+            [
+                new GeocodedLocation(LocationLevel.Country, "by", "Belarus", null),
+                new GeocodedLocation(LocationLevel.City, "minsk", "Minsk", "Belarus")
+            ],
+            _savedGeocodings![1].Locations);
     }
 
     [Fact]
@@ -88,7 +117,8 @@ public class PhotoGeocodingServiceTests
 
         // Assert
         Assert.Equal(0, batch.PhotoCount);
-        _photoRepository.Verify(a => a.SetGeocodingsAsync(It.IsAny<IReadOnlyDictionary<long, string>>()), Times.Never);
+        _photoRepository.Verify(a => a.SetGeocodingsAsync(It.IsAny<IReadOnlyDictionary<long, PhotoGeocoding>>()),
+            Times.Never);
     }
 
     private PhotoGeocodingService CreateService(int maxParallelRequests = 8)

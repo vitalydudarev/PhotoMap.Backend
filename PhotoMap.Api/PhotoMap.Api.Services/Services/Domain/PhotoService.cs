@@ -113,6 +113,11 @@ namespace PhotoMap.Api.Services.Services.Domain
             return _photoRepository.GetTagsAsync(userId);
         }
 
+        public Task<IReadOnlyList<Location>> GetLocationsAsync(long userId)
+        {
+            return _photoRepository.GetLocationsAsync(userId);
+        }
+
         public Task<IReadOnlyList<string>?> SetTagsAsync(long userId, long photoId, IEnumerable<string> names)
         {
             var cleanNames = names

@@ -53,4 +53,9 @@ public class PhotoEntity
     public string? Geocoding { get; set; }
     public List<PhotoCategoryEntity> Categories { get; set; } = [];
     public List<PhotoTagEntity> Tags { get; set; } = [];
+
+    /// <summary>
+    /// The locations the photo was taken in, read from <see cref="Geocoding"/>.
+    /// </summary>
+    public List<PhotoLocationEntity> Locations { get; set; } = [];
 }

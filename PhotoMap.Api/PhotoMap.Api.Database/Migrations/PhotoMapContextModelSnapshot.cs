@@ -220,6 +220,43 @@ namespace PhotoMap.Api.Database.Migrations
                     b.ToTable("failed_files", (string)null);
                 });
 
+            modelBuilder.Entity("PhotoMap.Api.Database.Entities.LocationEntity", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("Description")
+                        .HasColumnType("text")
+                        .HasColumnName("description");
+
+                    b.Property<string>("Key")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("key");
+
+                    b.Property<int>("Level")
+                        .HasColumnType("integer")
+                        .HasColumnName("level");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("name");
+
+                    b.HasKey("Id")
+                        .HasName("pk_locations");
+
+                    b.HasIndex("Level", "Key")
+                        .IsUnique()
+                        .HasDatabaseName("ix_locations_level_key");
+
+                    b.ToTable("locations", (string)null);
+                });
+
             modelBuilder.Entity("PhotoMap.Api.Database.Entities.OutboxMessageEntity", b =>
                 {
                     b.Property<long>("Id")
@@ -403,6 +440,25 @@ namespace PhotoMap.Api.Database.Migrations
                         .HasDatabaseName("ix_photos_user_id_photo_source_id_external_id");
 
                     b.ToTable("photos", (string)null);
+                });
+
+            modelBuilder.Entity("PhotoMap.Api.Database.Entities.PhotoLocationEntity", b =>
+                {
+                    b.Property<long>("PhotoId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("photo_id");
+
+                    b.Property<long>("LocationId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("location_id");
+
+                    b.HasKey("PhotoId", "LocationId")
+                        .HasName("pk_photo_locations");
+
+                    b.HasIndex("LocationId")
+                        .HasDatabaseName("ix_photo_locations_location_id");
+
+                    b.ToTable("photo_locations", (string)null);
                 });
 
             modelBuilder.Entity("PhotoMap.Api.Database.Entities.PhotoSourceEntity", b =>
@@ -830,6 +886,27 @@ namespace PhotoMap.Api.Database.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("PhotoMap.Api.Database.Entities.PhotoLocationEntity", b =>
+                {
+                    b.HasOne("PhotoMap.Api.Database.Entities.LocationEntity", "Location")
+                        .WithMany("Photos")
+                        .HasForeignKey("LocationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_photo_locations_locations_location_id");
+
+                    b.HasOne("PhotoMap.Api.Database.Entities.PhotoEntity", "Photo")
+                        .WithMany("Locations")
+                        .HasForeignKey("PhotoId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_photo_locations_photos_photo_id");
+
+                    b.Navigation("Location");
+
+                    b.Navigation("Photo");
+                });
+
             modelBuilder.Entity("PhotoMap.Api.Database.Entities.PhotoTagEntity", b =>
                 {
                     b.HasOne("PhotoMap.Api.Database.Entities.PhotoEntity", "Photo")
@@ -968,9 +1045,16 @@ namespace PhotoMap.Api.Database.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("PhotoMap.Api.Database.Entities.LocationEntity", b =>
+                {
+                    b.Navigation("Photos");
+                });
+
             modelBuilder.Entity("PhotoMap.Api.Database.Entities.PhotoEntity", b =>
                 {
                     b.Navigation("Categories");
+
+                    b.Navigation("Locations");
 
                     b.Navigation("Tags");
                 });

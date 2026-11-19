@@ -70,6 +70,13 @@ namespace PhotoMap.Api.Controllers
         /// <param name="area">The box of coordinates the photos were taken within, as <c>west,south,east,north</c> in
         /// degrees, such as <c>area=-9.23,38.69,-9.09,38.8</c>; the photos with no GPS location are left out. The
         /// photos taken anywhere, and those with no location, when not given.</param>
+        /// <param name="location">The IDs of the locations the photos were taken in, any of them, repeated for each one,
+        /// such as <c>location=12&amp;location=40</c>; see <c>photos/locations</c>. The photos not geocoded are in no
+        /// location. The photos taken anywhere, and those with no location, when neither this nor
+        /// <c>unknownLocation</c> is given.</param>
+        /// <param name="unknownLocation">Whether the photos in no location are taken, along with the ones of
+        /// <c>location</c>: those with no GPS, not geocoded yet, or where the geocoding found nothing. Only they are
+        /// when no location is given.</param>
         [HttpGet("{id:long}/photos")]
         [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(PagedResponse<PhotoDto>))]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -84,7 +91,9 @@ namespace PhotoMap.Api.Controllers
             [FromQuery] bool allFolders = false,
             [FromQuery] long[]? tag = null,
             [FromQuery] bool untagged = false,
-            [FromQuery] string? area = null)
+            [FromQuery] string? area = null,
+            [FromQuery] long[]? location = null,
+            [FromQuery] bool unknownLocation = false)
         {
             // a number binds to the enum whether it names a category or not
             if (category != null && !category.All(Enum.IsDefined))
@@ -105,7 +114,7 @@ namespace PhotoMap.Api.Controllers
             }
 
             var filter = new PhotoFilter(source ?? [], year ?? [], category ?? [], gps, allFolders, tag ?? [], untagged,
-                box);
+                box, location ?? [], unknownLocation);
 
             var userPhotos = await _photoService.GetByUserIdAsync(id, filter, top, skip, sort);
             var totalPhotosCount = await _photoService.GetTotalCountByUserIdAsync(id, filter);
@@ -203,6 +212,28 @@ namespace PhotoMap.Api.Controllers
             var tags = await _photoService.GetTagsAsync(id);
 
             return Ok(tags.Select(a => new PhotoTagDto { Id = a.Id, Name = a.Name, PhotoCount = a.PhotoCount }).ToArray());
+        }
+
+        /// <summary>
+        /// The locations the photos of the user were taken in, the deleted ones too, by level, from the countries down
+        /// to the postcodes, and by name, with how many photos were taken in each. A photo is in a location once it is
+        /// geocoded.
+        /// </summary>
+        /// <param name="id">The ID of the user.</param>
+        [HttpGet("{id:long}/photos/locations")]
+        [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(LocationDto[]))]
+        public async Task<IActionResult> GetUserPhotoLocations([FromRoute] long id)
+        {
+            var locations = await _photoService.GetLocationsAsync(id);
+
+            return Ok(locations.Select(a => new LocationDto
+            {
+                Id = a.Id,
+                Level = a.Level.ToString(),
+                Name = a.Name,
+                Description = a.Description,
+                PhotoCount = a.PhotoCount
+            }).ToArray());
         }
 
         /// <summary>
