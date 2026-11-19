@@ -27,5 +27,11 @@ namespace PhotoMap.Api.DTOs
         /// How many photos of the user were taken in it, the deleted ones too.
         /// </summary>
         public int PhotoCount { get; set; }
+
+        /// <summary>
+        /// The IDs of the larger locations of the user it is in, such as the region and the country of a city; none
+        /// for a country.
+        /// </summary>
+        public long[] ParentIds { get; set; } = [];
     }
 }

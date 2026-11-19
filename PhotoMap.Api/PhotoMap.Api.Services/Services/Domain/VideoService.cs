@@ -126,7 +126,18 @@ public class VideoService : IVideoService
             .Select(a => new { LocationId = a.Key, VideoCount = a.Count() })
             .ToListAsync();
 
-        return await LocationStore.GetAsync(_context, counts.ToDictionary(a => a.LocationId, a => a.VideoCount));
+        // a video is geocoded all at once, so a location is in the larger ones its videos were taken in too
+        var parents = await _context.VideoLocations
+            .Where(a => a.Video!.UserId == userId)
+            .Join(_context.VideoLocations, a => a.VideoId, b => b.VideoId,
+                (a, b) => new { a.LocationId, a.Location!.Level, ParentId = b.LocationId, ParentLevel = b.Location!.Level })
+            .Where(a => a.ParentLevel < a.Level)
+            .Select(a => new { a.LocationId, a.ParentId })
+            .Distinct()
+            .ToListAsync();
+
+        return await LocationStore.GetAsync(_context, counts.ToDictionary(a => a.LocationId, a => a.VideoCount),
+            parents.Select(a => new LocationParent(a.LocationId, a.ParentId)));
     }
 
     public async Task<IReadOnlyList<VideoGpsLocation>> GetNotGeocodedAsync(long afterId, int top)

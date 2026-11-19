@@ -152,7 +152,8 @@ namespace PhotoMap.Api.Controllers
                 Level = a.Level.ToString(),
                 Name = a.Name,
                 Description = a.Description,
-                VideoCount = a.Count
+                VideoCount = a.Count,
+                ParentIds = a.ParentIds.ToArray()
             }).ToArray());
         }
 

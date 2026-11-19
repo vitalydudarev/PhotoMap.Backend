@@ -90,8 +90,8 @@ public class VideosControllerTests
     {
         // Arrange
         _videoService.Setup(a => a.GetLocationsAsync(UserId)).ReturnsAsync([
-            new Location(3, LocationLevel.Country, "Belarus", null, 4),
-            new Location(8, LocationLevel.City, "Minsk", "Belarus", 2)
+            new Location(3, LocationLevel.Country, "Belarus", null, 4, []),
+            new Location(8, LocationLevel.City, "Minsk", "Belarus", 2, [3])
         ]);
         var controller = CreateController();
 
@@ -103,6 +103,8 @@ public class VideosControllerTests
         Assert.Equal(["Country", "City"], locations.Select(a => a.Level));
         Assert.Equal("Belarus", locations[1].Description);
         Assert.Equal(2, locations[1].VideoCount);
+        Assert.Equal([3], locations[1].ParentIds);
+        Assert.Empty(locations[0].ParentIds);
     }
 
     [Fact]

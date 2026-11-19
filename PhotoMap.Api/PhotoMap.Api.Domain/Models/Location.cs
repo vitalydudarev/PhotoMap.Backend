@@ -9,4 +9,7 @@ namespace PhotoMap.Api.Domain.Models;
 /// <param name="Description">The larger locations it is in, such as "Minsk Region, Belarus"; null for a
 /// country.</param>
 /// <param name="Count">How many photos, or videos, of the user were taken in it, the deleted photos too.</param>
-public record Location(long Id, LocationLevel Level, string Name, string? Description, int Count);
+/// <param name="ParentIds">The IDs of the larger locations of the user it is in, such as the region and the country
+/// of a city: those of a larger level that its photos, or videos, were taken in too; none for a country.</param>
+public record Location(long Id, LocationLevel Level, string Name, string? Description, int Count,
+    IReadOnlyList<long> ParentIds);

@@ -228,7 +228,18 @@ public class PhotoRepository : IPhotoRepository
             .Select(a => new { LocationId = a.Key, PhotoCount = a.Count() })
             .ToListAsync();
 
-        return await LocationStore.GetAsync(_context, counts.ToDictionary(a => a.LocationId, a => a.PhotoCount));
+        // a photo is geocoded all at once, so a location is in the larger ones its photos were taken in too
+        var parents = await _context.PhotoLocations
+            .Where(a => a.Photo!.UserId == userId)
+            .Join(_context.PhotoLocations, a => a.PhotoId, b => b.PhotoId,
+                (a, b) => new { a.LocationId, a.Location!.Level, ParentId = b.LocationId, ParentLevel = b.Location!.Level })
+            .Where(a => a.ParentLevel < a.Level)
+            .Select(a => new { a.LocationId, a.ParentId })
+            .Distinct()
+            .ToListAsync();
+
+        return await LocationStore.GetAsync(_context, counts.ToDictionary(a => a.LocationId, a => a.PhotoCount),
+            parents.Select(a => new LocationParent(a.LocationId, a.ParentId)));
     }
 
     /// <summary>

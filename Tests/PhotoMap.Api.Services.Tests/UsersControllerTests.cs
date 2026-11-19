@@ -198,8 +198,8 @@ public class UsersControllerTests
         // Arrange
         _photoService.Setup(a => a.GetLocationsAsync(UserId)).ReturnsAsync(
         [
-            new Location(3, LocationLevel.Country, "Belarus", null, 20),
-            new Location(8, LocationLevel.City, "Minsk", "Belarus", 15)
+            new Location(3, LocationLevel.Country, "Belarus", null, 20, []),
+            new Location(8, LocationLevel.City, "Minsk", "Belarus", 15, [3])
         ]);
         var controller = CreateController();
 
@@ -213,6 +213,8 @@ public class UsersControllerTests
         Assert.Equal("Minsk", locations[1].Name);
         Assert.Equal("Belarus", locations[1].Description);
         Assert.Equal(15, locations[1].PhotoCount);
+        Assert.Equal([3], locations[1].ParentIds);
+        Assert.Empty(locations[0].ParentIds);
     }
 
     [Fact]
