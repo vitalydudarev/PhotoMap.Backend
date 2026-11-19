@@ -1,14 +1,14 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk.Web">
 
     <PropertyGroup>
-        <TargetFramework>net10.0</TargetFramework>
+        <TargetFramework>net11.0</TargetFramework>
         <LangVersion>latestmajor</LangVersion>
         <Nullable>enable</Nullable>
       <UserSecretsId>4207a631-b082-45f9-aec7-e04f6910e004</UserSecretsId>
   </PropertyGroup>
 
     <ItemGroup>
-      <PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />
+      <PackageReference Include="Serilog.AspNetCore" Version="11.0.0" />
       <PackageReference Include="Serilog.Sinks.Seq" Version="9.1.0" />
       <PackageReference Include="Swashbuckle.AspNetCore.Swagger" Version="10.2.3" />
       <PackageReference Include="Swashbuckle.AspNetCore.SwaggerGen" Version="10.2.3" />
