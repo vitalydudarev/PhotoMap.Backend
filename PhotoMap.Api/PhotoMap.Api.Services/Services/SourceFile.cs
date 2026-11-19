@@ -15,3 +15,15 @@ public sealed record SourceFile(string Name, string Path, long Size, SourceDownl
 /// A preview image of a file of a photo source, as the source makes it.
 /// </summary>
 public sealed record SourcePreview(byte[] Contents, string ContentType);
+
+/// <summary>
+/// A preview image of a file of a photo source, its contents read as they are downloaded. Disposing it ends the
+/// download.
+/// </summary>
+public sealed record SourcePreviewStream(Stream Contents, string ContentType) : IDisposable
+{
+    public void Dispose()
+    {
+        Contents.Dispose();
+    }
+}

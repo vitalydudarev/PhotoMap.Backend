@@ -190,6 +190,25 @@ namespace PhotoMap.Shared.Yandex.Disk
         }
 
         /// <summary>
+        /// Starts downloading a file by a URL the API has given, as <see cref="DownloadByUrlAsync"/> does, without
+        /// reading it: the caller reads the contents as they come, and disposes the response.
+        /// </summary>
+        public async Task<HttpResponseMessage> OpenByUrlAsync(string url, CancellationToken cancellationToken)
+        {
+            var responseMessage = await _httpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+
+            if (!responseMessage.IsSuccessStatusCode)
+            {
+                using (responseMessage)
+                {
+                    throw await CreateApiExceptionAsync(responseMessage, cancellationToken);
+                }
+            }
+
+            return responseMessage;
+        }
+
+        /// <summary>
         /// Downloads a file by a URL the API has given, such as the URL of a preview of a resource, which is only
         /// served with the OAuth token.
         /// </summary>

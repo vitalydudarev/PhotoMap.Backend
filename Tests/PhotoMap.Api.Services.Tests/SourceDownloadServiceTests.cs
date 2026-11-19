@@ -958,9 +958,9 @@ public class SourceDownloadServiceTests : IDisposable
             return Task.FromResult<SourcePreview?>(null);
         }
 
-        public Task<SourcePreview?> DownloadViewingPreviewAsync(string reference, CancellationToken cancellationToken)
+        public Task<SourcePreviewStream?> OpenViewingPreviewAsync(string reference, CancellationToken cancellationToken)
         {
-            return Task.FromResult<SourcePreview?>(null);
+            return Task.FromResult<SourcePreviewStream?>(null);
         }
 
         public bool IsAuthError(Exception exception)

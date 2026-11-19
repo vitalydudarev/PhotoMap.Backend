@@ -217,9 +217,9 @@ public sealed class DropboxSourceFiles : ISourceFiles
     /// <summary>
     /// The photo is viewed as it is, Dropbox is not asked for a preview of it.
     /// </summary>
-    public Task<SourcePreview?> DownloadViewingPreviewAsync(string reference, CancellationToken cancellationToken)
+    public Task<SourcePreviewStream?> OpenViewingPreviewAsync(string reference, CancellationToken cancellationToken)
     {
-        return Task.FromResult<SourcePreview?>(null);
+        return Task.FromResult<SourcePreviewStream?>(null);
     }
 
     public bool IsAuthError(Exception exception)

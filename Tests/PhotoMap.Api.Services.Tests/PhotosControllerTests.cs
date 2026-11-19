@@ -140,6 +140,40 @@ public class PhotosControllerTests
         Assert.IsType<NotFoundResult>(result);
     }
 
+    [Fact]
+    public async Task GetPreviewAsync_ShouldPassThePreviewOn_ForTheBrowserToKeep()
+    {
+        // Arrange
+        var contents = new MemoryStream([1, 2, 3]);
+        _photoProvider.Setup(a => a.GetPreviewAsync(PhotoId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PhotoStream(contents, "IMG_0001.jpg", "image/jpeg"));
+        var controller = CreateController();
+
+        // Act
+        var result = await controller.GetPreviewAsync(PhotoId, CancellationToken.None);
+
+        // Assert
+        var file = Assert.IsType<FileStreamResult>(result);
+        Assert.Same(contents, file.FileStream);
+        Assert.Equal("image/jpeg", file.ContentType);
+        Assert.Equal("private, max-age=604800", controller.Response.Headers.CacheControl.ToString());
+        Assert.StartsWith("inline;", controller.Response.Headers.ContentDisposition.ToString());
+    }
+
+    [Fact]
+    public async Task GetPreviewAsync_ShouldReturnNotFound_WhenThereIsNoSuchPhoto()
+    {
+        // Arrange
+        var controller = CreateController();
+
+        // Act
+        var result = await controller.GetPreviewAsync(PhotoId, CancellationToken.None);
+
+        // Assert
+        Assert.IsType<NotFoundResult>(result);
+        Assert.Empty(controller.Response.Headers.CacheControl.ToString());
+    }
+
     private static Photo CreatePhoto(string? exifString)
     {
         return new Photo { Id = PhotoId, UserId = 1, FileName = "a.jpg", ExifString = exifString };

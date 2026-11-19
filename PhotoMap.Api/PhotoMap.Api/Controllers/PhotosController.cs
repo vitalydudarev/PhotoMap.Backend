@@ -1,3 +1,4 @@
+using System;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
@@ -14,6 +15,11 @@ namespace PhotoMap.Api.Controllers
     [Route("api/photos")]
     public class PhotosController : ControllerBase
     {
+        /// <summary>
+        /// How long the browser keeps the preview of a photo.
+        /// </summary>
+        public static readonly TimeSpan PreviewMaxAge = TimeSpan.FromDays(7);
+
         private readonly IPhotoProvider _photoProvider;
         private readonly IPhotoService _photoService;
 
@@ -39,7 +45,9 @@ namespace PhotoMap.Api.Controllers
 
         /// <summary>
         /// The photo to be viewed: the XXXL preview Yandex.Disk makes of it, much smaller than the photo, or the
-        /// photo itself when its source makes no such preview or has not made it of the photo.
+        /// photo itself when its source makes no such preview or has not made it of the photo. The browser keeps it for
+        /// <see cref="PreviewMaxAge"/>: a photo does not change, so it is not downloaded again as the user goes back
+        /// and forth between photos.
         /// </summary>
         /// <param name="id">The ID of the photo.</param>
         [HttpGet("{id:long}/preview")]
@@ -47,10 +55,15 @@ namespace PhotoMap.Api.Controllers
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> GetPreviewAsync(long id, CancellationToken cancellationToken)
         {
-            var photoFile = await _photoProvider.GetPreviewAsync(id, cancellationToken);
-            if (photoFile != null)
+            var preview = await _photoProvider.GetPreviewAsync(id, cancellationToken);
+            if (preview != null)
             {
-                return ToInlineFile(photoFile);
+                // private: the photos of a user are not to be kept by shared caches
+                Response.Headers.CacheControl = $"private, max-age={(int)PreviewMaxAge.TotalSeconds}";
+                SetInline(preview.FileName);
+
+                // disposed once it has been sent, which ends the download from the source
+                return new FileStreamResult(preview.Contents, preview.ContentType);
             }
 
             return NotFound();
@@ -117,11 +130,16 @@ namespace PhotoMap.Api.Controllers
         /// </summary>
         private FileContentResult ToInlineFile(PhotoFile photoFile)
         {
-            var contentDisposition = new ContentDispositionHeaderValue("inline");
-            contentDisposition.SetHttpFileName(photoFile.FileName);
-            Response.Headers.ContentDisposition = contentDisposition.ToString();
+            SetInline(photoFile.FileName);
 
             return new FileContentResult(photoFile.Contents, photoFile.ContentType);
+        }
+
+        private void SetInline(string fileName)
+        {
+            var contentDisposition = new ContentDispositionHeaderValue("inline");
+            contentDisposition.SetHttpFileName(fileName);
+            Response.Headers.ContentDisposition = contentDisposition.ToString();
         }
     }
 }

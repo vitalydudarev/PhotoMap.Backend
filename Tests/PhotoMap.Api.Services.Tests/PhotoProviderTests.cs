@@ -198,8 +198,9 @@ public class PhotoProviderTests
         var authResult = CreateAuthResult();
 
         var sourceFiles = new Mock<ISourceFiles>();
-        sourceFiles.Setup(a => a.DownloadViewingPreviewAsync(photo.Path!, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new SourcePreview(previewContents, "image/jpeg"));
+        var previewStream = new MemoryStream(previewContents);
+        sourceFiles.Setup(a => a.OpenViewingPreviewAsync(photo.Path!, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new SourcePreviewStream(previewStream, "image/jpeg"));
         var sourceFilesFactory = CreateSourceFilesFactory(photoSource, authResult, sourceFiles.Object);
         var downloadServiceFactory = new Mock<IPhotoSourceDownloadServiceFactory>();
 
@@ -211,7 +212,7 @@ public class PhotoProviderTests
 
         // Assert
         Assert.NotNull(photoFile);
-        Assert.Equal(previewContents, photoFile.Contents);
+        Assert.Same(previewStream, photoFile.Contents);
         Assert.Equal("photo.jpg", photoFile.FileName);
         Assert.Equal("image/jpeg", photoFile.ContentType);
 
@@ -242,7 +243,7 @@ public class PhotoProviderTests
 
         // Assert
         Assert.NotNull(photoFile);
-        Assert.Equal(FileContents, photoFile.Contents);
+        Assert.Equal(FileContents, ReadAll(photoFile.Contents));
         Assert.Equal("image/png", photoFile.ContentType);
     }
 
@@ -264,7 +265,7 @@ public class PhotoProviderTests
 
         // Assert
         Assert.NotNull(photoFile);
-        Assert.Equal(FileContents, photoFile.Contents);
+        Assert.Equal(FileContents, ReadAll(photoFile.Contents));
     }
 
     [Fact]
@@ -361,6 +362,14 @@ public class PhotoProviderTests
         return new PhotoProvider(photoService.Object, photoSourceService.Object, userPhotoSourceService.Object,
             downloadServiceFactory, fileStorage ?? new Mock<IFileStorage>().Object,
             imageConverter ?? new Mock<IImageConverter>().Object, sourceFilesFactory ?? new Mock<ISourceFilesFactory>().Object);
+    }
+
+    private static byte[] ReadAll(Stream stream)
+    {
+        using var memoryStream = new MemoryStream();
+        stream.CopyTo(memoryStream);
+
+        return memoryStream.ToArray();
     }
 
     private static Mock<ISourceFilesFactory> CreateSourceFilesFactory(PhotoSource photoSource, UserAuthResult authResult,

@@ -164,13 +164,25 @@ public sealed class YandexDiskSourceFiles : ISourceFiles
     /// <summary>
     /// The XXXL preview, the largest Yandex.Disk makes; the smaller ones are too small to fill a screen.
     /// </summary>
-    public async Task<SourcePreview?> DownloadViewingPreviewAsync(string reference, CancellationToken cancellationToken)
+    public async Task<SourcePreviewStream?> OpenViewingPreviewAsync(string reference, CancellationToken cancellationToken)
     {
         var resource = await GetResourceAsync(reference, cancellationToken);
         var previewUrl = resource.Sizes
             .FirstOrDefault(a => a.Name == ViewingPreviewSizeName && !string.IsNullOrEmpty(a.Url))?.Url;
 
-        return await DownloadByUrlAsync(previewUrl, cancellationToken);
+        if (previewUrl == null)
+        {
+            return null;
+        }
+
+        // only the start of the download is retried, the contents are read by the caller
+        var response = await YandexDiskApiCalls.WrapAsync(_logger,
+            () => _apiClient.OpenByUrlAsync(previewUrl, cancellationToken), cancellationToken);
+
+        // disposing the contents ends the download and releases the connection, the response holds nothing else
+        var contents = await response.Content.ReadAsStreamAsync(cancellationToken);
+
+        return new SourcePreviewStream(contents, response.Content.Headers.ContentType?.MediaType ?? "image/jpeg");
     }
 
     private Task<Resource> GetResourceAsync(string reference, CancellationToken cancellationToken)

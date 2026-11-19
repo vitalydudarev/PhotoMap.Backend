@@ -64,11 +64,12 @@ public class PhotoProvider : IPhotoProvider
     /// <summary>
     /// The photo to be viewed: the preview its source makes of it for viewing, much smaller than the photo, the XXXL
     /// preview on Yandex.Disk. The photo itself, as <see cref="GetPhotoAsync"/> gives it, when the source makes no
-    /// such preview or has not made it of the photo.
+    /// such preview or has not made it of the photo. The preview is passed on as it is downloaded, the photo itself
+    /// once it has been, to be converted where it needs to be.
     /// </summary>
     /// <exception cref="NotAuthorizedException">The user is authorized in none of the sources of the photo and its
     /// copies.</exception>
-    public async Task<PhotoFile?> GetPreviewAsync(long id, CancellationToken cancellationToken)
+    public async Task<PhotoStream?> GetPreviewAsync(long id, CancellationToken cancellationToken)
     {
         var photo = await _photoService.GetAsync(id);
         if (photo == null)
@@ -85,14 +86,16 @@ public class PhotoProvider : IPhotoProvider
         {
             using var sourceFiles = _sourceFilesFactory.Create(photoSource, authResult);
 
-            var preview = await sourceFiles.DownloadViewingPreviewAsync(reference, cancellationToken);
+            var preview = await sourceFiles.OpenViewingPreviewAsync(reference, cancellationToken);
             if (preview != null)
             {
-                return new PhotoFile(preview.Contents, FileNameOf(photo, preview.ContentType), preview.ContentType);
+                return new PhotoStream(preview.Contents, FileNameOf(photo, preview.ContentType), preview.ContentType);
             }
         }
 
-        return await DownloadPhotoAsync(photo, file, photoSource, authResult, cancellationToken);
+        var photoFile = await DownloadPhotoAsync(photo, file, photoSource, authResult, cancellationToken);
+
+        return new PhotoStream(new MemoryStream(photoFile.Contents, writable: false), photoFile.FileName, photoFile.ContentType);
     }
 
     /// <param name="photo">The photo asked for.</param>
