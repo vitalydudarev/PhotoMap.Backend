@@ -80,5 +80,63 @@ services:
       KAFKA_CLUSTERS_0_NAME: photo-map
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
 
+  # The API and the workers in containers, in the app profile: a plain docker compose up leaves them out, as
+  # run-all.command runs them from the SDK instead.
+  #
+  #   docker compose --profile app up -d --build                       the API and one worker
+  #   docker compose --profile app up -d --build --scale worker=3      three workers, at most one per partition
+  #   http://localhost:5080/swagger                                    the API, over HTTP (PHOTO_MAP_API_PORT)
+  #
+  # Postgres is not in a container: the API connects to the one on the host (Postgres.app) through
+  # host.docker.internal. The photos are kept on the host too, at PHOTO_STORAGE_PATH (~/Documents/Storage by
+  # default), mounted into the API and the workers at that same path: the database keeps the full paths of the files,
+  # which then stay the same, in and out of the containers.
+  api:
+    build:
+      context: .
+      dockerfile: PhotoMap.Api/PhotoMap.Api/Dockerfile
+    image: photo-map-api
+    container_name: photo-map-api
+    profiles: [app]
+    ports:
+      - "${PHOTO_MAP_API_PORT:-5080}:8080"
+    depends_on:
+      kafka:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+      seq:
+        condition: service_started
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ConnectionString: ${PHOTO_MAP_CONNECTION_STRING:-Server=host.docker.internal;Port=5432;User Id=postgres;Password=postgres;Database=photo-map-db;Pooling=true;}
+      FileStorage__BasePath: ${PHOTO_STORAGE_PATH:-${HOME}/Documents/Storage}
+      Kafka__Enabled: "true"
+      Kafka__BootstrapServers: kafka:29092
+      # the requests go to the worker containers below, through Kafka
+      ImageProcessing__InProcess: "false"
+      Seq__ServerUrl: http://seq:80
+    volumes:
+      - ${PHOTO_STORAGE_PATH:-${HOME}/Documents/Storage}:${PHOTO_STORAGE_PATH:-${HOME}/Documents/Storage}
+      # the user secrets of the API (the Mapbox access token and the like), read in Development
+      - ${HOME}/.microsoft/usersecrets:/home/app/.microsoft/usersecrets:ro
+
+  worker:
+    build:
+      context: .
+      dockerfile: PhotoMap.Worker.Host/Dockerfile
+    image: photo-map-worker
+    profiles: [app]
+    depends_on:
+      kafka:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+    environment:
+      Kafka__BootstrapServers: kafka:29092
+    volumes:
+      # it reads the downloaded files, and leaves the thumbnails, at the paths the API gives
+      - ${PHOTO_STORAGE_PATH:-${HOME}/Documents/Storage}:${PHOTO_STORAGE_PATH:-${HOME}/Documents/Storage}
+
 volumes:
   seq-data:

@@ -21,6 +21,8 @@
       <PackageReference Include="Magick.NET-Q16-AnyCPU" Version="14.17.1" />
       <PackageReference Include="MetadataExtractor" Version="2.9.3" />
       <PackageReference Include="SkiaSharp" Version="4.152.1" />
+      <!-- the native library of SkiaSharp for Linux, which the SkiaSharp package does not bring: for the containers -->
+      <PackageReference Include="SkiaSharp.NativeAssets.Linux.NoDependencies" Version="4.152.1" />
     </ItemGroup>
 
     <ItemGroup>

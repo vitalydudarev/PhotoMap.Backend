@@ -1,3 +1,4 @@
+using System;
 using System.IO;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
@@ -41,7 +42,8 @@ namespace PhotoMap.Api
                 .Enrich.FromLogContext()
                 .WriteTo.Console()
                 .WriteTo.File("/logs/photo-map-api.ndjson")
-                .WriteTo.Seq("http://localhost:5341")
+                // Seq of docker-compose.yml: on the host at localhost:5341, to the containers of that file seq:80
+                .WriteTo.Seq(Environment.GetEnvironmentVariable("Seq__ServerUrl") ?? "http://localhost:5341")
                 .CreateLogger();
         }
     }

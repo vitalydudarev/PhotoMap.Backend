@@ -1,0 +1,13 @@
+# keeps the build context of the Dockerfiles small, and the host's build output out of the images
+**/bin/
+**/obj/
+**/.DS_Store
+.git/
+.idea/
+logs/
+docs/
+Tests/
+*.user
+*.DotSettings.user
+docker-compose.yml
+run-all.command
