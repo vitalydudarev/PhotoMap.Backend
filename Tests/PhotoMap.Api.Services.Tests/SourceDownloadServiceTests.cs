@@ -958,6 +958,11 @@ public class SourceDownloadServiceTests : IDisposable
             return Task.FromResult<SourcePreview?>(null);
         }
 
+        public Task<SourcePreview?> DownloadViewingPreviewAsync(string reference, CancellationToken cancellationToken)
+        {
+            return Task.FromResult<SourcePreview?>(null);
+        }
+
         public bool IsAuthError(Exception exception)
         {
             return exception is PhotoSourceException { IsAuthError: true };

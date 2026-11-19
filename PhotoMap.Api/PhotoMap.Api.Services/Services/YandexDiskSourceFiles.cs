@@ -27,6 +27,11 @@ public sealed class YandexDiskSourceFiles : ISourceFiles
     /// </summary>
     public const int DownloadMaxRetries = 2;
 
+    /// <summary>
+    /// The size of the preview a photo is viewed as, 1280 pixels on its longer side.
+    /// </summary>
+    public const string ViewingPreviewSizeName = "XXXL";
+
     private readonly ApiClient _apiClient;
     private readonly YandexDiskSettings _settings;
     private readonly ILogger _logger;
@@ -151,10 +156,31 @@ public sealed class YandexDiskSourceFiles : ISourceFiles
     /// </summary>
     public async Task<SourcePreview?> DownloadPreviewAsync(string reference, CancellationToken cancellationToken)
     {
-        var resource = await YandexDiskApiCalls.WrapAsync(_logger,
-            () => _apiClient.GetResourceAsync(reference, cancellationToken, limit: 1), cancellationToken);
+        var resource = await GetResourceAsync(reference, cancellationToken);
 
-        var previewUrl = YandexDiskVideoSource.GetPreviewUrl(resource) ?? resource.Preview;
+        return await DownloadByUrlAsync(YandexDiskVideoSource.GetPreviewUrl(resource) ?? resource.Preview, cancellationToken);
+    }
+
+    /// <summary>
+    /// The XXXL preview, the largest Yandex.Disk makes; the smaller ones are too small to fill a screen.
+    /// </summary>
+    public async Task<SourcePreview?> DownloadViewingPreviewAsync(string reference, CancellationToken cancellationToken)
+    {
+        var resource = await GetResourceAsync(reference, cancellationToken);
+        var previewUrl = resource.Sizes
+            .FirstOrDefault(a => a.Name == ViewingPreviewSizeName && !string.IsNullOrEmpty(a.Url))?.Url;
+
+        return await DownloadByUrlAsync(previewUrl, cancellationToken);
+    }
+
+    private Task<Resource> GetResourceAsync(string reference, CancellationToken cancellationToken)
+    {
+        return YandexDiskApiCalls.WrapAsync(_logger,
+            () => _apiClient.GetResourceAsync(reference, cancellationToken, limit: 1), cancellationToken);
+    }
+
+    private async Task<SourcePreview?> DownloadByUrlAsync(string? previewUrl, CancellationToken cancellationToken)
+    {
         if (previewUrl == null)
         {
             return null;

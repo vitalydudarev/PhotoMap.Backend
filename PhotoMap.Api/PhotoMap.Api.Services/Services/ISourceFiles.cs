@@ -42,6 +42,14 @@ public interface ISourceFiles : IDisposable
     /// <returns>null when the source has no preview of the file.</returns>
     Task<SourcePreview?> DownloadPreviewAsync(string reference, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Downloads the preview the source makes of a photo to be viewed in place of the photo itself, which is much
+    /// smaller than the photo while still large enough to fill a screen.
+    /// </summary>
+    /// <param name="reference">What the source finds the file by: its path, or the Dropbox file ID.</param>
+    /// <returns>null when the source makes no such preview, or has not made it of the photo.</returns>
+    Task<SourcePreview?> DownloadViewingPreviewAsync(string reference, CancellationToken cancellationToken);
+
     /// <returns>Whether the source has failed with the access token it no longer accepts, which fails every other
     /// file as well.</returns>
     bool IsAuthError(Exception exception);

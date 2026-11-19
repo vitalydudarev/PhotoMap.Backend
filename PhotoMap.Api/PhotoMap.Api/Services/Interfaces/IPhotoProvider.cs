@@ -6,6 +6,7 @@ namespace PhotoMap.Api.Services.Interfaces;
 public interface IPhotoProvider
 {
     Task<PhotoFile?> GetPhotoAsync(long id, CancellationToken cancellationToken);
+    Task<PhotoFile?> GetPreviewAsync(long id, CancellationToken cancellationToken);
     Task<byte[]?> GetThumbAsync(long id, string size);
 }
 

@@ -337,6 +337,7 @@ namespace PhotoMap.Api.Controllers
                 Longitude = photo.Longitude,
                 HorizontalPositioningError = photo.HorizontalPositioningError,
                 PhotoUrl = $"{url}/photos/{photo.Id}",
+                PreviewUrl = $"{url}/photos/{photo.Id}/preview",
                 ThumbnailLargeUrl = $"{url}/photos/{photo.Id}/thumb/large",
                 ThumbnailSmallUrl = $"{url}/photos/{photo.Id}/thumb/small",
                 DeletedOn = photo.DeletedOn?.UtcDateTime,

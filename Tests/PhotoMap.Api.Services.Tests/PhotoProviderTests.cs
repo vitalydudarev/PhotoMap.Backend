@@ -91,6 +91,7 @@ public class PhotoProviderTests
         Assert.NotNull(photoFile);
         Assert.Equal(jpegContents, photoFile.Contents);
         Assert.Equal("image/jpeg", photoFile.ContentType);
+        Assert.Equal("photo.jpg", photoFile.FileName);
     }
 
     [Fact]
@@ -186,6 +187,100 @@ public class PhotoProviderTests
             () => photoProvider.GetPhotoAsync(PhotoId, CancellationToken.None));
     }
 
+    [Fact]
+    public async Task GetPreviewAsync_ShouldDownloadTheViewingPreview_WhenTheSourceHasMadeIt()
+    {
+        // Arrange
+        byte[] previewContents = [7, 8, 9];
+        var photo = CreatePhoto(externalId: "disk:/Camera Uploads/photo.heic", path: "/Camera Uploads/photo.heic",
+            fileName: "photo.heic");
+        var photoSource = CreatePhotoSource();
+        var authResult = CreateAuthResult();
+
+        var sourceFiles = new Mock<ISourceFiles>();
+        sourceFiles.Setup(a => a.DownloadViewingPreviewAsync(photo.Path!, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new SourcePreview(previewContents, "image/jpeg"));
+        var sourceFilesFactory = CreateSourceFilesFactory(photoSource, authResult, sourceFiles.Object);
+        var downloadServiceFactory = new Mock<IPhotoSourceDownloadServiceFactory>();
+
+        var photoProvider = CreatePhotoProvider(photo, photoSource, authResult, downloadServiceFactory.Object,
+            sourceFilesFactory: sourceFilesFactory.Object);
+
+        // Act
+        var photoFile = await photoProvider.GetPreviewAsync(PhotoId, CancellationToken.None);
+
+        // Assert
+        Assert.NotNull(photoFile);
+        Assert.Equal(previewContents, photoFile.Contents);
+        Assert.Equal("photo.jpg", photoFile.FileName);
+        Assert.Equal("image/jpeg", photoFile.ContentType);
+
+        downloadServiceFactory.VerifyNoOtherCalls();
+        sourceFiles.Verify(a => a.Dispose());
+    }
+
+    [Fact]
+    public async Task GetPreviewAsync_ShouldDownloadThePhoto_WhenTheSourceHasNoViewingPreview()
+    {
+        // Arrange
+        var photo = CreatePhoto(externalId: "id:abc123", path: "/Camera Uploads/photo.png");
+        var photoSource = CreatePhotoSource();
+        var authResult = CreateAuthResult();
+
+        var sourceFilesFactory = CreateSourceFilesFactory(photoSource, authResult, new Mock<ISourceFiles>().Object);
+        var downloadService = CreateDownloadService();
+        var downloadServiceFactory = new Mock<IPhotoSourceDownloadServiceFactory>();
+        downloadServiceFactory
+            .Setup(a => a.GetService(photoSource, It.IsAny<DownloadServiceParameters>()))
+            .Returns(downloadService.Object);
+
+        var photoProvider = CreatePhotoProvider(photo, photoSource, authResult, downloadServiceFactory.Object,
+            sourceFilesFactory: sourceFilesFactory.Object);
+
+        // Act
+        var photoFile = await photoProvider.GetPreviewAsync(PhotoId, CancellationToken.None);
+
+        // Assert
+        Assert.NotNull(photoFile);
+        Assert.Equal(FileContents, photoFile.Contents);
+        Assert.Equal("image/png", photoFile.ContentType);
+    }
+
+    [Fact]
+    public async Task GetPreviewAsync_ShouldDownloadThePhoto_WhenTheSourceFilesCannotBeDownloaded()
+    {
+        // Arrange
+        var photo = CreatePhoto(externalId: "id:abc123", path: "/Camera Uploads/photo.png");
+        var downloadService = CreateDownloadService();
+        var downloadServiceFactory = new Mock<IPhotoSourceDownloadServiceFactory>();
+        downloadServiceFactory
+            .Setup(a => a.GetService(It.IsAny<PhotoSource>(), It.IsAny<DownloadServiceParameters>()))
+            .Returns(downloadService.Object);
+
+        var photoProvider = CreatePhotoProvider(photo, CreatePhotoSource(), CreateAuthResult(), downloadServiceFactory.Object);
+
+        // Act
+        var photoFile = await photoProvider.GetPreviewAsync(PhotoId, CancellationToken.None);
+
+        // Assert
+        Assert.NotNull(photoFile);
+        Assert.Equal(FileContents, photoFile.Contents);
+    }
+
+    [Fact]
+    public async Task GetPreviewAsync_ShouldReturnNull_WhenPhotoNotFound()
+    {
+        // Arrange
+        var photoProvider = CreatePhotoProvider(null, CreatePhotoSource(), CreateAuthResult(),
+            new Mock<IPhotoSourceDownloadServiceFactory>().Object);
+
+        // Act
+        var photoFile = await photoProvider.GetPreviewAsync(PhotoId, CancellationToken.None);
+
+        // Assert
+        Assert.Null(photoFile);
+    }
+
     [Theory]
     [InlineData("small", "thumbs/photo_256.jpg")]
     [InlineData("large", "thumbs/photo_640.jpg")]
@@ -243,7 +338,8 @@ public class PhotoProviderTests
         IPhotoSourceDownloadServiceFactory downloadServiceFactory,
         IImageConverter? imageConverter = null,
         IFileStorage? fileStorage = null,
-        (Photo Photo, PhotoSource Source, UserAuthResult? AuthResult)[]? copies = null)
+        (Photo Photo, PhotoSource Source, UserAuthResult? AuthResult)[]? copies = null,
+        ISourceFilesFactory? sourceFilesFactory = null)
     {
         var photoService = new Mock<IPhotoService>();
         photoService.Setup(a => a.GetAsync(PhotoId)).ReturnsAsync(photo);
@@ -264,7 +360,17 @@ public class PhotoProviderTests
 
         return new PhotoProvider(photoService.Object, photoSourceService.Object, userPhotoSourceService.Object,
             downloadServiceFactory, fileStorage ?? new Mock<IFileStorage>().Object,
-            imageConverter ?? new Mock<IImageConverter>().Object);
+            imageConverter ?? new Mock<IImageConverter>().Object, sourceFilesFactory ?? new Mock<ISourceFilesFactory>().Object);
+    }
+
+    private static Mock<ISourceFilesFactory> CreateSourceFilesFactory(PhotoSource photoSource, UserAuthResult authResult,
+        ISourceFiles sourceFiles)
+    {
+        var sourceFilesFactory = new Mock<ISourceFilesFactory>();
+        sourceFilesFactory.Setup(a => a.Supports(photoSource)).Returns(true);
+        sourceFilesFactory.Setup(a => a.Create(photoSource, authResult)).Returns(sourceFiles);
+
+        return sourceFilesFactory;
     }
 
     private static Mock<IDownloadService> CreateDownloadService()

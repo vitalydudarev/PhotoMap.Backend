@@ -2,6 +2,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Net.Http.Headers;
 using PhotoMap.Api.Domain.Services;
 using PhotoMap.Api.DTOs;
 using PhotoMap.Api.Services.Interfaces;
@@ -30,12 +31,31 @@ namespace PhotoMap.Api.Controllers
             var photoFile = await _photoProvider.GetPhotoAsync(id, cancellationToken);
             if (photoFile != null)
             {
-                return new FileContentResult(photoFile.Contents, photoFile.ContentType);
+                return ToInlineFile(photoFile);
             }
 
             return NotFound();
         }
-        
+
+        /// <summary>
+        /// The photo to be viewed: the XXXL preview Yandex.Disk makes of it, much smaller than the photo, or the
+        /// photo itself when its source makes no such preview or has not made it of the photo.
+        /// </summary>
+        /// <param name="id">The ID of the photo.</param>
+        [HttpGet("{id:long}/preview")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> GetPreviewAsync(long id, CancellationToken cancellationToken)
+        {
+            var photoFile = await _photoProvider.GetPreviewAsync(id, cancellationToken);
+            if (photoFile != null)
+            {
+                return ToInlineFile(photoFile);
+            }
+
+            return NotFound();
+        }
+
         /// <summary>
         /// The EXIF the worker read from the photo, as it saved it: an object of the EXIF directories, each an object
         /// of its tags. An empty object when the photo has no EXIF.
@@ -89,6 +109,19 @@ namespace PhotoMap.Api.Controllers
             }
 
             return NotFound();
+        }
+
+        /// <summary>
+        /// The photo is shown by the browser rather than downloaded, and saved under its file name rather than under
+        /// the last segment of the URL, its ID.
+        /// </summary>
+        private FileContentResult ToInlineFile(PhotoFile photoFile)
+        {
+            var contentDisposition = new ContentDispositionHeaderValue("inline");
+            contentDisposition.SetHttpFileName(photoFile.FileName);
+            Response.Headers.ContentDisposition = contentDisposition.ToString();
+
+            return new FileContentResult(photoFile.Contents, photoFile.ContentType);
         }
     }
 }

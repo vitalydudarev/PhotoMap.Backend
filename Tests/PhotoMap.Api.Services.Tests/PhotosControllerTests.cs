@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Moq;
 using PhotoMap.Api.Controllers;
@@ -105,6 +106,40 @@ public class PhotosControllerTests
         Assert.IsType<NotFoundResult>(result);
     }
 
+    [Fact]
+    public async Task GetPhotoAsync_ShouldShowThePhotoInline_UnderItsFileName()
+    {
+        // Arrange
+        _photoProvider.Setup(a => a.GetPhotoAsync(PhotoId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PhotoFile([1, 2, 3], "Отпуск 2024.jpg", "image/jpeg"));
+        var controller = CreateController();
+
+        // Act
+        var result = await controller.GetPhotoAsync(PhotoId, CancellationToken.None);
+
+        // Assert
+        var file = Assert.IsType<FileContentResult>(result);
+        Assert.Equal("image/jpeg", file.ContentType);
+        Assert.Empty(file.FileDownloadName);
+
+        var contentDisposition = controller.Response.Headers.ContentDisposition.ToString();
+        Assert.StartsWith("inline;", contentDisposition);
+        Assert.Contains("filename*=UTF-8''%D0%9E%D1%82%D0%BF%D1%83%D1%81%D0%BA%202024.jpg", contentDisposition);
+    }
+
+    [Fact]
+    public async Task GetPhotoAsync_ShouldReturnNotFound_WhenThereIsNoSuchPhoto()
+    {
+        // Arrange
+        var controller = CreateController();
+
+        // Act
+        var result = await controller.GetPhotoAsync(PhotoId, CancellationToken.None);
+
+        // Assert
+        Assert.IsType<NotFoundResult>(result);
+    }
+
     private static Photo CreatePhoto(string? exifString)
     {
         return new Photo { Id = PhotoId, UserId = 1, FileName = "a.jpg", ExifString = exifString };
@@ -112,6 +147,9 @@ public class PhotosControllerTests
 
     private PhotosController CreateController()
     {
-        return new PhotosController(_photoProvider.Object, _photoService.Object);
+        return new PhotosController(_photoProvider.Object, _photoService.Object)
+        {
+            ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() }
+        };
     }
 }

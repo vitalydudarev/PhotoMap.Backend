@@ -20,6 +20,7 @@ public class PhotoProvider : IPhotoProvider
     private readonly IPhotoSourceDownloadServiceFactory _downloadServiceFactory;
     private readonly IFileStorage _fileStorage;
     private readonly IImageConverter _imageConverter;
+    private readonly ISourceFilesFactory _sourceFilesFactory;
 
     public PhotoProvider(
         IPhotoService photoService,
@@ -27,7 +28,8 @@ public class PhotoProvider : IPhotoProvider
         IUserPhotoSourceService userPhotoSourceService,
         IPhotoSourceDownloadServiceFactory downloadServiceFactory,
         IFileStorage fileStorage,
-        IImageConverter imageConverter)
+        IImageConverter imageConverter,
+        ISourceFilesFactory sourceFilesFactory)
     {
         _photoService = photoService;
         _photoSourceService = photoSourceService;
@@ -35,6 +37,7 @@ public class PhotoProvider : IPhotoProvider
         _downloadServiceFactory = downloadServiceFactory;
         _fileStorage = fileStorage;
         _imageConverter = imageConverter;
+        _sourceFilesFactory = sourceFilesFactory;
     }
 
     /// <summary>
@@ -55,6 +58,48 @@ public class PhotoProvider : IPhotoProvider
 
         var (file, photoSource, authResult) = await FindAuthorizedFileAsync(photo);
 
+        return await DownloadPhotoAsync(photo, file, photoSource, authResult, cancellationToken);
+    }
+
+    /// <summary>
+    /// The photo to be viewed: the preview its source makes of it for viewing, much smaller than the photo, the XXXL
+    /// preview on Yandex.Disk. The photo itself, as <see cref="GetPhotoAsync"/> gives it, when the source makes no
+    /// such preview or has not made it of the photo.
+    /// </summary>
+    /// <exception cref="NotAuthorizedException">The user is authorized in none of the sources of the photo and its
+    /// copies.</exception>
+    public async Task<PhotoFile?> GetPreviewAsync(long id, CancellationToken cancellationToken)
+    {
+        var photo = await _photoService.GetAsync(id);
+        if (photo == null)
+        {
+            return null;
+        }
+
+        var (file, photoSource, authResult) = await FindAuthorizedFileAsync(photo);
+
+        // Yandex.Disk finds files by their path, Dropbox by either
+        var reference = file.Path ?? file.ExternalId;
+
+        if (!string.IsNullOrEmpty(reference) && _sourceFilesFactory.Supports(photoSource))
+        {
+            using var sourceFiles = _sourceFilesFactory.Create(photoSource, authResult);
+
+            var preview = await sourceFiles.DownloadViewingPreviewAsync(reference, cancellationToken);
+            if (preview != null)
+            {
+                return new PhotoFile(preview.Contents, FileNameOf(photo, preview.ContentType), preview.ContentType);
+            }
+        }
+
+        return await DownloadPhotoAsync(photo, file, photoSource, authResult, cancellationToken);
+    }
+
+    /// <param name="photo">The photo asked for.</param>
+    /// <param name="file">The photo or the copy of it that is downloaded.</param>
+    private async Task<PhotoFile> DownloadPhotoAsync(Photo photo, Photo file, PhotoSource photoSource,
+        UserAuthResult authResult, CancellationToken cancellationToken)
+    {
         // photos saved before the sources started reporting file IDs are only identified by their path
         if (string.IsNullOrEmpty(file.ExternalId) && string.IsNullOrEmpty(file.Path))
         {
@@ -68,13 +113,26 @@ public class PhotoProvider : IPhotoProvider
 
         if (_imageConverter.NeedsConversion(file.FileName))
         {
-            return new PhotoFile(_imageConverter.ConvertToJpeg(fileContents), photo.FileName, "image/jpeg");
+            return new PhotoFile(_imageConverter.ConvertToJpeg(fileContents), FileNameOf(photo, "image/jpeg"), "image/jpeg");
         }
 
         return new PhotoFile(fileContents, photo.FileName, SupportedImageFormats.GetContentType(file.FileName));
     }
 
-    /// <returns>Null when the photo or its thumbnail is not found, also when the thumbnail file is missing.</returns>
+    /// <summary>
+    /// The file name of the photo, with the extension of a JPEG when it is served as one but is not: a HEIC photo
+    /// converted, or the preview of it.
+    /// </summary>
+    private static string FileNameOf(Photo photo, string contentType)
+    {
+        var extension = Path.GetExtension(photo.FileName);
+        var isJpeg = extension.Equals(".jpg", StringComparison.OrdinalIgnoreCase) ||
+                     extension.Equals(".jpeg", StringComparison.OrdinalIgnoreCase);
+
+        return contentType == "image/jpeg" && !isJpeg ? Path.ChangeExtension(photo.FileName, ".jpg") : photo.FileName;
+    }
+
+        /// <returns>Null when the photo or its thumbnail is not found, also when the thumbnail file is missing.</returns>
     public async Task<byte[]?> GetThumbAsync(long id, string size)
     {
         var photo = await _photoService.GetAsync(id);

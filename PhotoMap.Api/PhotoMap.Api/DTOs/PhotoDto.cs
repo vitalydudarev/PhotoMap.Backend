@@ -6,6 +6,11 @@ namespace PhotoMap.Api.DTOs
     {
         public long Id { get; set; }
         public string PhotoUrl { get; set; } = null!;
+
+        /// <summary>
+        /// The photo to be viewed, a preview of it much smaller than the photo when its source makes one.
+        /// </summary>
+        public string PreviewUrl { get; set; } = null!;
         public string ThumbnailSmallUrl { get; set; } = null!;
         public string ThumbnailLargeUrl { get; set; } = null!;
         public DateTime DateTimeTaken { get; set; }
