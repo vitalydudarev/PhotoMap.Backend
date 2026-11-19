@@ -131,11 +131,20 @@ namespace PhotoMap.Api.Controllers
         /// left out.
         /// </summary>
         /// <param name="id">The ID of the user.</param>
+        /// <param name="location">The IDs of the locations the photos were taken in, any of them, repeated for each one,
+        /// such as <c>location=12&amp;location=40</c>; see <c>photos/locations</c>. The photos not geocoded are in no
+        /// location. The photos taken anywhere, and those with no location, when neither this nor
+        /// <c>unknownLocation</c> is given.</param>
+        /// <param name="unknownLocation">Whether the photos in no location are taken, along with the ones of
+        /// <c>location</c>: those not geocoded yet, or where the geocoding found nothing. Only they are when no
+        /// location is given.</param>
         [HttpGet("{id:long}/photos/geotagged")]
         [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(PhotoDto[]))]
-        public async Task<IActionResult> GetUserGeotaggedPhotos([FromRoute] long id)
+        public async Task<IActionResult> GetUserGeotaggedPhotos([FromRoute] long id,
+            [FromQuery] long[]? location = null,
+            [FromQuery] bool unknownLocation = false)
         {
-            var photos = await _photoService.GetGeotaggedAsync(id);
+            var photos = await _photoService.GetGeotaggedAsync(id, new LocationFilter(location ?? [], unknownLocation));
 
             return Ok(photos.Select(ToDto).ToArray());
         }

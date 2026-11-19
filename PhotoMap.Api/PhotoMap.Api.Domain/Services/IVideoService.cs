@@ -12,15 +12,15 @@ public interface IVideoService
     /// </summary>
     /// <param name="folderPaths">The folders to take the videos from, all of them when empty.</param>
     /// <param name="years">The years, in UTC, the videos were taken in, all of them when empty.</param>
-    /// <param name="locations">The locations the videos were taken in, see <see cref="VideoLocationFilter"/>.</param>
+    /// <param name="locations">The locations the videos were taken in, see <see cref="LocationFilter"/>.</param>
     Task<IReadOnlyList<Video>> GetByUserIdAsync(long userId, IReadOnlyCollection<string> folderPaths,
-        IReadOnlyCollection<int> years, VideoLocationFilter locations, int top, int skip, PhotoSortOrder sortOrder);
+        IReadOnlyCollection<int> years, LocationFilter locations, int top, int skip, PhotoSortOrder sortOrder);
 
     /// <param name="folderPaths">The folders to count the videos of, all of them when empty.</param>
     /// <param name="years">The years, in UTC, to count the videos taken in, all of them when empty.</param>
-    /// <param name="locations">The locations to count the videos taken in, see <see cref="VideoLocationFilter"/>.</param>
+    /// <param name="locations">The locations to count the videos taken in, see <see cref="LocationFilter"/>.</param>
     Task<int> GetTotalCountByUserIdAsync(long userId, IReadOnlyCollection<string> folderPaths,
-        IReadOnlyCollection<int> years, VideoLocationFilter locations);
+        IReadOnlyCollection<int> years, LocationFilter locations);
 
     /// <summary>
     /// The locations the videos of the user were taken in, by level, from the countries down, and by name, with how

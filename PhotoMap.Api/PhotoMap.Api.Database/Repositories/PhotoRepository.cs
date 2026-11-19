@@ -83,12 +83,23 @@ public class PhotoRepository : IPhotoRepository
         return await GetUserPhotos(userId, filter).CountAsync();
     }
 
-    public async Task<IReadOnlyList<Photo>> GetGeotaggedAsync(long userId)
+    public async Task<IReadOnlyList<Photo>> GetGeotaggedAsync(long userId, LocationFilter locations)
     {
-        // every one of them at once, so the EXIF and the rest are left in the database
-        return await _context.Photos
+        var photos = _context.Photos
             .AsNoTracking()
-            .Where(a => a.UserId == userId && a.HasGps && a.DeletedOn == null)
+            .Where(a => a.UserId == userId && a.HasGps && a.DeletedOn == null);
+
+        if (locations.FiltersByLocations)
+        {
+            var locationIds = locations.LocationIds.ToArray();
+            var unknownLocation = locations.UnknownLocation;
+
+            photos = photos.Where(a => a.Locations.Any(l => locationIds.Contains(l.LocationId)) ||
+                                       (unknownLocation && !a.Locations.Any()));
+        }
+
+        // every one of them at once, so the EXIF and the rest are left in the database
+        return await photos
             .OrderBy(a => a.DateTimeTaken)
             .ThenBy(a => a.Id)
             .Select(a => new Photo

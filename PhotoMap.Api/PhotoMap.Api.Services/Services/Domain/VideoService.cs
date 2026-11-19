@@ -98,7 +98,7 @@ public class VideoService : IVideoService
     }
 
     public async Task<IReadOnlyList<Video>> GetByUserIdAsync(long userId, IReadOnlyCollection<string> folderPaths,
-        IReadOnlyCollection<int> years, VideoLocationFilter locations, int top, int skip, PhotoSortOrder sortOrder)
+        IReadOnlyCollection<int> years, LocationFilter locations, int top, int skip, PhotoSortOrder sortOrder)
     {
         var videos = GetUserVideos(userId, folderPaths, years, locations).AsNoTracking();
 
@@ -112,7 +112,7 @@ public class VideoService : IVideoService
     }
 
     public Task<int> GetTotalCountByUserIdAsync(long userId, IReadOnlyCollection<string> folderPaths,
-        IReadOnlyCollection<int> years, VideoLocationFilter locations)
+        IReadOnlyCollection<int> years, LocationFilter locations)
     {
         return GetUserVideos(userId, folderPaths, years, locations).CountAsync();
     }
@@ -408,7 +408,7 @@ public class VideoService : IVideoService
     }
 
     private IQueryable<VideoEntity> GetUserVideos(long userId, IReadOnlyCollection<string> folderPaths,
-        IReadOnlyCollection<int> years, VideoLocationFilter locations)
+        IReadOnlyCollection<int> years, LocationFilter locations)
     {
         var videos = _context.Videos.Where(a => a.UserId == userId);
 

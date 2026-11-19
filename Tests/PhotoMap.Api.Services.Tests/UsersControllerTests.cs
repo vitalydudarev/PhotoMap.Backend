@@ -555,7 +555,7 @@ public class UsersControllerTests
     {
         // Arrange
         _photoService
-            .Setup(a => a.GetGeotaggedAsync(UserId))
+            .Setup(a => a.GetGeotaggedAsync(UserId, It.Is<LocationFilter>(l => !l.FiltersByLocations)))
             .ReturnsAsync([new Photo { Id = 5, UserId = UserId, FileName = "a.jpg", Latitude = 53.9, Longitude = 27.56, HorizontalPositioningError = 65 }]);
         var controller = CreateController();
 
@@ -569,6 +569,21 @@ public class UsersControllerTests
         Assert.Equal(27.56, photo.Longitude);
         Assert.Equal(65, photo.HorizontalPositioningError);
         Assert.Equal("https://localhost:5001/api/photos/5/thumb/small", photo.ThumbnailSmallUrl);
+    }
+
+    [Fact]
+    public async Task GetUserGeotaggedPhotos_ShouldTakeThePhotosFromTheGivenLocations()
+    {
+        // Arrange
+        _photoService.Setup(a => a.GetGeotaggedAsync(UserId, It.IsAny<LocationFilter>())).ReturnsAsync([]);
+        var controller = CreateController();
+
+        // Act
+        await controller.GetUserGeotaggedPhotos(UserId, [12, 40], unknownLocation: true);
+
+        // Assert
+        _photoService.Verify(a => a.GetGeotaggedAsync(UserId,
+            It.Is<LocationFilter>(l => l.LocationIds.SequenceEqual(new long[] { 12, 40 }) && l.UnknownLocation)));
     }
 
     private static bool IsFilter(PhotoFilter filter, long[] photoSourceIds, int[] years)

@@ -76,7 +76,7 @@ namespace PhotoMap.Api.Controllers
         {
             var folderPaths = folder ?? [];
             var years = year ?? [];
-            var locations = new VideoLocationFilter(location ?? [], unknownLocation);
+            var locations = new LocationFilter(location ?? [], unknownLocation);
 
             var videos = await _videoService.GetByUserIdAsync(userId, folderPaths, years, locations, top, skip, sort);
             var total = await _videoService.GetTotalCountByUserIdAsync(userId, folderPaths, years, locations);
