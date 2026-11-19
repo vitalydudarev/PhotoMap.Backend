@@ -12,7 +12,7 @@ public interface IPhotoRepository
 
     /// <returns>The photos of the user with a GPS location, but the deleted ones, oldest first. Only what tells a photo,
     /// where and when it was taken and its name are read.</returns>
-    Task<IReadOnlyList<Photo>> GetGeotaggedAsync(long userId, LocationFilter locations);
+    Task<IReadOnlyList<Photo>> GetGeotaggedAsync(long userId, PhotoFilter filter);
 
     /// <returns>The years, in UTC, the photos of the user were taken in.</returns>
     Task<IEnumerable<int>> GetYearsAsync(long userId);

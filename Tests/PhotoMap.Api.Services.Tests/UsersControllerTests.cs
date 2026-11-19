@@ -555,7 +555,7 @@ public class UsersControllerTests
     {
         // Arrange
         _photoService
-            .Setup(a => a.GetGeotaggedAsync(UserId, It.Is<LocationFilter>(l => !l.FiltersByLocations)))
+            .Setup(a => a.GetGeotaggedAsync(UserId, It.Is<PhotoFilter>(f => IsFilter(f, new long[0], new int[0]) && !f.FiltersByLocations)))
             .ReturnsAsync([new Photo { Id = 5, UserId = UserId, FileName = "a.jpg", Latitude = 53.9, Longitude = 27.56, HorizontalPositioningError = 65 }]);
         var controller = CreateController();
 
@@ -572,18 +572,37 @@ public class UsersControllerTests
     }
 
     [Fact]
-    public async Task GetUserGeotaggedPhotos_ShouldTakeThePhotosFromTheGivenLocations()
+    public async Task GetUserGeotaggedPhotos_ShouldTakeThePhotosTheFilterTakes()
     {
         // Arrange
-        _photoService.Setup(a => a.GetGeotaggedAsync(UserId, It.IsAny<LocationFilter>())).ReturnsAsync([]);
+        _photoService.Setup(a => a.GetGeotaggedAsync(UserId, It.IsAny<PhotoFilter>())).ReturnsAsync([]);
         var controller = CreateController();
 
         // Act
-        await controller.GetUserGeotaggedPhotos(UserId, [12, 40], unknownLocation: true);
+        await controller.GetUserGeotaggedPhotos(UserId, source: [1], year: [2019], category: [PhotoCategory.Other],
+            allFolders: true, tag: [4], untagged: true, area: "-9.23,38.69,-9.09,38.8", location: [12, 40],
+            unknownLocation: true);
 
         // Assert
-        _photoService.Verify(a => a.GetGeotaggedAsync(UserId,
-            It.Is<LocationFilter>(l => l.LocationIds.SequenceEqual(new long[] { 12, 40 }) && l.UnknownLocation)));
+        _photoService.Verify(a => a.GetGeotaggedAsync(UserId, It.Is<PhotoFilter>(f =>
+            f.PhotoSourceIds.SequenceEqual(new long[] { 1 }) && f.Years.SequenceEqual(new[] { 2019 }) &&
+            f.Categories.SequenceEqual(new[] { PhotoCategory.Other }) && f.IncludeOtherUploads &&
+            f.TagIds!.SequenceEqual(new long[] { 4 }) && f.Untagged && f.Area != null &&
+            f.LocationIds!.SequenceEqual(new long[] { 12, 40 }) && f.UnknownLocation)));
+    }
+
+    [Fact]
+    public async Task GetUserGeotaggedPhotos_ShouldBeABadRequest_ForAnAreaThatIsNotABox()
+    {
+        // Arrange
+        var controller = CreateController();
+
+        // Act
+        var result = await controller.GetUserGeotaggedPhotos(UserId, area: "lisbon");
+
+        // Assert
+        Assert.IsType<ObjectResult>(result);
+        _photoService.Verify(a => a.GetGeotaggedAsync(It.IsAny<long>(), It.IsAny<PhotoFilter>()), Times.Never);
     }
 
     private static bool IsFilter(PhotoFilter filter, long[] photoSourceIds, int[] years)

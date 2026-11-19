@@ -71,9 +71,9 @@ namespace PhotoMap.Api.Services.Services.Domain
             return _photoRepository.GetTotalCountByUserIdAsync(userId, filter);
         }
 
-        public Task<IReadOnlyList<Photo>> GetGeotaggedAsync(long userId, LocationFilter locations)
+        public Task<IReadOnlyList<Photo>> GetGeotaggedAsync(long userId, PhotoFilter filter)
         {
-            return _photoRepository.GetGeotaggedAsync(userId, locations);
+            return _photoRepository.GetGeotaggedAsync(userId, filter);
         }
 
         public Task<IReadOnlyList<int>> GetYearsAsync(long userId)

@@ -83,20 +83,13 @@ public class PhotoRepository : IPhotoRepository
         return await GetUserPhotos(userId, filter).CountAsync();
     }
 
-    public async Task<IReadOnlyList<Photo>> GetGeotaggedAsync(long userId, LocationFilter locations)
+    /// <summary>
+    /// The photos the filter takes that have a GPS location, every one of them, for the map; a photo with copies once,
+    /// as in <see cref="GetByUserIdAsync"/>.
+    /// </summary>
+    public async Task<IReadOnlyList<Photo>> GetGeotaggedAsync(long userId, PhotoFilter filter)
     {
-        var photos = _context.Photos
-            .AsNoTracking()
-            .Where(a => a.UserId == userId && a.HasGps && a.DeletedOn == null);
-
-        if (locations.FiltersByLocations)
-        {
-            var locationIds = locations.LocationIds.ToArray();
-            var unknownLocation = locations.UnknownLocation;
-
-            photos = photos.Where(a => a.Locations.Any(l => locationIds.Contains(l.LocationId)) ||
-                                       (unknownLocation && !a.Locations.Any()));
-        }
+        var photos = GetUserPhotos(userId, filter).AsNoTracking().Where(a => a.HasGps);
 
         // every one of them at once, so the EXIF and the rest are left in the database
         return await photos
@@ -113,7 +106,9 @@ public class PhotoRepository : IPhotoRepository
                 Latitude = a.Latitude,
                 Longitude = a.Longitude,
                 HorizontalPositioningError = a.HorizontalPositioningError,
-                HasGps = a.HasGps
+                HasGps = a.HasGps,
+                // the map of the deleted photos shows them as such
+                DeletedOn = a.DeletedOn
             })
             .ToListAsync();
     }

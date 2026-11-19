@@ -95,26 +95,13 @@ namespace PhotoMap.Api.Controllers
             [FromQuery] long[]? location = null,
             [FromQuery] bool unknownLocation = false)
         {
-            // a number binds to the enum whether it names a category or not
-            if (category != null && !category.All(Enum.IsDefined))
-            {
-                ModelState.AddModelError(nameof(category), "The category is not one of the photo categories.");
+            var filter = CreateFilter(source, year, category, gps, allFolders, tag, untagged, area, location,
+                unknownLocation);
 
+            if (filter == null)
+            {
                 return ValidationProblem(ModelState);
             }
-
-            GeoBox? box = null;
-
-            if (area != null && !GeoBox.TryParse(area, out box))
-            {
-                ModelState.AddModelError(nameof(area),
-                    "The area is not a box of coordinates written as west,south,east,north, in degrees.");
-
-                return ValidationProblem(ModelState);
-            }
-
-            var filter = new PhotoFilter(source ?? [], year ?? [], category ?? [], gps, allFolders, tag ?? [], untagged,
-                box, location ?? [], unknownLocation);
 
             var userPhotos = await _photoService.GetByUserIdAsync(id, filter, top, skip, sort);
             var totalPhotosCount = await _photoService.GetTotalCountByUserIdAsync(id, filter);
@@ -127,24 +114,47 @@ namespace PhotoMap.Api.Controllers
         }
 
         /// <summary>
-        /// The photos of the user with a GPS location, all of them, oldest first, for the map. The deleted photos are
-        /// left out.
+        /// The photos of the user with a GPS location that the filter takes, all of them, oldest first, for the map. A
+        /// photo with copies is taken once, as in <c>photos</c>. The filter is the one of <c>photos</c>, see there.
         /// </summary>
         /// <param name="id">The ID of the user.</param>
-        /// <param name="location">The IDs of the locations the photos were taken in, any of them, repeated for each one,
-        /// such as <c>location=12&amp;location=40</c>; see <c>photos/locations</c>. The photos not geocoded are in no
-        /// location. The photos taken anywhere, and those with no location, when neither this nor
-        /// <c>unknownLocation</c> is given.</param>
+        /// <param name="source">The IDs of the photo sources to take the photos from; all of them when not given.</param>
+        /// <param name="year">The years, in UTC, the photos were taken in; all of them when not given.</param>
+        /// <param name="category">The categories the photos are in, any of them; every one but <c>Deleted</c> when
+        /// not given.</param>
+        /// <param name="gps">Whether the photos have a GPS location; only those with one are taken anyway.</param>
+        /// <param name="allFolders">Whether the photos of the other uploads of Yandex.Disk are taken too.</param>
+        /// <param name="tag">The IDs of the tags the photos have, any of them.</param>
+        /// <param name="untagged">Whether the photos with no tag are taken, along with the ones of <c>tag</c>.</param>
+        /// <param name="area">The box of coordinates the photos were taken within, as <c>west,south,east,north</c>
+        /// in degrees.</param>
+        /// <param name="location">The IDs of the locations the photos were taken in, any of them.</param>
         /// <param name="unknownLocation">Whether the photos in no location are taken, along with the ones of
-        /// <c>location</c>: those not geocoded yet, or where the geocoding found nothing. Only they are when no
-        /// location is given.</param>
+        /// <c>location</c>: those not geocoded yet, or where the geocoding found nothing.</param>
         [HttpGet("{id:long}/photos/geotagged")]
         [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(PhotoDto[]))]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
         public async Task<IActionResult> GetUserGeotaggedPhotos([FromRoute] long id,
+            [FromQuery] long[]? source = null,
+            [FromQuery] int[]? year = null,
+            [FromQuery] PhotoCategory[]? category = null,
+            [FromQuery] bool? gps = null,
+            [FromQuery] bool allFolders = false,
+            [FromQuery] long[]? tag = null,
+            [FromQuery] bool untagged = false,
+            [FromQuery] string? area = null,
             [FromQuery] long[]? location = null,
             [FromQuery] bool unknownLocation = false)
         {
-            var photos = await _photoService.GetGeotaggedAsync(id, new LocationFilter(location ?? [], unknownLocation));
+            var filter = CreateFilter(source, year, category, gps, allFolders, tag, untagged, area, location,
+                unknownLocation);
+
+            if (filter == null)
+            {
+                return ValidationProblem(ModelState);
+            }
+
+            var photos = await _photoService.GetGeotaggedAsync(id, filter);
 
             return Ok(photos.Select(ToDto).ToArray());
         }
@@ -360,6 +370,36 @@ namespace PhotoMap.Api.Controllers
             return Ok(suggestions
                 .Select(a => new TagSuggestionDto { Name = a.Name, ByDate = a.ByDate, ByLocation = a.ByLocation })
                 .ToArray());
+        }
+
+        /// <summary>
+        /// The filter of the photos the query asks for, see <see cref="GetUserPhotos"/>.
+        /// </summary>
+        /// <returns>The filter, or null when the query does not make one, the errors of which are then in the model
+        /// state.</returns>
+        private PhotoFilter? CreateFilter(long[]? source, int[]? year, PhotoCategory[]? category, bool? gps,
+            bool allFolders, long[]? tag, bool untagged, string? area, long[]? location, bool unknownLocation)
+        {
+            // a number binds to the enum whether it names a category or not
+            if (category != null && !category.All(Enum.IsDefined))
+            {
+                ModelState.AddModelError(nameof(category), "The category is not one of the photo categories.");
+
+                return null;
+            }
+
+            GeoBox? box = null;
+
+            if (area != null && !GeoBox.TryParse(area, out box))
+            {
+                ModelState.AddModelError(nameof(area),
+                    "The area is not a box of coordinates written as west,south,east,north, in degrees.");
+
+                return null;
+            }
+
+            return new PhotoFilter(source ?? [], year ?? [], category ?? [], gps, allFolders, tag ?? [], untagged,
+                box, location ?? [], unknownLocation);
         }
 
         private PhotoDto ToDto(Photo photo)
