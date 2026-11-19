@@ -55,6 +55,13 @@ namespace PhotoMap.Api.Controllers
         /// such as <c>folder=disk:/Camera Uploads&amp;folder=disk:/Videos</c>. All the folders when not given.</param>
         /// <param name="year">The years, in UTC, the videos were taken in, repeated for each one, such as
         /// <c>year=2016&amp;year=2019</c>. All the years when not given.</param>
+        /// <param name="location">The IDs of the locations the videos were taken in, any of them, repeated for each
+        /// one, such as <c>location=12&amp;location=40</c>; see <c>videos/locations</c>. The videos not geocoded are in
+        /// no location. The videos taken anywhere, and those with no location, when neither this nor
+        /// <c>unknownLocation</c> is given.</param>
+        /// <param name="unknownLocation">Whether the videos in no location are taken, along with the ones of
+        /// <c>location</c>: those with no GPS, not geocoded yet, or where the geocoding found nothing. Only they are
+        /// when no location is given.</param>
         [HttpGet("api/users/{userId:long}/videos")]
         [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(PagedResponse<VideoDto>))]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -63,13 +70,16 @@ namespace PhotoMap.Api.Controllers
             [FromQuery, Range(0, int.MaxValue)] int skip,
             [FromQuery] PhotoSortOrder sort = PhotoSortOrder.Asc,
             [FromQuery] string[]? folder = null,
-            [FromQuery] int[]? year = null)
+            [FromQuery] int[]? year = null,
+            [FromQuery] long[]? location = null,
+            [FromQuery] bool unknownLocation = false)
         {
             var folderPaths = folder ?? [];
             var years = year ?? [];
+            var locations = new VideoLocationFilter(location ?? [], unknownLocation);
 
-            var videos = await _videoService.GetByUserIdAsync(userId, folderPaths, years, top, skip, sort);
-            var total = await _videoService.GetTotalCountByUserIdAsync(userId, folderPaths, years);
+            var videos = await _videoService.GetByUserIdAsync(userId, folderPaths, years, locations, top, skip, sort);
+            var total = await _videoService.GetTotalCountByUserIdAsync(userId, folderPaths, years, locations);
 
             var values = videos.Select(ToDto).ToArray();
 
@@ -123,6 +133,27 @@ namespace PhotoMap.Api.Controllers
         public async Task<IActionResult> GetUserVideoFolders([FromRoute] long userId)
         {
             return Ok(await _videoService.GetFolderPathsAsync(userId));
+        }
+
+        /// <summary>
+        /// The locations the videos of the user were taken in, by level, from the countries down to the postcodes,
+        /// and by name, with how many videos were taken in each. A video is in a location once it is geocoded.
+        /// </summary>
+        /// <param name="userId">The ID of the user.</param>
+        [HttpGet("api/users/{userId:long}/videos/locations")]
+        [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(VideoLocationDto[]))]
+        public async Task<IActionResult> GetUserVideoLocations([FromRoute] long userId)
+        {
+            var locations = await _videoService.GetLocationsAsync(userId);
+
+            return Ok(locations.Select(a => new VideoLocationDto
+            {
+                Id = a.Id,
+                Level = a.Level.ToString(),
+                Name = a.Name,
+                Description = a.Description,
+                VideoCount = a.Count
+            }).ToArray());
         }
 
         /// <summary>

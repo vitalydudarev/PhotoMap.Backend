@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using PhotoMap.Api.Database;
 using PhotoMap.Api.Database.Entities;
+using PhotoMap.Api.Database.Repositories;
 using PhotoMap.Api.Domain.Models;
 using PhotoMap.Api.Domain.Services;
 
@@ -10,11 +11,14 @@ public class VideoService : IVideoService
 {
     private readonly PhotoMapContext _context;
     private readonly VideoDuplicatesSignal _duplicatesSignal;
+    private readonly GeocodingSignal _geocodingSignal;
 
-    public VideoService(PhotoMapContext context, VideoDuplicatesSignal duplicatesSignal)
+    public VideoService(PhotoMapContext context, VideoDuplicatesSignal duplicatesSignal,
+        GeocodingSignal geocodingSignal)
     {
         _context = context;
         _duplicatesSignal = duplicatesSignal;
+        _geocodingSignal = geocodingSignal;
     }
 
     /// <summary>
@@ -78,6 +82,12 @@ public class VideoService : IVideoService
 
         // the videos are saved in no group of duplicates, until the duplicates are looked for again
         _duplicatesSignal.Notify();
+
+        // and in no location, until the geocoding gets to the ones with GPS
+        if (videosToSave.Any(a => a.Latitude != null && a.Longitude != null))
+        {
+            _geocodingSignal.Notify();
+        }
     }
 
     public async Task<Video?> GetAsync(long id)
@@ -88,9 +98,9 @@ public class VideoService : IVideoService
     }
 
     public async Task<IReadOnlyList<Video>> GetByUserIdAsync(long userId, IReadOnlyCollection<string> folderPaths,
-        IReadOnlyCollection<int> years, int top, int skip, PhotoSortOrder sortOrder)
+        IReadOnlyCollection<int> years, VideoLocationFilter locations, int top, int skip, PhotoSortOrder sortOrder)
     {
-        var videos = GetUserVideos(userId, folderPaths, years).AsNoTracking();
+        var videos = GetUserVideos(userId, folderPaths, years, locations).AsNoTracking();
 
         var ordered = sortOrder == PhotoSortOrder.Desc
             ? videos.OrderByDescending(a => a.DateTimeTaken).ThenByDescending(a => a.Id)
@@ -102,9 +112,65 @@ public class VideoService : IVideoService
     }
 
     public Task<int> GetTotalCountByUserIdAsync(long userId, IReadOnlyCollection<string> folderPaths,
-        IReadOnlyCollection<int> years)
+        IReadOnlyCollection<int> years, VideoLocationFilter locations)
     {
-        return GetUserVideos(userId, folderPaths, years).CountAsync();
+        return GetUserVideos(userId, folderPaths, years, locations).CountAsync();
+    }
+
+    public async Task<IReadOnlyList<Location>> GetLocationsAsync(long userId)
+    {
+        // a location is left behind when its last video is deleted, and offered again once a video is taken in it
+        var counts = await _context.VideoLocations
+            .Where(a => a.Video!.UserId == userId)
+            .GroupBy(a => a.LocationId)
+            .Select(a => new { LocationId = a.Key, VideoCount = a.Count() })
+            .ToListAsync();
+
+        return await LocationStore.GetAsync(_context, counts.ToDictionary(a => a.LocationId, a => a.VideoCount));
+    }
+
+    public async Task<IReadOnlyList<VideoGpsLocation>> GetNotGeocodedAsync(long afterId, int top)
+    {
+        var videos = await _context.Videos
+            .AsNoTracking()
+            .Where(a => a.Latitude != null && a.Longitude != null && a.Geocoding == null && a.Id > afterId)
+            .OrderBy(a => a.Id)
+            .Take(top)
+            .Select(a => new { a.Id, a.Latitude, a.Longitude })
+            .ToListAsync();
+
+        return videos.Select(a => new VideoGpsLocation(a.Id, a.Latitude!.Value, a.Longitude!.Value)).ToList();
+    }
+
+    /// <summary>
+    /// Saves the geocoding of the videos, a statement for each video, and their locations, all in one transaction.
+    /// </summary>
+    public async Task SetGeocodingsAsync(IReadOnlyDictionary<long, PhotoGeocoding> geocodingsByVideoId)
+    {
+        await using var transaction = await _context.Database.BeginTransactionAsync();
+
+        foreach (var (videoId, geocoding) in geocodingsByVideoId)
+        {
+            await _context.Videos
+                .Where(a => a.Id == videoId)
+                .ExecuteUpdateAsync(a => a.SetProperty(video => video.Geocoding, geocoding.Response));
+        }
+
+        var videoIds = geocodingsByVideoId.Keys.ToArray();
+
+        await _context.VideoLocations.Where(a => videoIds.Contains(a.VideoId)).ExecuteDeleteAsync();
+
+        var locationIds = await LocationStore.SaveAsync(_context,
+            geocodingsByVideoId.Values.SelectMany(a => a.Locations));
+
+        _context.VideoLocations.AddRange(geocodingsByVideoId.SelectMany(video => video.Value.Locations
+            .Select(a => locationIds[(a.Level, a.Key)])
+            .Distinct()
+            .Select(locationId => new VideoLocationEntity { VideoId = video.Key, LocationId = locationId })));
+
+        await _context.SaveChangesAsync();
+
+        await transaction.CommitAsync();
     }
 
     public async Task<IReadOnlyList<int>> GetYearsAsync(long userId)
@@ -209,9 +275,12 @@ public class VideoService : IVideoService
 
         var ids = exifByVideoId.Keys.ToList();
         var entities = await _context.Videos.Where(a => ids.Contains(a.Id)).ToListAsync();
+        var moved = new List<long>();
 
         foreach (var entity in entities)
         {
+            var (latitude, longitude) = (entity.Latitude, entity.Longitude);
+
             // the metadata decides what to keep of the video as it is
             var video = ToModel(entity);
             exifByVideoId[entity.Id].ApplyTo(video);
@@ -221,11 +290,23 @@ public class VideoService : IVideoService
             entity.DateTimeTaken = video.DateTimeTaken.ToUniversalTime();
             entity.Latitude = video.Latitude;
             entity.Longitude = video.Longitude;
+
+            // the geocoding of another place, or of none, tells nothing of where the video was taken
+            if (entity.Latitude != latitude || entity.Longitude != longitude)
+            {
+                entity.Geocoding = null;
+                moved.Add(entity.Id);
+            }
         }
 
         try
         {
             await _context.SaveChangesAsync();
+
+            if (moved.Count > 0)
+            {
+                await _context.VideoLocations.Where(a => moved.Contains(a.VideoId)).ExecuteDeleteAsync();
+            }
         }
         finally
         {
@@ -234,6 +315,11 @@ public class VideoService : IVideoService
             {
                 _context.Entry(entity).State = EntityState.Detached;
             }
+        }
+
+        if (entities.Any(a => moved.Contains(a.Id) && a.Latitude != null && a.Longitude != null))
+        {
+            _geocodingSignal.Notify();
         }
     }
 
@@ -322,7 +408,7 @@ public class VideoService : IVideoService
     }
 
     private IQueryable<VideoEntity> GetUserVideos(long userId, IReadOnlyCollection<string> folderPaths,
-        IReadOnlyCollection<int> years)
+        IReadOnlyCollection<int> years, VideoLocationFilter locations)
     {
         var videos = _context.Videos.Where(a => a.UserId == userId);
 
@@ -334,6 +420,15 @@ public class VideoService : IVideoService
         if (years.Count > 0)
         {
             videos = videos.Where(a => years.Contains(a.DateTimeTaken.Year));
+        }
+
+        if (locations.FiltersByLocations)
+        {
+            var locationIds = locations.LocationIds.ToArray();
+            var unknownLocation = locations.UnknownLocation;
+
+            videos = videos.Where(a => a.Locations.Any(l => locationIds.Contains(l.LocationId)) ||
+                                       (unknownLocation && !a.Locations.Any()));
         }
 
         return videos;

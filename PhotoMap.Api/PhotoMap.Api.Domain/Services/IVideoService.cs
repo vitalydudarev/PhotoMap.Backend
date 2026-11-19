@@ -12,13 +12,32 @@ public interface IVideoService
     /// </summary>
     /// <param name="folderPaths">The folders to take the videos from, all of them when empty.</param>
     /// <param name="years">The years, in UTC, the videos were taken in, all of them when empty.</param>
+    /// <param name="locations">The locations the videos were taken in, see <see cref="VideoLocationFilter"/>.</param>
     Task<IReadOnlyList<Video>> GetByUserIdAsync(long userId, IReadOnlyCollection<string> folderPaths,
-        IReadOnlyCollection<int> years, int top, int skip, PhotoSortOrder sortOrder);
+        IReadOnlyCollection<int> years, VideoLocationFilter locations, int top, int skip, PhotoSortOrder sortOrder);
 
     /// <param name="folderPaths">The folders to count the videos of, all of them when empty.</param>
     /// <param name="years">The years, in UTC, to count the videos taken in, all of them when empty.</param>
+    /// <param name="locations">The locations to count the videos taken in, see <see cref="VideoLocationFilter"/>.</param>
     Task<int> GetTotalCountByUserIdAsync(long userId, IReadOnlyCollection<string> folderPaths,
-        IReadOnlyCollection<int> years);
+        IReadOnlyCollection<int> years, VideoLocationFilter locations);
+
+    /// <summary>
+    /// The locations the videos of the user were taken in, by level, from the countries down, and by name, with how
+    /// many videos were taken in each. A video is in a location once it is geocoded.
+    /// </summary>
+    Task<IReadOnlyList<Location>> GetLocationsAsync(long userId);
+
+    /// <summary>
+    /// The next videos of every user with a GPS location and not geocoded yet, past the ID given, by their IDs.
+    /// </summary>
+    Task<IReadOnlyList<VideoGpsLocation>> GetNotGeocodedAsync(long afterId, int top);
+
+    /// <summary>
+    /// Saves the geocoding of the videos, and the locations it tells they were taken in, by their IDs. The locations
+    /// are saved once, under the level and the key of <see cref="GeocodedLocation"/>.
+    /// </summary>
+    Task SetGeocodingsAsync(IReadOnlyDictionary<long, PhotoGeocoding> geocodingsByVideoId);
 
     /// <summary>
     /// The years, in UTC, the videos of the user were taken in, oldest first.
@@ -63,7 +82,8 @@ public interface IVideoService
     Task<IReadOnlyList<Video>> GetWithoutExifAsync(long afterId, int count);
 
     /// <summary>
-    /// Saves the metadata read from the files of the videos, by their IDs, see <see cref="VideoExif.ApplyTo"/>.
+    /// Saves the metadata read from the files of the videos, by their IDs, see <see cref="VideoExif.ApplyTo"/>. A
+    /// video whose GPS location changes is geocoded again.
     /// </summary>
     Task UpdateExifAsync(IReadOnlyDictionary<long, VideoExif> exifByVideoId);
 

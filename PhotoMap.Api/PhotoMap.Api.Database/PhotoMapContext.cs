@@ -30,6 +30,7 @@ namespace PhotoMap.Api.Database
         public DbSet<CompletedMaintenanceTaskEntity> CompletedMaintenanceTasks { get; set; } = null!;
         public DbSet<LocationEntity> Locations { get; set; } = null!;
         public DbSet<PhotoLocationEntity> PhotoLocations { get; set; } = null!;
+        public DbSet<VideoLocationEntity> VideoLocations { get; set; } = null!;
 
         public PhotoMapContext(IConfiguration? configuration, DbContextOptions<PhotoMapContext> options)
             : base(options)
@@ -56,6 +57,7 @@ namespace PhotoMap.Api.Database
             modelBuilder.ApplyConfiguration(new CompletedMaintenanceTaskEntityConfiguration());
             modelBuilder.ApplyConfiguration(new LocationEntityConfiguration());
             modelBuilder.ApplyConfiguration(new PhotoLocationEntityConfiguration());
+            modelBuilder.ApplyConfiguration(new VideoLocationEntityConfiguration());
         }
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)

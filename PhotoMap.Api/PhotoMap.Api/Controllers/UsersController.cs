@@ -232,7 +232,7 @@ namespace PhotoMap.Api.Controllers
                 Level = a.Level.ToString(),
                 Name = a.Name,
                 Description = a.Description,
-                PhotoCount = a.PhotoCount
+                PhotoCount = a.Count
             }).ToArray());
         }
 

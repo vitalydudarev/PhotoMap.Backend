@@ -21,4 +21,15 @@ public class VideoEntity
     public string? PreviewContentType { get; set; }
     public required DateTimeOffset AddedOn { get; set; }
     public long? DuplicateGroupId { get; set; }
+
+    /// <summary>
+    /// The response of the reverse geocoding of <see cref="Latitude"/> and <see cref="Longitude"/>, null until the
+    /// video is geocoded, and for a video with no GPS location.
+    /// </summary>
+    public string? Geocoding { get; set; }
+
+    /// <summary>
+    /// The locations the video was taken in, read from <see cref="Geocoding"/>.
+    /// </summary>
+    public List<VideoLocationEntity> Locations { get; set; } = [];
 }

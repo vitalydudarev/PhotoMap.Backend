@@ -222,20 +222,7 @@ public class PhotoRepository : IPhotoRepository
             .Select(a => new { LocationId = a.Key, PhotoCount = a.Count() })
             .ToListAsync();
 
-        var photoCounts = counts.ToDictionary(a => a.LocationId, a => a.PhotoCount);
-        var locationIds = photoCounts.Keys.ToArray();
-
-        var locations = await _context.Locations
-            .AsNoTracking()
-            .Where(a => locationIds.Contains(a.Id))
-            .ToListAsync();
-
-        return locations
-            .OrderBy(a => a.Level)
-            .ThenBy(a => a.Name, StringComparer.CurrentCultureIgnoreCase)
-            .ThenBy(a => a.Description, StringComparer.CurrentCultureIgnoreCase)
-            .Select(a => new Location(a.Id, a.Level, a.Name, a.Description, photoCounts[a.Id]))
-            .ToList();
+        return await LocationStore.GetAsync(_context, counts.ToDictionary(a => a.LocationId, a => a.PhotoCount));
     }
 
     /// <summary>
@@ -614,36 +601,7 @@ public class PhotoRepository : IPhotoRepository
 
         await _context.PhotoLocations.Where(a => photoIds.Contains(a.PhotoId)).ExecuteDeleteAsync();
 
-        var locations = locationsByPhotoId.Values
-            .SelectMany(a => a)
-            .DistinctBy(a => (a.Level, a.Key))
-            .ToList();
-
-        if (locations.Count == 0)
-        {
-            return;
-        }
-
-        var levels = locations.Select(a => (int)a.Level).ToArray();
-        var keys = locations.Select(a => a.Key).ToArray();
-        var names = locations.Select(a => a.Name).ToArray();
-        var descriptions = locations.Select(a => a.Description).ToArray();
-
-        // EF Core has no upsert; ON CONFLICT keeps a location saved meanwhile as it is
-        await _context.Database.ExecuteSqlAsync($"""
-            INSERT INTO locations (level, key, name, description)
-            SELECT * FROM unnest({levels}, {keys}, {names}, {descriptions})
-            ON CONFLICT (level, key) DO NOTHING
-            """);
-
-        var distinctKeys = keys.Distinct().ToArray();
-        var saved = await _context.Locations
-            .AsNoTracking()
-            .Where(a => distinctKeys.Contains(a.Key))
-            .Select(a => new { a.Id, a.Level, a.Key })
-            .ToListAsync();
-
-        var locationIds = saved.ToDictionary(a => (a.Level, a.Key), a => a.Id);
+        var locationIds = await LocationStore.SaveAsync(_context, locationsByPhotoId.Values.SelectMany(a => a));
 
         await _context.PhotoLocations.AddRangeAsync(locationsByPhotoId.SelectMany(photo => photo.Value
             .Select(a => locationIds[(a.Level, a.Key)])

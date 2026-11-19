@@ -15,11 +15,11 @@ namespace PhotoMap.Api.Services.Services.Domain
         private readonly PhotoYearsCache _yearsCache;
         private readonly PhotoCategorizationSignal _categorizationSignal;
         private readonly PhotoDuplicatesSignal _duplicatesSignal;
-        private readonly PhotoGeocodingSignal _geocodingSignal;
+        private readonly GeocodingSignal _geocodingSignal;
 
         public PhotoService(IPhotoRepository photoRepository, PhotoYearsCache yearsCache,
             PhotoCategorizationSignal categorizationSignal, PhotoDuplicatesSignal duplicatesSignal,
-            PhotoGeocodingSignal geocodingSignal)
+            GeocodingSignal geocodingSignal)
         {
             _photoRepository = photoRepository;
             _yearsCache = yearsCache;

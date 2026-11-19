@@ -760,6 +760,10 @@ namespace PhotoMap.Api.Database.Migrations
                         .HasColumnType("text")
                         .HasColumnName("folder_path");
 
+                    b.Property<string>("Geocoding")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("geocoding");
+
                     b.Property<double?>("Latitude")
                         .HasColumnType("double precision")
                         .HasColumnName("latitude");
@@ -809,6 +813,25 @@ namespace PhotoMap.Api.Database.Migrations
                         .HasDatabaseName("ix_videos_user_id_photo_source_id_external_id");
 
                     b.ToTable("videos", (string)null);
+                });
+
+            modelBuilder.Entity("PhotoMap.Api.Database.Entities.VideoLocationEntity", b =>
+                {
+                    b.Property<long>("VideoId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("video_id");
+
+                    b.Property<long>("LocationId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("location_id");
+
+                    b.HasKey("VideoId", "LocationId")
+                        .HasName("pk_video_locations");
+
+                    b.HasIndex("LocationId")
+                        .HasDatabaseName("ix_video_locations_location_id");
+
+                    b.ToTable("video_locations", (string)null);
                 });
 
             modelBuilder.Entity("PhotoMap.Api.Database.Entities.FailedDownloadEntity", b =>
@@ -1045,9 +1068,32 @@ namespace PhotoMap.Api.Database.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("PhotoMap.Api.Database.Entities.VideoLocationEntity", b =>
+                {
+                    b.HasOne("PhotoMap.Api.Database.Entities.LocationEntity", "Location")
+                        .WithMany("Videos")
+                        .HasForeignKey("LocationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_video_locations_locations_location_id");
+
+                    b.HasOne("PhotoMap.Api.Database.Entities.VideoEntity", "Video")
+                        .WithMany("Locations")
+                        .HasForeignKey("VideoId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_video_locations_videos_video_id");
+
+                    b.Navigation("Location");
+
+                    b.Navigation("Video");
+                });
+
             modelBuilder.Entity("PhotoMap.Api.Database.Entities.LocationEntity", b =>
                 {
                     b.Navigation("Photos");
+
+                    b.Navigation("Videos");
                 });
 
             modelBuilder.Entity("PhotoMap.Api.Database.Entities.PhotoEntity", b =>
@@ -1076,6 +1122,11 @@ namespace PhotoMap.Api.Database.Migrations
                     b.Navigation("UserPhotoSourcesStates");
 
                     b.Navigation("UserPhotoSourcesStatuses");
+                });
+
+            modelBuilder.Entity("PhotoMap.Api.Database.Entities.VideoEntity", b =>
+                {
+                    b.Navigation("Locations");
                 });
 #pragma warning restore 612, 618
         }

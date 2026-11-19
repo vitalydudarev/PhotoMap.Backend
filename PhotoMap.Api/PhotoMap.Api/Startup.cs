@@ -88,8 +88,9 @@ namespace PhotoMap.Api
             services.AddSingleton<PhotoYearsCache>();
             services.AddSingleton<PhotoCategorizationSignal>();
             services.AddScoped<PhotoCategorizationService>();
-            services.AddSingleton<PhotoGeocodingSignal>();
+            services.AddSingleton<GeocodingSignal>();
             services.AddScoped<PhotoGeocodingService>();
+            services.AddScoped<VideoGeocodingService>();
             services.AddScoped<PhotoLocationsBackfillService>();
             services.AddScoped<PhotoDateTakenFixService>();
             services.AddScoped<IUserService, UserService>();
@@ -139,7 +140,7 @@ namespace PhotoMap.Api
 
             services.AddHostedService<ProcessedImageBackgroundService>();
             services.AddHostedService<PhotoCategorizationBackgroundService>();
-            services.AddHostedService<PhotoGeocodingBackgroundService>();
+            services.AddHostedService<GeocodingBackgroundService>();
             services.AddHostedService<PhotoDateTakenFixBackgroundService>();
             services.AddHostedService<PhotoLocationsBackfillBackgroundService>();
             services.AddHostedService<FailedPreviewsBackgroundService>();

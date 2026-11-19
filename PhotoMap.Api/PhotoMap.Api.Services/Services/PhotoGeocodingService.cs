@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using PhotoMap.Api.Domain.Models;
@@ -41,66 +40,28 @@ public class PhotoGeocodingService
             return new PhotoGeocodingBatch(0, 0, 0, afterId);
         }
 
-        var geocodings = new ConcurrentDictionary<long, string>();
-        var failedCount = 0;
-        GeocodingUnavailableException? unavailable = null;
+        var result = await ParallelGeocoding.RunAsync(_geocoder, _settings.MaxParallelRequests,
+            locations.Select(a => (a.PhotoId, a.Latitude, a.Longitude)).ToList(), _logger, "photo",
+            cancellationToken);
 
-        // the rest of the batch is not sent once the geocoding is unavailable, they would all fail the same way
-        using var unavailableCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-
-        try
-        {
-            await Parallel.ForEachAsync(locations,
-                new ParallelOptions
-                {
-                    MaxDegreeOfParallelism = Math.Max(1, _settings.MaxParallelRequests),
-                    CancellationToken = unavailableCts.Token
-                },
-                async (location, token) =>
-                {
-                    try
-                    {
-                        geocodings[location.PhotoId] =
-                            await _geocoder.ReverseGeocodeAsync(location.Latitude, location.Longitude, token);
-                    }
-                    catch (GeocodingUnavailableException e)
-                    {
-                        Interlocked.CompareExchange(ref unavailable, e, null);
-                        await unavailableCts.CancelAsync();
-                    }
-                    catch (Exception e) when (e is HttpRequestException ||
-                                              (e is TaskCanceledException && !token.IsCancellationRequested))
-                    {
-                        // an error of the request, or its timeout
-                        Interlocked.Increment(ref failedCount);
-                        _logger.LogWarning(e, "Failed to geocode photo {PhotoId}", location.PhotoId);
-                    }
-                });
-        }
-        catch (OperationCanceledException)
-        {
-            // cancelled by the unavailability or the application stopping, thrown below once the geocoded ones are
-            // saved
-        }
-
-        if (!geocodings.IsEmpty)
+        if (result.Geocodings.Count > 0)
         {
             // saved also when stopping, the requests count towards the quota
-            await _photoRepository.SetGeocodingsAsync(geocodings.ToDictionary(a => a.Key,
+            await _photoRepository.SetGeocodingsAsync(result.Geocodings.ToDictionary(a => a.Key,
                 a => new PhotoGeocoding(a.Value, GeocodedLocations.Get(a.Value))));
         }
 
-        if (unavailable != null)
+        if (result.Unavailable != null)
         {
-            throw unavailable;
+            throw result.Unavailable;
         }
 
         cancellationToken.ThrowIfCancellationRequested();
 
-        return new PhotoGeocodingBatch(locations.Count, geocodings.Count, failedCount, locations[^1].PhotoId);
+        return new PhotoGeocodingBatch(locations.Count, result.Geocodings.Count, result.FailedCount,
+            locations[^1].PhotoId);
     }
 }
-
 /// <param name="PhotoCount">How many photos the batch had, 0 when none was left to geocode.</param>
 /// <param name="GeocodedCount">How many photos were geocoded.</param>
 /// <param name="FailedCount">How many photos failed to be geocoded, left for the next round.</param>

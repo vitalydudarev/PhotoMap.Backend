@@ -21,11 +21,11 @@ public class VideosControllerTests
     {
         _videoService
             .Setup(a => a.GetByUserIdAsync(UserId, It.IsAny<IReadOnlyCollection<string>>(), It.IsAny<IReadOnlyCollection<int>>(),
-                It.IsAny<int>(), It.IsAny<int>(), It.IsAny<PhotoSortOrder>()))
+                It.IsAny<VideoLocationFilter>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<PhotoSortOrder>()))
             .ReturnsAsync([]);
         _videoService
             .Setup(a => a.GetTotalCountByUserIdAsync(UserId, It.IsAny<IReadOnlyCollection<string>>(),
-                It.IsAny<IReadOnlyCollection<int>>()))
+                It.IsAny<IReadOnlyCollection<int>>(), It.IsAny<VideoLocationFilter>()))
             .ReturnsAsync(7);
     }
 
@@ -44,10 +44,11 @@ public class VideosControllerTests
 
         _videoService.Verify(a => a.GetByUserIdAsync(UserId,
             It.Is<IReadOnlyCollection<string>>(f => f.SequenceEqual(new[] { "disk:/Фотокамера" })),
-            It.Is<IReadOnlyCollection<int>>(y => y.SequenceEqual(new[] { 2016, 2019 })), 100, 0, PhotoSortOrder.Desc));
+            It.Is<IReadOnlyCollection<int>>(y => y.SequenceEqual(new[] { 2016, 2019 })), It.IsAny<VideoLocationFilter>(), 100,
+            0, PhotoSortOrder.Desc));
         _videoService.Verify(a => a.GetTotalCountByUserIdAsync(UserId,
             It.Is<IReadOnlyCollection<string>>(f => f.SequenceEqual(new[] { "disk:/Фотокамера" })),
-            It.Is<IReadOnlyCollection<int>>(y => y.SequenceEqual(new[] { 2016, 2019 }))));
+            It.Is<IReadOnlyCollection<int>>(y => y.SequenceEqual(new[] { 2016, 2019 })), It.IsAny<VideoLocationFilter>()));
     }
 
     [Fact]
@@ -61,7 +62,47 @@ public class VideosControllerTests
 
         // Assert
         _videoService.Verify(a => a.GetByUserIdAsync(UserId, It.Is<IReadOnlyCollection<string>>(f => f.Count == 0),
-            It.Is<IReadOnlyCollection<int>>(y => y.Count == 0), 100, 0, PhotoSortOrder.Asc));
+            It.Is<IReadOnlyCollection<int>>(y => y.Count == 0), It.Is<VideoLocationFilter>(l => !l.FiltersByLocations), 100,
+            0, PhotoSortOrder.Asc));
+    }
+
+    [Fact]
+    public async Task GetUserVideos_ShouldTakeTheVideosAndTheCountFromTheGivenLocations()
+    {
+        // Arrange
+        var controller = CreateController();
+
+        // Act
+        await controller.GetUserVideos(UserId, 100, 0, location: [12, 40], unknownLocation: true);
+
+        // Assert
+        _videoService.Verify(a => a.GetByUserIdAsync(UserId, It.IsAny<IReadOnlyCollection<string>>(),
+            It.IsAny<IReadOnlyCollection<int>>(),
+            It.Is<VideoLocationFilter>(l => l.LocationIds.SequenceEqual(new long[] { 12, 40 }) && l.UnknownLocation),
+            100, 0, PhotoSortOrder.Asc));
+        _videoService.Verify(a => a.GetTotalCountByUserIdAsync(UserId, It.IsAny<IReadOnlyCollection<string>>(),
+            It.IsAny<IReadOnlyCollection<int>>(),
+            It.Is<VideoLocationFilter>(l => l.LocationIds.SequenceEqual(new long[] { 12, 40 }) && l.UnknownLocation)));
+    }
+
+    [Fact]
+    public async Task GetUserVideoLocations_ShouldGiveTheLocationsOfTheVideosOfTheUser()
+    {
+        // Arrange
+        _videoService.Setup(a => a.GetLocationsAsync(UserId)).ReturnsAsync([
+            new Location(3, LocationLevel.Country, "Belarus", null, 4),
+            new Location(8, LocationLevel.City, "Minsk", "Belarus", 2)
+        ]);
+        var controller = CreateController();
+
+        // Act
+        var result = await controller.GetUserVideoLocations(UserId);
+
+        // Assert
+        var locations = Assert.IsType<VideoLocationDto[]>(Assert.IsType<OkObjectResult>(result).Value);
+        Assert.Equal(["Country", "City"], locations.Select(a => a.Level));
+        Assert.Equal("Belarus", locations[1].Description);
+        Assert.Equal(2, locations[1].VideoCount);
     }
 
     [Fact]

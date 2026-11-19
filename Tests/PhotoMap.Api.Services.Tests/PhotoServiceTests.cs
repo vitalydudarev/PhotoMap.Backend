@@ -14,7 +14,7 @@ public class PhotoServiceTests
     private readonly PhotoYearsCache _yearsCache = new();
     private readonly PhotoCategorizationSignal _categorizationSignal = new();
     private readonly PhotoDuplicatesSignal _duplicatesSignal = new();
-    private readonly PhotoGeocodingSignal _geocodingSignal = new();
+    private readonly GeocodingSignal _geocodingSignal = new();
 
     public PhotoServiceTests()
     {

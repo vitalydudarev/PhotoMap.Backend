@@ -3,8 +3,8 @@ using PhotoMap.Api.Domain.Models;
 namespace PhotoMap.Api.Database.Entities;
 
 /// <summary>
-/// A location photos were taken in, as the reverse geocoding tells, see <see cref="GeocodedLocation"/>. Of every user:
-/// a location is saved once, when the first photo taken in it is geocoded.
+/// A location photos or videos were taken in, as the reverse geocoding tells, see <see cref="GeocodedLocation"/>. Of
+/// every user: a location is saved once, when the first photo or video taken in it is geocoded.
 /// </summary>
 public class LocationEntity
 {
@@ -23,4 +23,5 @@ public class LocationEntity
     public string? Description { get; set; }
 
     public List<PhotoLocationEntity> Photos { get; set; } = [];
+    public List<VideoLocationEntity> Videos { get; set; } = [];
 }

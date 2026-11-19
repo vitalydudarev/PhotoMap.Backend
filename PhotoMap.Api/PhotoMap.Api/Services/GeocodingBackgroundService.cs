@@ -10,26 +10,26 @@ using PhotoMap.Api.Services.Services;
 namespace PhotoMap.Api.Services
 {
     /// <summary>
-    /// Finds the addresses of the GPS locations of the photos: on start, the ones saved before and not geocoded yet, and
-    /// then the ones saved since, whenever photos are saved. Photos that fail to be geocoded are tried again on the next
-    /// round.
+    /// Finds the addresses of the GPS locations of the photos, and then of the videos: on start, the ones saved before
+    /// and not geocoded yet, and then the ones saved since, whenever photos or videos are saved. Those that fail to be
+    /// geocoded are tried again on the next round.
     /// </summary>
-    public class PhotoGeocodingBackgroundService : BackgroundService
+    public class GeocodingBackgroundService : BackgroundService
     {
         private const int BatchSize = 100;
 
         private static readonly TimeSpan RetryDelay = TimeSpan.FromMinutes(1);
 
-        private readonly PhotoGeocodingSignal _signal;
+        private readonly GeocodingSignal _signal;
         private readonly IGeocoder _geocoder;
         private readonly IServiceScopeFactory _serviceScopeFactory;
-        private readonly ILogger<PhotoGeocodingBackgroundService> _logger;
+        private readonly ILogger<GeocodingBackgroundService> _logger;
 
-        public PhotoGeocodingBackgroundService(
-            PhotoGeocodingSignal signal,
+        public GeocodingBackgroundService(
+            GeocodingSignal signal,
             IGeocoder geocoder,
             IServiceScopeFactory serviceScopeFactory,
-            ILogger<PhotoGeocodingBackgroundService> logger)
+            ILogger<GeocodingBackgroundService> logger)
         {
             _signal = signal;
             _geocoder = geocoder;
@@ -41,12 +41,12 @@ namespace PhotoMap.Api.Services
         {
             if (!_geocoder.IsConfigured)
             {
-                _logger.LogWarning("The Mapbox access token is not configured ({Section}:AccessToken), the photos are " +
-                                   "not geocoded", MapboxSettings.SectionName);
+                _logger.LogWarning("The Mapbox access token is not configured ({Section}:AccessToken), the photos and " +
+                                   "videos are not geocoded", MapboxSettings.SectionName);
                 return;
             }
 
-            _logger.LogInformation($"{nameof(PhotoGeocodingBackgroundService)} is running.");
+            _logger.LogInformation($"{nameof(GeocodingBackgroundService)} is running.");
 
             try
             {
@@ -54,11 +54,12 @@ namespace PhotoMap.Api.Services
                 {
                     try
                     {
-                        await GeocodeAllAsync(stoppingToken);
+                        await GeocodePhotosAsync(stoppingToken);
+                        await GeocodeVideosAsync(stoppingToken);
                     }
                     catch (GeocodingUnavailableException e)
                     {
-                        // the round starts over then, the photos geocoded so far are not looked at again
+                        // the round starts over then, the photos and videos geocoded so far are not looked at again
                         _logger.LogWarning("{Reason}, geocoding again in {RetryAfter}", e.Message, e.RetryAfter);
 
                         await Task.Delay(e.RetryAfter, stoppingToken);
@@ -67,7 +68,8 @@ namespace PhotoMap.Api.Services
                     catch (Exception e) when (e is not OperationCanceledException)
                     {
                         // an exception would stop the application; the photos left are tried again later instead
-                        _logger.LogError(e, "Failed to geocode the photos, trying again in {RetryDelay}", RetryDelay);
+                        _logger.LogError(e, "Failed to geocode the photos and videos, trying again in {RetryDelay}",
+                            RetryDelay);
 
                         await Task.Delay(RetryDelay, stoppingToken);
                         continue;
@@ -86,7 +88,7 @@ namespace PhotoMap.Api.Services
         /// Goes through the photos not geocoded yet once, by their ID, so that the ones failing are not tried over and
         /// over within a round.
         /// </summary>
-        private async Task GeocodeAllAsync(CancellationToken stoppingToken)
+        private async Task GeocodePhotosAsync(CancellationToken stoppingToken)
         {
             var geocoded = 0;
             var failed = 0;
@@ -115,6 +117,42 @@ namespace PhotoMap.Api.Services
                 if (geocoded > 0 || failed > 0)
                 {
                     _logger.LogInformation("Geocoded {PhotoCount} photos, {FailedCount} failed", geocoded, failed);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Goes through the videos not geocoded yet once, by their ID, as <see cref="GeocodePhotosAsync"/> does.
+        /// </summary>
+        private async Task GeocodeVideosAsync(CancellationToken stoppingToken)
+        {
+            var geocoded = 0;
+            var failed = 0;
+            var afterId = 0L;
+
+            try
+            {
+                while (!stoppingToken.IsCancellationRequested)
+                {
+                    using var scope = _serviceScopeFactory.CreateScope();
+                    var geocodingService = scope.ServiceProvider.GetRequiredService<VideoGeocodingService>();
+
+                    var batch = await geocodingService.GeocodeNextAsync(afterId, BatchSize, stoppingToken);
+                    if (batch.VideoCount == 0)
+                    {
+                        break;
+                    }
+
+                    geocoded += batch.GeocodedCount;
+                    failed += batch.FailedCount;
+                    afterId = batch.LastVideoId;
+                }
+            }
+            finally
+            {
+                if (geocoded > 0 || failed > 0)
+                {
+                    _logger.LogInformation("Geocoded {VideoCount} videos, {FailedCount} failed", geocoded, failed);
                 }
             }
         }

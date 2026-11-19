@@ -25,6 +25,7 @@ namespace PhotoMap.Api.Database.Configurations
             builder.Property(a => a.PreviewContentType);
             builder.Property(a => a.AddedOn).IsRequired();
             builder.Property(a => a.DuplicateGroupId);
+            builder.Property(a => a.Geocoding).HasColumnType("jsonb");
             builder.ToTable("videos");
 
             // file ID assigned by the photo source (Yandex.Disk resource_id)
