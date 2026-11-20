@@ -17,6 +17,10 @@ public interface IPhotoRepository
     /// <returns>The years, in UTC, the photos of the user were taken in.</returns>
     Task<IEnumerable<int>> GetYearsAsync(long userId);
 
+    /// <returns>The folders the photos of the user are in, the deleted ones too, without the file names, by
+    /// name.</returns>
+    Task<IReadOnlyList<string>> GetFolderPathsAsync(long userId);
+
     /// <returns>The photos not yet put in their categories by the given version of the rules, oldest saved first.</returns>
     Task<IReadOnlyList<Photo>> GetNotCategorizedAsync(int version, int top);
 

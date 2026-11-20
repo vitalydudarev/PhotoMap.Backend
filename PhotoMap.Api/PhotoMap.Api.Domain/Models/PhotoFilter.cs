@@ -24,6 +24,8 @@ namespace PhotoMap.Api.Domain.Models;
 /// <param name="UnknownLocation">Whether the photos in no location are taken, along with those of
 /// <paramref name="LocationIds"/>: those with no GPS, not geocoded yet, or where the geocoding found nothing. Only they
 /// are when no location is given.</param>
+/// <param name="FolderPaths">The folders the photos are in, any of them, without the file names, such as
+/// <c>disk:/Camera Uploads</c>; the photos of every folder when not given.</param>
 public record PhotoFilter(
     IReadOnlyCollection<long> PhotoSourceIds,
     IReadOnlyCollection<int> Years,
@@ -34,7 +36,8 @@ public record PhotoFilter(
     bool Untagged = false,
     GeoBox? Area = null,
     IReadOnlyCollection<long>? LocationIds = null,
-    bool UnknownLocation = false)
+    bool UnknownLocation = false,
+    IReadOnlyCollection<string>? FolderPaths = null)
 {
     public static PhotoFilter All { get; } = new([], [], []);
 

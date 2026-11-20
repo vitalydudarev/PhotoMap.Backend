@@ -22,6 +22,13 @@ public class PhotoEntity
     public bool HasGps { get; set; }
     public string? ExifString { get; set; }
     public string? Path { get; set; }
+
+    /// <summary>
+    /// The folder of the photo in the photo source, without its file name, such as <c>disk:/Camera Uploads</c>, and
+    /// <c>disk:/</c> for a photo at the root of the disk; null when the photo has no path. The database works it out
+    /// from <see cref="Path"/>, as the folder of a video is, see <c>VideoProcessingService.GetFolderPath</c>.
+    /// </summary>
+    public string? FolderPath { get; set; }
     public string? ExternalId { get; set; }
     public string? ContentHash { get; set; }
     public required DateTimeOffset AddedOn { get; set; }

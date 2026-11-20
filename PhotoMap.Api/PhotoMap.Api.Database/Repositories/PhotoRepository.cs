@@ -122,6 +122,16 @@ public class PhotoRepository : IPhotoRepository
             .ToListAsync();
     }
 
+    public async Task<IReadOnlyList<string>> GetFolderPathsAsync(long userId)
+    {
+        return await _context.Photos
+            .Where(a => a.UserId == userId && a.FolderPath != null)
+            .Select(a => a.FolderPath!)
+            .Distinct()
+            .OrderBy(a => a)
+            .ToListAsync();
+    }
+
     /// <summary>
     /// The photos not yet put in their categories by the given version of the rules, in the order they were saved.
     /// </summary>
@@ -544,6 +554,13 @@ public class PhotoRepository : IPhotoRepository
         if (filter.PhotoSourceIds.Count > 0)
         {
             photos = photos.Where(a => filter.PhotoSourceIds.Contains(a.PhotoSourceId));
+        }
+
+        if (filter.FolderPaths is { Count: > 0 } folderPaths)
+        {
+            var paths = folderPaths.ToArray();
+
+            photos = photos.Where(a => a.FolderPath != null && paths.Contains(a.FolderPath));
         }
 
         if (filter.Years.Count > 0)

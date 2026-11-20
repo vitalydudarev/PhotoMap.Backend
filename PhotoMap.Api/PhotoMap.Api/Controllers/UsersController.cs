@@ -77,6 +77,10 @@ namespace PhotoMap.Api.Controllers
         /// <param name="unknownLocation">Whether the photos in no location are taken, along with the ones of
         /// <c>location</c>: those with no GPS, not geocoded yet, or where the geocoding found nothing. Only they are
         /// when no location is given.</param>
+        /// <param name="folder">The folders the photos are in, without the file name, repeated for each one, such as
+        /// <c>folder=disk:/Camera Uploads&amp;folder=disk:/Trips</c>; see <c>photos/folders</c>. A folder outside the
+        /// ones the sources are processed from takes photos only along with <c>allFolders</c>. The photos of every
+        /// folder when not given.</param>
         [HttpGet("{id:long}/photos")]
         [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(PagedResponse<PhotoDto>))]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -93,10 +97,11 @@ namespace PhotoMap.Api.Controllers
             [FromQuery] bool untagged = false,
             [FromQuery] string? area = null,
             [FromQuery] long[]? location = null,
-            [FromQuery] bool unknownLocation = false)
+            [FromQuery] bool unknownLocation = false,
+            [FromQuery] string[]? folder = null)
         {
             var filter = CreateFilter(source, year, category, gps, allFolders, tag, untagged, area, location,
-                unknownLocation);
+                unknownLocation, folder);
 
             if (filter == null)
             {
@@ -131,6 +136,7 @@ namespace PhotoMap.Api.Controllers
         /// <param name="location">The IDs of the locations the photos were taken in, any of them.</param>
         /// <param name="unknownLocation">Whether the photos in no location are taken, along with the ones of
         /// <c>location</c>: those not geocoded yet, or where the geocoding found nothing.</param>
+        /// <param name="folder">The folders the photos are in, without the file name, any of them.</param>
         [HttpGet("{id:long}/photos/geotagged")]
         [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(PhotoDto[]))]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -144,10 +150,11 @@ namespace PhotoMap.Api.Controllers
             [FromQuery] bool untagged = false,
             [FromQuery] string? area = null,
             [FromQuery] long[]? location = null,
-            [FromQuery] bool unknownLocation = false)
+            [FromQuery] bool unknownLocation = false,
+            [FromQuery] string[]? folder = null)
         {
             var filter = CreateFilter(source, year, category, gps, allFolders, tag, untagged, area, location,
-                unknownLocation);
+                unknownLocation, folder);
 
             if (filter == null)
             {
@@ -218,6 +225,18 @@ namespace PhotoMap.Api.Controllers
         public async Task<IActionResult> GetUserPhotoYears([FromRoute] long id)
         {
             return Ok(await _photoService.GetYearsAsync(id));
+        }
+
+        /// <summary>
+        /// The folders the photos of the user are in, the deleted ones too, without the file names, by name, such as
+        /// <c>disk:/Camera Uploads</c>, and <c>disk:/</c> for the photos at the root of the disk.
+        /// </summary>
+        /// <param name="id">The ID of the user.</param>
+        [HttpGet("{id:long}/photos/folders")]
+        [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(string[]))]
+        public async Task<IActionResult> GetUserPhotoFolders([FromRoute] long id)
+        {
+            return Ok(await _photoService.GetFolderPathsAsync(id));
         }
 
         /// <summary>
@@ -379,7 +398,8 @@ namespace PhotoMap.Api.Controllers
         /// <returns>The filter, or null when the query does not make one, the errors of which are then in the model
         /// state.</returns>
         private PhotoFilter? CreateFilter(long[]? source, int[]? year, PhotoCategory[]? category, bool? gps,
-            bool allFolders, long[]? tag, bool untagged, string? area, long[]? location, bool unknownLocation)
+            bool allFolders, long[]? tag, bool untagged, string? area, long[]? location, bool unknownLocation,
+            string[]? folder)
         {
             // a number binds to the enum whether it names a category or not
             if (category != null && !category.All(Enum.IsDefined))
@@ -400,7 +420,7 @@ namespace PhotoMap.Api.Controllers
             }
 
             return new PhotoFilter(source ?? [], year ?? [], category ?? [], gps, allFolders, tag ?? [], untagged,
-                box, location ?? [], unknownLocation);
+                box, location ?? [], unknownLocation, folder?.Where(a => !string.IsNullOrEmpty(a)).ToArray() ?? []);
         }
 
         private PhotoDto ToDto(Photo photo)

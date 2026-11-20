@@ -372,6 +372,12 @@ namespace PhotoMap.Api.Database.Migrations
                         .HasColumnType("text")
                         .HasColumnName("file_name");
 
+                    b.Property<string>("FolderPath")
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("text")
+                        .HasColumnName("folder_path")
+                        .HasComputedColumnSql("CASE WHEN strpos(path, '/') = 0 THEN NULL ELSE regexp_replace(regexp_replace(path, '/[^/]*$', ''), '(^|:)$', '\\1/') END", true);
+
                     b.Property<bool>("FromOtherUploads")
                         .HasColumnType("boolean")
                         .HasColumnName("from_other_uploads");
@@ -434,6 +440,9 @@ namespace PhotoMap.Api.Database.Migrations
 
                     b.HasIndex("UserId", "DuplicateGroupId")
                         .HasDatabaseName("ix_photos_user_id_duplicate_group_id");
+
+                    b.HasIndex("UserId", "FolderPath")
+                        .HasDatabaseName("ix_photos_user_id_folder_path");
 
                     b.HasIndex("UserId", "PhotoSourceId", "ExternalId")
                         .IsUnique()

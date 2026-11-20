@@ -179,6 +179,53 @@ public class UsersControllerTests
     }
 
     [Fact]
+    public async Task GetUserPhotos_ShouldTakeThePhotosOfTheGivenFolders()
+    {
+        // Arrange
+        var controller = CreateController();
+
+        // Act
+        await controller.GetUserPhotos(UserId, 100, 0, allFolders: true, folder: ["disk:/Camera Uploads", "disk:/Trips"]);
+
+        // Assert
+        _photoService.Verify(a => a.GetByUserIdAsync(UserId,
+            It.Is<PhotoFilter>(f => f.IncludeOtherUploads &&
+                                    f.FolderPaths!.SequenceEqual(new[] { "disk:/Camera Uploads", "disk:/Trips" })),
+            100, 0, PhotoSortOrder.Asc));
+        _photoService.Verify(a => a.GetTotalCountByUserIdAsync(UserId,
+            It.Is<PhotoFilter>(f => f.FolderPaths!.SequenceEqual(new[] { "disk:/Camera Uploads", "disk:/Trips" }))));
+    }
+
+    [Fact]
+    public async Task GetUserPhotos_ShouldNotFilterByFolders_WhenNoneIsGiven()
+    {
+        // Arrange
+        var controller = CreateController();
+
+        // Act
+        await controller.GetUserPhotos(UserId, 100, 0);
+
+        // Assert
+        _photoService.Verify(a => a.GetByUserIdAsync(UserId, It.Is<PhotoFilter>(f => f.FolderPaths!.Count == 0), 100,
+            0, PhotoSortOrder.Asc));
+    }
+
+    [Fact]
+    public async Task GetUserPhotoFolders_ShouldReturnTheFoldersOfThePhotos()
+    {
+        // Arrange
+        _photoService.Setup(a => a.GetFolderPathsAsync(UserId)).ReturnsAsync(["disk:/", "disk:/Camera Uploads"]);
+        var controller = CreateController();
+
+        // Act
+        var result = await controller.GetUserPhotoFolders(UserId);
+
+        // Assert
+        Assert.Equal(new[] { "disk:/", "disk:/Camera Uploads" },
+            Assert.IsAssignableFrom<IReadOnlyList<string>>(Assert.IsType<OkObjectResult>(result).Value));
+    }
+
+    [Fact]
     public async Task GetUserPhotos_ShouldNotFilterByLocations_WhenNoneIsGiven()
     {
         // Arrange
@@ -583,10 +630,11 @@ public class UsersControllerTests
         // Act
         await controller.GetUserGeotaggedPhotos(UserId, source: [1], year: [2019], category: [PhotoCategory.Other],
             allFolders: true, tag: [4], untagged: true, area: "-9.23,38.69,-9.09,38.8", location: [12, 40],
-            unknownLocation: true);
+            unknownLocation: true, folder: ["disk:/Trips"]);
 
         // Assert
         _photoService.Verify(a => a.GetGeotaggedAsync(UserId, It.Is<PhotoFilter>(f =>
+            f.FolderPaths!.SequenceEqual(new[] { "disk:/Trips" }) &&
             f.PhotoSourceIds.SequenceEqual(new long[] { 1 }) && f.Years.SequenceEqual(new[] { 2019 }) &&
             f.Categories.SequenceEqual(new[] { PhotoCategory.Other }) && f.IncludeOtherUploads &&
             f.TagIds!.SequenceEqual(new long[] { 4 }) && f.Untagged && f.Area != null &&

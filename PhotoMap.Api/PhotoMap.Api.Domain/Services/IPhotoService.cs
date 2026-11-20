@@ -27,6 +27,10 @@ namespace PhotoMap.Api.Domain.Services
         /// <returns>The years, in UTC, the photos of the user were taken in, oldest first.</returns>
         Task<IReadOnlyList<int>> GetYearsAsync(long userId);
 
+        /// <returns>The folders the photos of the user are in, the deleted ones too, without the file names, by
+        /// name.</returns>
+        Task<IReadOnlyList<string>> GetFolderPathsAsync(long userId);
+
         /// <summary>
         /// The photos of the user that are copies of one another, by their groups, the groups of the photos taken
         /// first first, and the photos of a group by their ID. Photos marked as deleted are in no group.
