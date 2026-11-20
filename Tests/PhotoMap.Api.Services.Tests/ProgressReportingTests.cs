@@ -66,6 +66,35 @@ public class ProgressReportingTests
         Assert.Equal(1, reports);
     }
 
+    [Fact]
+    public async Task ReportOnStepsAsync_ShouldReportTheFilesShortOfAStep_OnceTheFallbackIntervalHasPassed()
+    {
+        // Arrange: a slow run, short of a step
+        var progress = new ProcessingProgress(0, 0) { TotalCount = 500 };
+        var reports = 0;
+        using var cancellationTokenSource = new CancellationTokenSource();
+
+        var reporting = ProgressReporting.ReportOnStepsAsync(() => progress, () =>
+        {
+            Interlocked.Increment(ref reports);
+            return Task.CompletedTask;
+        }, cancellationTokenSource.Token, TimeSpan.FromMilliseconds(500));
+
+        // Act
+        progress.FileProcessed();
+
+        await WaitUntilAsync(() => Volatile.Read(ref reports) > 0);
+
+        // nothing has changed since, nothing more is reported
+        await Task.Delay(1000);
+
+        await cancellationTokenSource.CancelAsync();
+        await reporting;
+
+        // Assert
+        Assert.Equal(1, reports);
+    }
+
     private static async Task WaitUntilAsync(Func<bool> condition)
     {
         var deadline = DateTime.UtcNow.AddSeconds(5);
