@@ -32,9 +32,21 @@ public class YandexDiskOtherUploads
     /// within it, are left out too. See <see cref="ListFilesAsync"/> for how the disk is listed.
     /// </summary>
     /// <param name="excludedFolder">The folder the disk is processed from, such as <c>disk:/Camera Uploads/</c>.</param>
-    public async Task<IReadOnlyList<Resource>> ListPhotosAsync(string excludedFolder, CancellationToken cancellationToken)
+    /// <param name="listed">Told how many photos have been found so far, as each one is found.</param>
+    public async Task<IReadOnlyList<Resource>> ListPhotosAsync(string excludedFolder, CancellationToken cancellationToken,
+        Action<int>? listed = null)
     {
-        return (await ListFilesAsync(excludedFolder, cancellationToken)).Where(IsPhoto).ToList();
+        var photoCount = 0;
+
+        var files = await ListFilesAsync(excludedFolder, cancellationToken, file =>
+        {
+            if (IsPhoto(file))
+            {
+                listed?.Invoke(++photoCount);
+            }
+        });
+
+        return files.Where(IsPhoto).ToList();
     }
 
     /// <summary>
@@ -57,7 +69,9 @@ public class YandexDiskOtherUploads
     /// </summary>
     /// <param name="excludedFolder">The folder the disk is processed from: its files are left out, the files of the
     /// folders within it are not.</param>
-    public async Task<IReadOnlyList<Resource>> ListFilesAsync(string excludedFolder, CancellationToken cancellationToken)
+    /// <param name="fileListed">Told of each file listed, as it is found.</param>
+    public async Task<IReadOnlyList<Resource>> ListFilesAsync(string excludedFolder, CancellationToken cancellationToken,
+        Action<Resource>? fileListed = null)
     {
         var folder = YandexDiskPaths.NormalizeFolder(excludedFolder);
         var files = new List<Resource>();
@@ -84,6 +98,7 @@ public class YandexDiskOtherUploads
                          resourceIds.Add(item.ResourceId))
                 {
                     files.Add(item);
+                    fileListed?.Invoke(item);
                 }
             }
         }

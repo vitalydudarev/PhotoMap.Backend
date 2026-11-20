@@ -17,8 +17,6 @@ namespace PhotoMap.Api.Services;
 
 public class PhotoSourceProcessingService : IPhotoSourceProcessingService
 {
-    private static readonly TimeSpan StatusReportInterval = TimeSpan.FromSeconds(2);
-
     /// <summary>
     /// How many photos of the other uploads are downloaded and processed before the next ones start, which is how
     /// much of a stopped run is downloaded again when it resumes.
@@ -212,7 +210,17 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
                 // a retry or a sync downloads files the total already counts, the total of the previous run stays
                 if (!retryFailed && !sync)
                 {
-                    progress.TotalCount = await downloadService.GetTotalFileCountAsync();
+                    // the download service counts the files it finds into the progress as it lists them
+                    progress.StartListing();
+
+                    try
+                    {
+                        progress.TotalCount = await downloadService.GetTotalFileCountAsync();
+                    }
+                    finally
+                    {
+                        progress.FinishListing();
+                    }
                 }
 
                 var downloadedFiles = retryFailed ? downloadService.RetryFailedAsync(cancellationToken)
@@ -292,8 +300,14 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
                 }
                 else
                 {
+                    var listingProgress = progress;
+                    listingProgress.StartListing();
+
                     var sourceFolder = await YandexDiskDownloadService.GetSourceFolderAsync(apiClient, settings, logger, cancellationToken);
-                    var photos = await otherUploads.ListPhotosAsync(sourceFolder, cancellationToken);
+                    var photos = await otherUploads.ListPhotosAsync(sourceFolder, cancellationToken, listingProgress.SetListedCount);
+
+                    listingProgress.FinishListing();
+
                     var savedExternalIds = await photoService.GetSavedExternalIdsAsync(run.UserId, run.SourceId,
                         photos.Select(a => a.ResourceId));
 
@@ -420,7 +434,7 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
         {
             await ReportAsync(PhotoSourceStatus.InProgress);
 
-            reportingTask = ReportStatusPeriodicallyAsync(() => ReportAsync(PhotoSourceStatus.InProgress),
+            reportingTask = ProgressReporting.ReportOnStepsAsync(getProgress, () => ReportAsync(PhotoSourceStatus.InProgress),
                 reportingCancellationTokenSource.Token);
 
             await workAsync(scope.ServiceProvider, logger);
@@ -611,26 +625,6 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
     }
 
     /// <summary>
-    /// Makes the report given every <see cref="StatusReportInterval"/> until the run has finished.
-    /// </summary>
-    private static async Task ReportStatusPeriodicallyAsync(Func<Task> reportAsync, CancellationToken cancellationToken)
-    {
-        using var timer = new PeriodicTimer(StatusReportInterval);
-
-        try
-        {
-            while (await timer.WaitForNextTickAsync(cancellationToken))
-            {
-                await reportAsync();
-            }
-        }
-        catch (OperationCanceledException)
-        {
-            // processing has finished
-        }
-    }
-
-    /// <summary>
     /// Saves the status and counters to the database and sends them to the frontend: those of the folder the source
     /// is processed from, with how far a retry of the failed files has got, or those of the other uploads. Failures
     /// are only logged, they must not stop the processing.
@@ -656,7 +650,8 @@ public class PhotoSourceProcessingService : IPhotoSourceProcessingService
                 // the files uploaded before a listing run that has finished started are the ones a sync checks
                 LastListedAt = status == PhotoSourceStatus.Done && run.Kind is RunKind.Source or RunKind.OtherUploads
                     ? run.StartedAt
-                    : null
+                    : null,
+                ListedCount = status == PhotoSourceStatus.InProgress && progress.IsListing ? progress.ListedCount : null
             };
 
             switch (run.Kind)

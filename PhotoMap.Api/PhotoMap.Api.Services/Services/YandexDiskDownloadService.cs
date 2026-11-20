@@ -168,6 +168,7 @@ public sealed class YandexDiskDownloadService : DownloadServiceBase<YandexDiskDo
 
             totalCount += GetSupportedFiles(items).Count();
             offset += items.Length;
+            Parameters.Progress.SetListedCount(totalCount);
 
             if (items.Length < PageSize || offset >= page.Total)
             {

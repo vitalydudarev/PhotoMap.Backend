@@ -32,6 +32,28 @@ public class YandexDiskVideoSourceTests
         Assert.Equal(["r1", "r2", "r3"], videos.Select(a => a.ResourceId));
     }
 
+    [Fact]
+    public async Task ListVideosAsync_ShouldTellHowManyVideosItHasFound_AfterEachPage()
+    {
+        // Arrange
+        var pages = new Dictionary<int, string[]>
+        {
+            [0] = ["r1", "r2"],
+            [2] = ["r2", "r3"],
+            [4] = []
+        };
+
+        var apiClient = new ApiClient("token", new HttpClient(new FakeFilesHandler(pages)));
+        var videoSource = new YandexDiskVideoSource(apiClient, NullLogger.Instance);
+        var listed = new List<int>();
+
+        // Act
+        await videoSource.ListVideosAsync(CancellationToken.None, listed.Add);
+
+        // Assert: the video on both pages is counted once
+        Assert.Equal([2, 3, 3], listed);
+    }
+
     [Theory]
     [InlineData("disk:/Camera Uploads", "video.mp4", "disk:/Camera Uploads/video.mp4")]
     [InlineData("disk:/", "video.mp4", "disk:/video.mp4")]

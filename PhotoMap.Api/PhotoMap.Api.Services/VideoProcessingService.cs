@@ -16,8 +16,6 @@ namespace PhotoMap.Api.Services;
 
 public class VideoProcessingService : IVideoProcessingService
 {
-    private static readonly TimeSpan StatusReportInterval = TimeSpan.FromSeconds(2);
-
     /// <summary>
     /// How many videos have their previews downloaded before they are saved, which is how much of a stopped run
     /// is downloaded again when it resumes.
@@ -229,6 +227,11 @@ public class VideoProcessingService : IVideoProcessingService
         {
             await ReportStatusAsync(serviceScopeFactory, logger, run, PhotoSourceStatus.InProgress, progress);
 
+            // the progress of a run is replaced once the videos are listed, the reports take the current one
+            reportingTask = ProgressReporting.ReportOnStepsAsync(() => progress,
+                () => ReportStatusAsync(serviceScopeFactory, logger, run, PhotoSourceStatus.InProgress, progress),
+                reportingCancellationTokenSource.Token);
+
             // Yandex.Disk tokens are not refreshed, the user authorizes again when the token has expired
             var apiClient = new ApiClient(run.Token, httpClientFactory.CreateClient("yandexDiskClient"));
             var videoSource = new YandexDiskVideoSource(apiClient, logger);
@@ -243,15 +246,18 @@ public class VideoProcessingService : IVideoProcessingService
                 progress.RetryTotalCount = failedFiles.Count;
                 videosToSave = failedFiles.Select(a => new VideoToSave(a.ExternalId, a.Path, a.FileName, null)).ToList();
 
-                reportingTask = ReportStatusPeriodicallyAsync(serviceScopeFactory, logger, run, progress,
-                    reportingCancellationTokenSource.Token);
-
                 logger.LogInformation("{VideoCount} failed videos of {PhotoSourceName} to retry for user {UserId}",
                     videosToSave.Count, run.PhotoSourceName, run.UserId);
             }
             else
             {
-                var videos = await videoSource.ListVideosAsync(cancellationToken);
+                var listingProgress = progress;
+                listingProgress.StartListing();
+
+                var videos = await videoSource.ListVideosAsync(cancellationToken, listingProgress.SetListedCount);
+
+                listingProgress.FinishListing();
+
                 var savedExternalIds = await videoService.GetSavedExternalIdsAsync(run.UserId, run.SourceId,
                     videos.Select(a => a.ResourceId));
 
@@ -265,9 +271,6 @@ public class VideoProcessingService : IVideoProcessingService
 
                 // the videos saved by earlier runs count as processed, a run resumed carries on from them
                 progress = new ProcessingProgress(savedExternalIds.Count - videosToReadExif.Count, 0) { TotalCount = videos.Count };
-
-                reportingTask = ReportStatusPeriodicallyAsync(serviceScopeFactory, logger, run, progress,
-                    reportingCancellationTokenSource.Token);
 
                 videosToSave = videos
                     .Where(a => !savedExternalIds.Contains(a.ResourceId))
@@ -585,24 +588,6 @@ public class VideoProcessingService : IVideoProcessingService
             $"{fileNameWithoutExtension}_{fileKey}{extension}");
     }
 
-    private static async Task ReportStatusPeriodicallyAsync(IServiceScopeFactory serviceScopeFactory, ILogger logger, VideoRun run,
-        ProcessingProgress progress, CancellationToken cancellationToken)
-    {
-        using var timer = new PeriodicTimer(StatusReportInterval);
-
-        try
-        {
-            while (await timer.WaitForNextTickAsync(cancellationToken))
-            {
-                await ReportStatusAsync(serviceScopeFactory, logger, run, PhotoSourceStatus.InProgress, progress);
-            }
-        }
-        catch (OperationCanceledException)
-        {
-            // processing has finished
-        }
-    }
-
     /// <summary>
     /// Saves the status and counters to the database and sends them to the frontend. Failures are only logged,
     /// they must not stop the processing.
@@ -624,7 +609,8 @@ public class VideoProcessingService : IVideoProcessingService
                 TotalCount = progress.TotalCount,
                 ProcessedCount = progress.ProcessedCount,
                 FailedCount = progress.FailedCount,
-                LastUpdatedAt = DateTimeOffset.UtcNow
+                LastUpdatedAt = DateTimeOffset.UtcNow,
+                ListedCount = status == PhotoSourceStatus.InProgress && progress.IsListing ? progress.ListedCount : null
             };
 
             await videoService.UpdateStatusAsync(videoSourceStatus);

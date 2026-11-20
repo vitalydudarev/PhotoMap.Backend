@@ -36,7 +36,8 @@ public class YandexDiskVideoSource
     /// and skips the ones saved already, rather than resume from an offset that new videos may have shifted. For
     /// the same reason a video can come on two pages, the second time it is left out.
     /// </summary>
-    public async Task<IReadOnlyList<Resource>> ListVideosAsync(CancellationToken cancellationToken)
+    /// <param name="listed">Told how many videos have been found so far, after each page.</param>
+    public async Task<IReadOnlyList<Resource>> ListVideosAsync(CancellationToken cancellationToken, Action<int>? listed = null)
     {
         var videos = new List<Resource>();
         var resourceIds = new HashSet<string>();
@@ -50,6 +51,7 @@ public class YandexDiskVideoSource
 
             videos.AddRange(items.Where(a => a.Type == "file" && resourceIds.Add(a.ResourceId)));
             offset += items.Length;
+            listed?.Invoke(videos.Count);
 
             if (items.Length == 0)
             {

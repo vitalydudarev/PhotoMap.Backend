@@ -88,7 +88,7 @@ public class FrontendNotificationService : IFrontendNotificationService
     private Task SendProgressAsync(string method, UserPhotoSourceStatus status, HubRetryModel? retry = null)
     {
         var hubProgressModel = new HubProgressModel(status.PhotoSourceId, status.Status.ToString(), status.ProcessedCount,
-            status.FailedCount, status.TotalCount) { Retry = retry };
+            status.FailedCount, status.TotalCount) { Retry = retry, Listed = status.ListedCount };
 
         return _hubContext.Clients.Group(NotificationHub.GetUserGroupName(status.UserId)).SendAsync(method, hubProgressModel);
     }

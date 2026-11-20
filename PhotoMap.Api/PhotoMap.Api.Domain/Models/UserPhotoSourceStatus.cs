@@ -15,4 +15,10 @@ public class UserPhotoSourceStatus
     /// any other run, which leave the one saved as it is.
     /// </summary>
     public DateTimeOffset? LastListedAt { get; set; }
+
+    /// <summary>
+    /// The files a run loading the list of the files it takes has found so far, null when it is not loading it. Sent
+    /// to the frontend only, it is not saved.
+    /// </summary>
+    public int? ListedCount { get; set; }
 }

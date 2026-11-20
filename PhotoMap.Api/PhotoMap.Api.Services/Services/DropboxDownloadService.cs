@@ -156,6 +156,7 @@ public sealed class DropboxDownloadService : DownloadServiceBase<DropboxDownload
                 : await WrapApiCallAsync(() => _dropboxClient!.Files.ListFolderContinueAsync(cursor));
 
             totalCount += GetSupportedFiles(listFolderResult).Count();
+            Parameters.Progress.SetListedCount(totalCount);
             cursor = listFolderResult.HasMore ? listFolderResult.Cursor : null;
         } while (cursor != null);
 
