@@ -67,6 +67,38 @@ public class PhotoDuplicateFinderTests
     }
 
     [Fact]
+    public void FindDuplicateGroups_ShouldGroupThePhotosOfTheSameName_TakenAtTheSameTime()
+    {
+        var taken = new DateTimeOffset(2019, 7, 1, 12, 30, 15, TimeSpan.Zero);
+
+        // Act
+        var groups = PhotoDuplicateFinder.FindDuplicateGroups([
+            Key(1, "a", fileName: "IMG_0001.JPG", dateTimeTaken: taken),
+            Key(2, "b", fileName: "img_0001.jpeg", dateTimeTaken: taken.AddMilliseconds(400)),
+            // the same moment, told in another offset
+            Key(3, "c", fileName: "IMG_0001.jpg", dateTimeTaken: taken.ToOffset(TimeSpan.FromHours(3))),
+            // the same name from another shoot
+            Key(4, "d", fileName: "IMG_0001.JPG", dateTimeTaken: taken.AddDays(400)),
+            // another name taken at the same time
+            Key(5, "e", fileName: "IMG_0002.JPG", dateTimeTaken: taken),
+            // no time to tell
+            Key(6, "f", fileName: "IMG_0001.JPG"),
+            Key(7, "g", fileName: "IMG_0001.JPG", dateTimeTaken: taken, userId: 2),
+            Key(8, "h", fileName: "IMG_0001.JPG", dateTimeTaken: taken, isDeleted: true)
+        ]);
+
+        // Assert
+        Assert.Equal(1, groups[1]);
+        Assert.Equal(1, groups[2]);
+        Assert.Equal(1, groups[3]);
+        Assert.Null(groups[4]);
+        Assert.Null(groups[5]);
+        Assert.Null(groups[6]);
+        Assert.Null(groups[7]);
+        Assert.Null(groups[8]);
+    }
+
+    [Fact]
     public void FindDuplicateGroups_ShouldMergeTheGroups_OfThePhotosMatchedByNameAndByContents()
     {
         // Act
@@ -110,9 +142,20 @@ public class PhotoDuplicateFinderTests
         Assert.Equal(expected, PhotoDuplicateFinder.GetTimeName(fileName));
     }
 
-    private static PhotoDuplicateKey Key(long id, string? contentHash, long userId = 1, bool isDeleted = false,
-        string? fileName = null)
+    [Theory]
+    [InlineData("IMG_0001.JPG", "img_0001.jpg")]
+    [InlineData("img_0001.jpeg", "img_0001.jpg")]
+    [InlineData("Photo.PNG", "photo.png")]
+    [InlineData("", null)]
+    [InlineData(null, null)]
+    public void GetName_ShouldMakeTheCaseAndTheJpegExtensionTheSame(string? fileName, string? expected)
     {
-        return new PhotoDuplicateKey(id, userId, contentHash, isDeleted, null, fileName);
+        Assert.Equal(expected, PhotoDuplicateFinder.GetName(fileName));
+    }
+
+    private static PhotoDuplicateKey Key(long id, string? contentHash, long userId = 1, bool isDeleted = false,
+        string? fileName = null, DateTimeOffset? dateTimeTaken = null)
+    {
+        return new PhotoDuplicateKey(id, userId, contentHash, isDeleted, null, fileName, dateTimeTaken);
     }
 }

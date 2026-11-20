@@ -5,5 +5,7 @@ namespace PhotoMap.Api.Domain.Models;
 /// </summary>
 /// <param name="ContentHash">SHA-256 of the file contents, null for a photo saved before it was taken.</param>
 /// <param name="FileName">The name of the photo file, with its extension.</param>
+/// <param name="DateTimeTaken">When the photo was taken, which tells apart the photos of the same name from
+/// different cameras or shoots.</param>
 public record PhotoDuplicateKey(long Id, long UserId, string? ContentHash, bool IsDeleted, long? DuplicateGroupId,
-    string? FileName = null);
+    string? FileName = null, DateTimeOffset? DateTimeTaken = null);

@@ -8,7 +8,10 @@ namespace PhotoMap.Api.Services.Services;
 /// <list type="bullet">
 /// <item>of the same contents, to the byte, by the hash taken of them, whatever their names;</item>
 /// <item>named after the same time they were taken, as camera uploads are, whatever the separators of the time or
-/// the case of the name: "2013-06-09 17.40.57.jpg" and "2013-06-09 17-40-57.JPG".</item>
+/// the case of the name: "2013-06-09 17.40.57.jpg" and "2013-06-09 17-40-57.JPG";</item>
+/// <item>of the same name, whatever its case, taken at the same time, to the second: "IMG_0001.JPG" and
+/// "img_0001.jpeg". The time keeps apart the photos that only share a name, as the cameras number theirs over and
+/// over again.</item>
 /// </list>
 /// A copy of a copy is a copy too, so the groups take in the photos matched either way. A photo marked as deleted is
 /// a copy of none, so deleting a copy leaves the others alone in their group, and out of it once only one is left.
@@ -33,7 +36,12 @@ public static partial class PhotoDuplicateFinder
             .Where(a => a.Name != null)
             .GroupBy(a => (a.Photo.UserId, Key: a.Name!), a => a.Photo);
 
-        foreach (var copies in sameContents.Concat(sameTimeNames).Where(a => a.Count() > 1))
+        var sameNamesAndTimes = candidates
+            .Select(a => (Photo: a, Name: GetName(a.FileName)))
+            .Where(a => a.Name != null && a.Photo.DateTimeTaken != null)
+            .GroupBy(a => (a.Photo.UserId, Key: $"{a.Name}|{ToSeconds(a.Photo.DateTimeTaken!.Value)}"), a => a.Photo);
+
+        foreach (var copies in sameContents.Concat(sameTimeNames).Concat(sameNamesAndTimes).Where(a => a.Count() > 1))
         {
             var first = copies.First().Id;
 
@@ -72,13 +80,30 @@ public static partial class PhotoDuplicateFinder
             return null;
         }
 
-        var rest = match.Groups["rest"].Value.ToLowerInvariant();
-        if (rest.EndsWith(".jpeg"))
-        {
-            rest = rest[..^".jpeg".Length] + ".jpg";
-        }
+        var rest = NormalizeName(match.Groups["rest"].Value);
 
         return $"{match.Groups["date"].Value} {match.Groups["h"].Value}.{match.Groups["m"].Value}.{match.Groups["s"].Value}{rest}";
+    }
+
+    /// <returns>The name of the file, its case made the same and .jpeg made .jpg; null for a file without a name.</returns>
+    public static string? GetName(string? fileName)
+    {
+        return string.IsNullOrEmpty(fileName) ? null : NormalizeName(fileName);
+    }
+
+    private static string NormalizeName(string name)
+    {
+        name = name.ToLowerInvariant();
+
+        return name.EndsWith(".jpeg") ? name[..^".jpeg".Length] + ".jpg" : name;
+    }
+
+    /// <summary>
+    /// The time the photo was taken in UTC, to the second: the fractions of a second the sources keep may differ.
+    /// </summary>
+    private static long ToSeconds(DateTimeOffset dateTime)
+    {
+        return dateTime.ToUnixTimeSeconds();
     }
 
     [GeneratedRegex(@"^(?<date>\d{4}-\d{2}-\d{2}) (?<h>\d{2})[.\-](?<m>\d{2})[.\-](?<s>\d{2})(?<rest>.*)$")]
