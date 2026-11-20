@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.IO;
 using System.Linq;
@@ -32,15 +33,17 @@ namespace PhotoMap.Api.Controllers
         private readonly IVideoProcessingService _videoProcessingService;
         private readonly IVideoProvider _videoProvider;
         private readonly IFileStorage _fileStorage;
+        private readonly IFailedFileService _failedFileService;
         private readonly HostInfo _hostInfo;
 
         public VideosController(IVideoService videoService, IVideoProcessingService videoProcessingService,
-            IVideoProvider videoProvider, IFileStorage fileStorage, HostInfo hostInfo)
+            IVideoProvider videoProvider, IFileStorage fileStorage, IFailedFileService failedFileService, HostInfo hostInfo)
         {
             _videoService = videoService;
             _videoProcessingService = videoProcessingService;
             _videoProvider = videoProvider;
             _fileStorage = fileStorage;
+            _failedFileService = failedFileService;
             _hostInfo = hostInfo;
         }
 
@@ -248,12 +251,12 @@ namespace PhotoMap.Api.Controllers
         }
 
         /// <summary>
-        /// Starts or stops the processing of the videos of the photo source. Only Yandex.Disk sources have videos
-        /// processed.
+        /// Starts or stops the processing of the videos of the photo source, or retries only the videos that failed.
+        /// Only Yandex.Disk sources have videos processed.
         /// </summary>
         /// <param name="userId">The ID of the user.</param>
         /// <param name="sourceId">The ID of the photo source.</param>
-        /// <param name="command">Start or Stop.</param>
+        /// <param name="command">Start, Stop or RetryFailed.</param>
         [HttpPost("api/users/{userId:long}/photo-sources/{sourceId:long}/videos")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -265,9 +268,10 @@ namespace PhotoMap.Api.Controllers
                 return BadRequest("The videos of the photo source cannot be processed.");
             }
 
-            if (command != PhotoSourceProcessingCommands.Start && command != PhotoSourceProcessingCommands.Stop)
+            if (command is not (PhotoSourceProcessingCommands.Start or PhotoSourceProcessingCommands.Stop
+                or PhotoSourceProcessingCommands.RetryFailed))
             {
-                return BadRequest("The videos of a photo source are only started and stopped.");
+                return BadRequest("The videos of a photo source are only started, stopped and retried.");
             }
 
             var accepted = await _videoProcessingService.RunCommandAsync(userId, sourceId, command);
@@ -302,6 +306,21 @@ namespace PhotoMap.Api.Controllers
             };
 
             return Ok(dto);
+        }
+
+        /// <summary>
+        /// The videos of the photo source whose previews could not be downloaded or stored, in the order they first
+        /// failed. The RetryFailed command of the videos tries them again.
+        /// </summary>
+        /// <param name="userId">The ID of the user.</param>
+        /// <param name="sourceId">The ID of the photo source.</param>
+        [HttpGet("api/users/{userId:long}/photo-sources/{sourceId:long}/videos/failed-files")]
+        [ProducesResponseType(typeof(IEnumerable<FailedFileDto>), StatusCodes.Status200OK)]
+        public async Task<IActionResult> GetVideoFailedFiles(long userId, long sourceId)
+        {
+            var failedFiles = await _failedFileService.GetVideosAsync(userId, sourceId);
+
+            return Ok(failedFiles.Select(FailedFileDto.From));
         }
 
         /// <summary>

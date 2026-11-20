@@ -17,6 +17,7 @@ public class FailedFileEntity
     public int Attempts { get; set; }
     public DateTimeOffset FailedAt { get; set; }
     public bool FromOtherUploads { get; set; }
+    public bool FromVideos { get; set; }
     public string? PreviewFilePath { get; set; }
     public string? PreviewContentType { get; set; }
     public string? PreviewError { get; set; }

@@ -25,24 +25,41 @@ public class FailedFileService : IFailedFileService
 
     public Task<IReadOnlyCollection<FailedFile>> GetAsync(long userId, long photoSourceId)
     {
-        return GetAsync(userId, photoSourceId, fromOtherUploads: false);
+        return GetAsync(Photos(userId, photoSourceId, fromOtherUploads: false));
     }
 
     public Task<IReadOnlyCollection<FailedFile>> GetOtherUploadsAsync(long userId, long photoSourceId)
     {
-        return GetAsync(userId, photoSourceId, fromOtherUploads: true);
+        return GetAsync(Photos(userId, photoSourceId, fromOtherUploads: true));
+    }
+
+    public Task<IReadOnlyCollection<FailedFile>> GetVideosAsync(long userId, long photoSourceId)
+    {
+        return GetAsync(Videos(userId, photoSourceId));
     }
 
     public Task<int> CountAsync(long userId, long photoSourceId, bool fromOtherUploads)
     {
-        return _context.FailedFiles.CountAsync(a =>
-            a.UserId == userId && a.PhotoSourceId == photoSourceId && a.FromOtherUploads == fromOtherUploads);
+        return Photos(userId, photoSourceId, fromOtherUploads).CountAsync();
     }
 
-    private async Task<IReadOnlyCollection<FailedFile>> GetAsync(long userId, long photoSourceId, bool fromOtherUploads)
+    /// <summary>
+    /// The failed camera uploads, or other uploads, of the photo source, without its failed videos.
+    /// </summary>
+    private IQueryable<FailedFileEntity> Photos(long userId, long photoSourceId, bool fromOtherUploads)
     {
-        return await _context.FailedFiles
-            .Where(a => a.UserId == userId && a.PhotoSourceId == photoSourceId && a.FromOtherUploads == fromOtherUploads)
+        return _context.FailedFiles.Where(a => a.UserId == userId && a.PhotoSourceId == photoSourceId &&
+                                               !a.FromVideos && a.FromOtherUploads == fromOtherUploads);
+    }
+
+    private IQueryable<FailedFileEntity> Videos(long userId, long photoSourceId)
+    {
+        return _context.FailedFiles.Where(a => a.UserId == userId && a.PhotoSourceId == photoSourceId && a.FromVideos);
+    }
+
+    private static async Task<IReadOnlyCollection<FailedFile>> GetAsync(IQueryable<FailedFileEntity> failedFiles)
+    {
+        return await failedFiles
             .OrderBy(a => a.Id)
             .AsNoTracking()
             .Select(a => new FailedFile
@@ -56,7 +73,8 @@ public class FailedFileService : IFailedFileService
                 Error = a.Error,
                 Attempts = a.Attempts,
                 FailedAt = a.FailedAt,
-                FromOtherUploads = a.FromOtherUploads
+                FromOtherUploads = a.FromOtherUploads,
+                FromVideos = a.FromVideos
             })
             .ToListAsync();
     }
@@ -114,6 +132,7 @@ public class FailedFileService : IFailedFileService
             entity.Attempts++;
             entity.FailedAt = failedFile.FailedAt;
             entity.FromOtherUploads = failedFile.FromOtherUploads;
+            entity.FromVideos = failedFile.FromVideos;
         }
 
         await _context.SaveChangesAsync();
@@ -128,13 +147,18 @@ public class FailedFileService : IFailedFileService
 
     public Task DeleteByPhotoSourceAsync(long userId, long photoSourceId)
     {
-        return DeleteAsync(_context.FailedFiles.Where(a => a.UserId == userId && a.PhotoSourceId == photoSourceId));
+        return DeleteAsync(_context.FailedFiles.Where(a =>
+            a.UserId == userId && a.PhotoSourceId == photoSourceId && !a.FromVideos));
     }
 
     public Task DeleteByPhotoSourceAsync(long userId, long photoSourceId, bool fromOtherUploads)
     {
-        return DeleteAsync(_context.FailedFiles.Where(a =>
-            a.UserId == userId && a.PhotoSourceId == photoSourceId && a.FromOtherUploads == fromOtherUploads));
+        return DeleteAsync(Photos(userId, photoSourceId, fromOtherUploads));
+    }
+
+    public Task DeleteVideosByPhotoSourceAsync(long userId, long photoSourceId)
+    {
+        return DeleteAsync(Videos(userId, photoSourceId));
     }
 
     private async Task DeleteAsync(IQueryable<FailedFileEntity> failedFiles)

@@ -10,6 +10,9 @@ public interface IFailedFileService
     /// <returns>The other uploads of the photo source that failed, in the order they first failed.</returns>
     Task<IReadOnlyCollection<FailedFile>> GetOtherUploadsAsync(long userId, long photoSourceId);
 
+    /// <returns>The videos of the photo source that failed, in the order they first failed.</returns>
+    Task<IReadOnlyCollection<FailedFile>> GetVideosAsync(long userId, long photoSourceId);
+
     /// <summary>
     /// How many camera uploads, or other uploads, of the photo source have failed and are not saved yet. The failed
     /// count of their processing is this count, each file counted once however many times it has failed.
@@ -21,13 +24,14 @@ public interface IFailedFileService
     /// failed before, and the saved ones are no longer failed.
     /// </summary>
     /// <param name="failedFiles">The files that failed, with their stage, error and time of failure, and whether they
-    /// are other uploads.</param>
+    /// are other uploads or videos.</param>
     /// <param name="savedExternalIds">The files that were saved.</param>
     Task RecordAsync(long userId, long photoSourceId, IReadOnlyCollection<FailedFile> failedFiles,
         IReadOnlyCollection<string> savedExternalIds);
 
     /// <summary>
-    /// Deletes the failed files of the photo source, the camera uploads and the other uploads alike.
+    /// Deletes the failed photos of the photo source, the camera uploads and the other uploads alike, leaving its
+    /// failed videos.
     /// </summary>
     Task DeleteByPhotoSourceAsync(long userId, long photoSourceId);
 
@@ -35,4 +39,9 @@ public interface IFailedFileService
     /// Deletes only the failed camera uploads of the photo source, or only its failed other uploads.
     /// </summary>
     Task DeleteByPhotoSourceAsync(long userId, long photoSourceId, bool fromOtherUploads);
+
+    /// <summary>
+    /// Deletes only the failed videos of the photo source.
+    /// </summary>
+    Task DeleteVideosByPhotoSourceAsync(long userId, long photoSourceId);
 }

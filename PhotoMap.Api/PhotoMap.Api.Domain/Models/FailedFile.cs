@@ -25,4 +25,9 @@ public class FailedFile
     /// its own processes and retries.
     /// </summary>
     public bool FromOtherUploads { get; set; }
+    /// <summary>
+    /// The file is a video of the source, whose preview the processing of the videos could not download or store,
+    /// which a run of its own processes and retries.
+    /// </summary>
+    public bool FromVideos { get; set; }
 }

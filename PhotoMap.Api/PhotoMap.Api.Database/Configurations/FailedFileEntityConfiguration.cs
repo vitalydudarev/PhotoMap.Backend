@@ -19,6 +19,7 @@ namespace PhotoMap.Api.Database.Configurations
             builder.Property(a => a.Attempts).IsRequired();
             builder.Property(a => a.FailedAt).IsRequired();
             builder.Property(a => a.FromOtherUploads).IsRequired().HasDefaultValue(false);
+            builder.Property(a => a.FromVideos).IsRequired().HasDefaultValue(false);
             builder.ToTable("failed_files");
 
             // a file fails again as the same row, its attempts counted

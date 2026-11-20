@@ -126,6 +126,6 @@ public class VideosControllerTests
         var hostInfo = new HostInfo { Scheme = "https", Host = new HostString("localhost", 5001) };
 
         return new VideosController(_videoService.Object, Mock.Of<IVideoProcessingService>(), Mock.Of<IVideoProvider>(),
-            Mock.Of<IFileStorage>(), hostInfo);
+            Mock.Of<IFileStorage>(), Mock.Of<IFailedFileService>(), hostInfo);
     }
 }

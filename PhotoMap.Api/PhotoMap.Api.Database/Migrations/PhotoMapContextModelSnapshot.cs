@@ -171,6 +171,12 @@ namespace PhotoMap.Api.Database.Migrations
                         .HasDefaultValue(false)
                         .HasColumnName("from_other_uploads");
 
+                    b.Property<bool>("FromVideos")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("from_videos");
+
                     b.Property<string>("Path")
                         .HasColumnType("text")
                         .HasColumnName("path");

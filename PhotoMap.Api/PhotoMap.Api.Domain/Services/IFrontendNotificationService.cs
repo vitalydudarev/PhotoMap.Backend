@@ -28,6 +28,12 @@ public interface IFrontendNotificationService
     Task SendVideoProgressAsync(UserPhotoSourceStatus status);
 
     /// <summary>
+    /// The status and counters of the processing of the videos of the photo source while a run retries the ones that
+    /// failed, with how far the retry has got.
+    /// </summary>
+    Task SendVideoProgressAsync(UserPhotoSourceStatus status, RetryProgress retry);
+
+    /// <summary>
     /// The error the processing of the photos of the photo source outside the folder it is processed from has
     /// failed with.
     /// </summary>

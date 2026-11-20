@@ -61,6 +61,16 @@ public class YandexDiskVideoSource
     }
 
     /// <summary>
+    /// Looks a video up by its path again, to retry one that failed with the details the listing gave, its previews
+    /// among them.
+    /// </summary>
+    public Task<Resource> GetVideoAsync(string path, CancellationToken cancellationToken)
+    {
+        return YandexDiskApiCalls.WrapAsync(_logger, () => _apiClient.GetResourceAsync(path, cancellationToken, limit: 1),
+            cancellationToken);
+    }
+
+    /// <summary>
     /// The URL of the largest preview image of the video, of the sizes in <see cref="PreviewSizeNames"/>, null
     /// when Yandex.Disk has made none of them (yet).
     /// </summary>

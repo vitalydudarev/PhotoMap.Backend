@@ -182,7 +182,7 @@ namespace PhotoMap.Api.Controllers
         {
             var failedFiles = await _failedFileService.GetAsync(userId, sourceId);
 
-            return Ok(failedFiles.Select(ToDto));
+            return Ok(failedFiles.Select(FailedFileDto.From));
         }
 
         /// <summary>
@@ -195,7 +195,7 @@ namespace PhotoMap.Api.Controllers
         {
             var failedFiles = await _failedFileService.GetOtherUploadsAsync(userId, sourceId);
 
-            return Ok(failedFiles.Select(ToDto));
+            return Ok(failedFiles.Select(FailedFileDto.From));
         }
 
         /// <summary>
@@ -256,20 +256,6 @@ namespace PhotoMap.Api.Controllers
             }
 
             return NoContent();
-        }
-
-        private static FailedFileDto ToDto(FailedFile failedFile)
-        {
-            return new FailedFileDto
-            {
-                ExternalId = failedFile.ExternalId,
-                Path = failedFile.Path,
-                FileName = failedFile.FileName,
-                Stage = failedFile.Stage.ToString(),
-                Error = failedFile.Error,
-                Attempts = failedFile.Attempts,
-                FailedAt = failedFile.FailedAt.UtcDateTime.ToString("o")
-            };
         }
     }
 }

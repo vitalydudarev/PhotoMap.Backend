@@ -27,6 +27,7 @@ public class VideoProcessingService : IVideoProcessingService
     private readonly IUserPhotoSourceService _userPhotoSourceService;
     private readonly IPhotoSourceService _photoSourceService;
     private readonly IVideoService _videoService;
+    private readonly IFailedFileService _failedFileService;
     private readonly IBackgroundTaskManager _backgroundTaskManager;
     private readonly IServiceScopeFactory _serviceScopeFactory;
     private readonly IFileStorage _fileStorage;
@@ -38,6 +39,7 @@ public class VideoProcessingService : IVideoProcessingService
         IUserPhotoSourceService userPhotoSourceService,
         IPhotoSourceService photoSourceService,
         IVideoService videoService,
+        IFailedFileService failedFileService,
         IBackgroundTaskManager backgroundTaskManager,
         IServiceScopeFactory serviceScopeFactory,
         IFileStorage fileStorage,
@@ -48,6 +50,7 @@ public class VideoProcessingService : IVideoProcessingService
         _userPhotoSourceService = userPhotoSourceService;
         _photoSourceService = photoSourceService;
         _videoService = videoService;
+        _failedFileService = failedFileService;
         _backgroundTaskManager = backgroundTaskManager;
         _serviceScopeFactory = serviceScopeFactory;
         _fileStorage = fileStorage;
@@ -65,12 +68,12 @@ public class VideoProcessingService : IVideoProcessingService
 
     public async Task<bool> RunCommandAsync(long userId, long sourceId, PhotoSourceProcessingCommands command)
     {
-        if (command == PhotoSourceProcessingCommands.Start)
+        if (command is PhotoSourceProcessingCommands.Start or PhotoSourceProcessingCommands.RetryFailed)
         {
             // the videos do not go through Kafka, but processing is available or not as a whole
             _processingAvailability.EnsureAvailable();
 
-            return await StartAsync(userId, sourceId);
+            return await StartAsync(userId, sourceId, retryFailed: command == PhotoSourceProcessingCommands.RetryFailed);
         }
 
         if (command == PhotoSourceProcessingCommands.Stop)
@@ -80,7 +83,6 @@ public class VideoProcessingService : IVideoProcessingService
             return true;
         }
 
-        // a video that failed is not saved, so the next run tries it again with the rest
         throw new Exception("Unsupported command.");
     }
 
@@ -138,6 +140,7 @@ public class VideoProcessingService : IVideoProcessingService
         }
 
         await _videoService.DeleteStatusAsync(userId, sourceId);
+        await _failedFileService.DeleteVideosByPhotoSourceAsync(userId, sourceId);
 
         _logger.LogInformation("Deleted the videos of photo source {SourceId} of user {UserId}", sourceId, userId);
 
@@ -151,7 +154,9 @@ public class VideoProcessingService : IVideoProcessingService
         });
     }
 
-    private async Task<bool> StartAsync(long userId, long sourceId)
+    /// <param name="retryFailed">Whether the run takes only the videos that failed in earlier runs. It is the same task
+    /// as a run listing the disk, so that the two do not run at the same time.</param>
+    private async Task<bool> StartAsync(long userId, long sourceId, bool retryFailed)
     {
         var taskName = GetTaskName(userId, sourceId);
         if (_backgroundTaskManager.IsRunning(taskName))
@@ -172,10 +177,28 @@ public class VideoProcessingService : IVideoProcessingService
         }
 
         var settings = new YandexDiskSettings();
-        var run = new VideoRun(userId, sourceId, photoSource.Name, authResult.Token, Math.Max(settings.MaxParallelDownloads, 1));
+        var run = new VideoRun(userId, sourceId, photoSource.Name, authResult.Token, Math.Max(settings.MaxParallelDownloads, 1),
+            retryFailed);
         var serviceScopeFactory = _serviceScopeFactory;
 
-        return _backgroundTaskManager.TryStartTask(taskName, cancellationToken => DoWork(run, serviceScopeFactory, cancellationToken));
+        // a retry carries on the counters of the runs the videos failed in, a run lists the videos to count them
+        var progress = retryFailed ? await CreateProgressAsync(userId, sourceId) : new ProcessingProgress(0, 0);
+
+        return _backgroundTaskManager.TryStartTask(taskName,
+            cancellationToken => DoWork(run, progress, serviceScopeFactory, cancellationToken));
+    }
+
+    /// <summary>
+    /// Continues the counters of the earlier runs of the videos, which a retry of the failed ones changes.
+    /// </summary>
+    private async Task<ProcessingProgress> CreateProgressAsync(long userId, long sourceId)
+    {
+        var status = await _videoService.GetStatusAsync(userId, sourceId);
+
+        return new ProcessingProgress(status?.ProcessedCount ?? 0, status?.FailedCount ?? 0)
+        {
+            TotalCount = status?.TotalCount ?? 0
+        };
     }
 
     /// <summary>
@@ -183,19 +206,21 @@ public class VideoProcessingService : IVideoProcessingService
     /// by the time the run proceeds. Every video of the disk is listed, and the ones not saved yet have their
     /// preview downloaded and saved, several at a time, along with the metadata of the file, see
     /// <see cref="VideoExifReader"/>. A video that fails is not saved, so the next run tries it again, as it reads
-    /// the metadata of the videos saved without it.
+    /// the metadata of the videos saved without it. The videos that fail are recorded, for a retry to take on its
+    /// own, looked up by their paths again, and the ones saved are no longer failed.
     /// </summary>
-    private static async Task DoWork(VideoRun run, IServiceScopeFactory serviceScopeFactory, CancellationToken cancellationToken)
+    private static async Task DoWork(VideoRun run, ProcessingProgress progress, IServiceScopeFactory serviceScopeFactory,
+        CancellationToken cancellationToken)
     {
         using var scope = serviceScopeFactory.CreateScope();
         var videoService = scope.ServiceProvider.GetRequiredService<IVideoService>();
+        var failedFileService = scope.ServiceProvider.GetRequiredService<IFailedFileService>();
         var fileStorage = scope.ServiceProvider.GetRequiredService<IFileStorage>();
         var frontendNotificationService = scope.ServiceProvider.GetRequiredService<IFrontendNotificationService>();
         var logger = scope.ServiceProvider.GetRequiredService<ILogger<VideoProcessingService>>();
         var httpClientFactory = scope.ServiceProvider.GetRequiredService<IHttpClientFactory>();
         var applicationLifetime = scope.ServiceProvider.GetService<IHostApplicationLifetime>();
 
-        var progress = new ProcessingProgress(0, 0);
         var status = PhotoSourceStatus.Done;
         using var reportingCancellationTokenSource = new CancellationTokenSource();
         var reportingTask = Task.CompletedTask;
@@ -208,60 +233,69 @@ public class VideoProcessingService : IVideoProcessingService
             var apiClient = new ApiClient(run.Token, httpClientFactory.CreateClient("yandexDiskClient"));
             var videoSource = new YandexDiskVideoSource(apiClient, logger);
 
-            var videos = await videoSource.ListVideosAsync(cancellationToken);
-            var savedExternalIds = await videoService.GetSavedExternalIdsAsync(run.UserId, run.SourceId,
-                videos.Select(a => a.ResourceId));
+            List<VideoToSave> videosToSave;
 
-            // the videos saved before their metadata was read, or whose metadata could not be downloaded, have it
-            // read now
-            var idsWithoutExif = await videoService.GetIdsWithoutExifAsync(run.UserId, run.SourceId);
-            var videosToReadExif = videos
-                .Where(a => savedExternalIds.Contains(a.ResourceId) && idsWithoutExif.ContainsKey(a.ResourceId))
-                .Select(a => (Id: idsWithoutExif[a.ResourceId], Resource: a))
-                .ToList();
+            if (run.RetryFailed)
+            {
+                var failedFiles = await failedFileService.GetVideosAsync(run.UserId, run.SourceId);
 
-            // the videos saved by earlier runs count as processed, a run resumed carries on from them
-            progress = new ProcessingProgress(savedExternalIds.Count - videosToReadExif.Count, 0) { TotalCount = videos.Count };
+                // the videos retried are counted as failed already, the counters of the earlier runs stay
+                progress.RetryTotalCount = failedFiles.Count;
+                videosToSave = failedFiles.Select(a => new VideoToSave(a.ExternalId, a.Path, a.FileName, null)).ToList();
 
-            reportingTask = ReportStatusPeriodicallyAsync(serviceScopeFactory, logger, run, progress,
-                reportingCancellationTokenSource.Token);
+                reportingTask = ReportStatusPeriodicallyAsync(serviceScopeFactory, logger, run, progress,
+                    reportingCancellationTokenSource.Token);
 
-            var videosToSave = videos.Where(a => !savedExternalIds.Contains(a.ResourceId)).ToList();
+                logger.LogInformation("{VideoCount} failed videos of {PhotoSourceName} to retry for user {UserId}",
+                    videosToSave.Count, run.PhotoSourceName, run.UserId);
+            }
+            else
+            {
+                var videos = await videoSource.ListVideosAsync(cancellationToken);
+                var savedExternalIds = await videoService.GetSavedExternalIdsAsync(run.UserId, run.SourceId,
+                    videos.Select(a => a.ResourceId));
 
-            logger.LogInformation(
-                "{VideoCount} of {TotalCount} videos of {PhotoSourceName} to save, and {ExifCount} to read the metadata of, for user {UserId}",
-                videosToSave.Count, videos.Count, run.PhotoSourceName, videosToReadExif.Count, run.UserId);
+                // the videos saved before their metadata was read, or whose metadata could not be downloaded, have it
+                // read now
+                var idsWithoutExif = await videoService.GetIdsWithoutExifAsync(run.UserId, run.SourceId);
+                var videosToReadExif = videos
+                    .Where(a => savedExternalIds.Contains(a.ResourceId) && idsWithoutExif.ContainsKey(a.ResourceId))
+                    .Select(a => (Id: idsWithoutExif[a.ResourceId], Resource: a))
+                    .ToList();
 
-            await ReadMissingExifAsync(videoSource, videoService, logger, run, videosToReadExif, progress, cancellationToken);
+                // the videos saved by earlier runs count as processed, a run resumed carries on from them
+                progress = new ProcessingProgress(savedExternalIds.Count - videosToReadExif.Count, 0) { TotalCount = videos.Count };
+
+                reportingTask = ReportStatusPeriodicallyAsync(serviceScopeFactory, logger, run, progress,
+                    reportingCancellationTokenSource.Token);
+
+                videosToSave = videos
+                    .Where(a => !savedExternalIds.Contains(a.ResourceId))
+                    .Select(a => new VideoToSave(a.ResourceId, a.Path, a.Name, a))
+                    .ToList();
+
+                logger.LogInformation(
+                    "{VideoCount} of {TotalCount} videos of {PhotoSourceName} to save, and {ExifCount} to read the metadata of, for user {UserId}",
+                    videosToSave.Count, videos.Count, run.PhotoSourceName, videosToReadExif.Count, run.UserId);
+
+                await ReadMissingExifAsync(videoSource, videoService, logger, run, videosToReadExif, progress, cancellationToken);
+            }
 
             foreach (var chunk in videosToSave.Chunk(SaveEvery))
             {
-                var savedVideos = new ConcurrentBag<Video>();
+                var attempts = new ConcurrentBag<VideoAttempt>();
                 var parallelOptions = new ParallelOptions
                 {
                     MaxDegreeOfParallelism = run.MaxParallelDownloads,
                     CancellationToken = cancellationToken
                 };
 
-                await Parallel.ForEachAsync(chunk, parallelOptions, async (resource, token) =>
-                {
-                    var video = await SavePreviewOrSkipAsync(videoSource, fileStorage, logger, run, resource, token);
-                    if (video != null)
-                    {
-                        savedVideos.Add(video);
-                    }
-                    else
-                    {
-                        progress.FileFailed();
-                    }
-                });
+                await Parallel.ForEachAsync(chunk, parallelOptions, async (video, token) =>
+                    attempts.Add(await SavePreviewOrSkipAsync(videoSource, fileStorage, logger, run, video, token)));
 
-                await videoService.AddRangeAsync(savedVideos.ToList());
+                await videoService.AddRangeAsync(attempts.Where(a => a.Video != null).Select(a => a.Video!).ToList());
 
-                foreach (var _ in savedVideos)
-                {
-                    progress.FileProcessed();
-                }
+                await RecordChunkAsync(failedFileService, progress, run, attempts);
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -290,35 +324,100 @@ public class VideoProcessingService : IVideoProcessingService
     }
 
     /// <summary>
-    /// Downloads the preview of the video and stores it as it is. A video whose preview cannot be had is skipped,
-    /// unless Yandex.Disk no longer accepts the token, which fails every other video as well.
+    /// Counts the videos of a chunk, all of them saved or failed, and records the ones that failed, for a retry to
+    /// take, while the ones saved are no longer failed.
     /// </summary>
-    /// <returns>The video to save, null when it is skipped.</returns>
-    private static async Task<Video?> SavePreviewOrSkipAsync(YandexDiskVideoSource videoSource, IFileStorage fileStorage,
-        ILogger logger, VideoRun run, Resource resource, CancellationToken cancellationToken)
+    private static Task RecordChunkAsync(IFailedFileService failedFileService, ProcessingProgress progress, VideoRun run,
+        IEnumerable<VideoAttempt> attempts)
     {
-        var previewUrl = YandexDiskVideoSource.GetPreviewUrl(resource);
-        if (previewUrl == null)
-        {
-            logger.LogWarning("{FileName} has no preview of any of the sizes {PreviewSizes}, skipping it", resource.Name,
-                string.Join(", ", YandexDiskVideoSource.PreviewSizeNames));
+        var failedFiles = new List<FailedFile>();
+        var savedExternalIds = new List<string>();
 
-            return null;
+        foreach (var attempt in attempts)
+        {
+            if (attempt.Video != null)
+            {
+                // a video retried had been counted as failed, it is only counted again when it is saved this time
+                if (run.RetryFailed)
+                {
+                    progress.FileRecovered();
+                }
+                else
+                {
+                    progress.FileProcessed();
+                }
+
+                savedExternalIds.Add(attempt.Item.ExternalId);
+            }
+            else
+            {
+                if (run.RetryFailed)
+                {
+                    progress.FileFailedAgain();
+                }
+                else
+                {
+                    progress.FileFailed();
+                }
+
+                failedFiles.Add(new FailedFile
+                {
+                    ExternalId = attempt.Item.ExternalId,
+                    Path = attempt.Item.Path,
+                    FileName = attempt.Item.FileName,
+                    Stage = attempt.Stage,
+                    Error = attempt.Error ?? "Saving the preview failed.",
+                    FailedAt = DateTimeOffset.UtcNow,
+                    FromVideos = true
+                });
+            }
         }
 
+        return failedFileService.RecordAsync(run.UserId, run.SourceId, failedFiles, savedExternalIds);
+    }
+
+    /// <summary>
+    /// Downloads the preview of the video, looked up by its path first when it is retried, and stores it as it is.
+    /// A video whose preview cannot be had is skipped, unless Yandex.Disk no longer accepts the token, which fails
+    /// every other video as well.
+    /// </summary>
+    /// <returns>The video to save, or why it is skipped.</returns>
+    private static async Task<VideoAttempt> SavePreviewOrSkipAsync(YandexDiskVideoSource videoSource, IFileStorage fileStorage,
+        ILogger logger, VideoRun run, VideoToSave item, CancellationToken cancellationToken)
+    {
         try
         {
+            var resource = item.Resource ?? await GetFailedVideoAsync(videoSource, item, cancellationToken);
+
+            var previewUrl = YandexDiskVideoSource.GetPreviewUrl(resource);
+            if (previewUrl == null)
+            {
+                logger.LogWarning("{FileName} has no preview of any of the sizes {PreviewSizes}, skipping it", resource.Name,
+                    string.Join(", ", YandexDiskVideoSource.PreviewSizeNames));
+
+                return VideoAttempt.Failed(item, FileFailureStage.Download, "Yandex.Disk has made no preview of the video.");
+            }
+
             var (contents, contentType) = await videoSource.DownloadPreviewAsync(previewUrl, cancellationToken);
             if (contents.Length == 0)
             {
                 logger.LogWarning("The preview of {FileName} has been downloaded empty, skipping it", resource.Name);
 
-                return null;
+                return VideoAttempt.Failed(item, FileFailureStage.Download, "The preview has been downloaded empty.");
             }
 
             var previewFilePath = GetPreviewFilePath(run, resource, contentType);
 
-            await fileStorage.SaveAsync(previewFilePath, contents);
+            try
+            {
+                await fileStorage.SaveAsync(previewFilePath, contents);
+            }
+            catch (IOException e)
+            {
+                logger.LogError(e, "Failed to store the preview of {FileName}", resource.Name);
+
+                return VideoAttempt.Failed(item, FileFailureStage.Processing, "Failed to store the preview: " + e.Message);
+            }
 
             var video = new Video
             {
@@ -343,19 +442,25 @@ public class VideoProcessingService : IVideoProcessingService
             var exif = await TryReadExifAsync(videoSource, logger, resource, cancellationToken);
             exif?.ApplyTo(video);
 
-            return video;
+            return new VideoAttempt(item, video, FileFailureStage.Download, null);
         }
         catch (PhotoSourceException e) when (!e.IsAuthError)
         {
             // the error has been logged
-            return null;
+            return VideoAttempt.Failed(item, FileFailureStage.Download, e.Message);
         }
-        catch (IOException e)
-        {
-            logger.LogError(e, "Failed to store the preview of {FileName}", resource.Name);
+    }
 
-            return null;
+    /// <exception cref="PhotoSourceException">The video could not be looked up.</exception>
+    private static Task<Resource> GetFailedVideoAsync(YandexDiskVideoSource videoSource, VideoToSave video,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrEmpty(video.Path))
+        {
+            throw new YandexDiskException("Yandex.Disk files are downloaded by path, the path is missing.");
         }
+
+        return videoSource.GetVideoAsync(video.Path, cancellationToken);
     }
 
     /// <summary>
@@ -523,7 +628,16 @@ public class VideoProcessingService : IVideoProcessingService
             };
 
             await videoService.UpdateStatusAsync(videoSourceStatus);
-            await frontendNotificationService.SendVideoProgressAsync(videoSourceStatus);
+
+            if (run.RetryFailed)
+            {
+                await frontendNotificationService.SendVideoProgressAsync(videoSourceStatus,
+                    new RetryProgress(progress.RetryTotalCount, progress.RetriedCount, progress.RecoveredCount));
+            }
+            else
+            {
+                await frontendNotificationService.SendVideoProgressAsync(videoSourceStatus);
+            }
         }
         catch (Exception e)
         {
@@ -549,5 +663,21 @@ public class VideoProcessingService : IVideoProcessingService
         return $"{TaskNamePrefix}UserId={userId}-SourceId={sourceId}";
     }
 
-    private sealed record VideoRun(long UserId, long SourceId, string PhotoSourceName, string Token, int MaxParallelDownloads);
+    /// <param name="RetryFailed">The run takes only the videos that failed in earlier runs, instead of listing the disk.</param>
+    private sealed record VideoRun(long UserId, long SourceId, string PhotoSourceName, string Token, int MaxParallelDownloads,
+        bool RetryFailed);
+
+    /// <summary>
+    /// A video to save: one the listing has given, or one that failed before, which is looked up by its path again.
+    /// </summary>
+    /// <param name="Resource">The video as the listing has given it, null for a video retried.</param>
+    private sealed record VideoToSave(string ExternalId, string? Path, string FileName, Resource? Resource);
+
+    /// <summary>
+    /// The outcome of saving the preview of a video: the video to save, or what it failed at and why.
+    /// </summary>
+    private sealed record VideoAttempt(VideoToSave Item, Video? Video, FileFailureStage Stage, string? Error)
+    {
+        public static VideoAttempt Failed(VideoToSave item, FileFailureStage stage, string error) => new(item, null, stage, error);
+    }
 }

@@ -19,6 +19,7 @@ public class VideoProcessingServiceTests
     private readonly Mock<IUserPhotoSourceService> _userPhotoSourceService = new();
     private readonly Mock<IPhotoSourceService> _photoSourceService = new();
     private readonly Mock<IVideoService> _videoService = new();
+    private readonly Mock<IFailedFileService> _failedFileService = new();
     private readonly Mock<IBackgroundTaskManager> _backgroundTaskManager = new();
     private readonly ProcessingAvailability _processingAvailability = new(checkedByMonitor: false);
     private readonly Mock<IFileStorage> _fileStorage = new();
@@ -62,6 +63,7 @@ public class VideoProcessingServiceTests
         _fileStorage.Verify(a => a.Delete("Yandex.Disk/1/video-previews/video_1.jpg"));
         _fileStorage.Verify(a => a.Delete("Yandex.Disk/1/video-previews/video_2.jpg"));
         _videoService.Verify(a => a.DeleteStatusAsync(UserId, YandexDiskSourceId));
+        _failedFileService.Verify(a => a.DeleteVideosByPhotoSourceAsync(UserId, YandexDiskSourceId));
         _frontendNotificationService.Verify(a => a.SendVideoProgressAsync(It.Is<UserPhotoSourceStatus>(b =>
             b.PhotoSourceId == YandexDiskSourceId && b.Status == PhotoSourceStatus.NotStarted)));
     }
@@ -169,6 +171,43 @@ public class VideoProcessingServiceTests
     }
 
     [Fact]
+    public async Task RunCommandAsync_ShouldRetryTheFailedVideos_AsTheTaskOfTheVideos()
+    {
+        // Arrange
+        _userPhotoSourceService
+            .Setup(a => a.GetAuthResultAsync(UserId, YandexDiskSourceId))
+            .ReturnsAsync(new UserAuthResult { Token = "token", TokenExpiresOn = DateTimeOffset.UtcNow.AddDays(1) });
+        _backgroundTaskManager
+            .Setup(a => a.TryStartTask(It.IsAny<string>(), It.IsAny<Func<CancellationToken, Task>>()))
+            .Returns(true);
+
+        var service = CreateService();
+
+        // Act
+        var accepted = await service.RunCommandAsync(UserId, YandexDiskSourceId, PhotoSourceProcessingCommands.RetryFailed);
+
+        // Assert: the same task as a run listing the disk, so that the two do not run at the same time
+        Assert.True(accepted);
+        _backgroundTaskManager.Verify(a => a.TryStartTask("Videos-UserId=1-SourceId=2", It.IsAny<Func<CancellationToken, Task>>()));
+        _videoService.Verify(a => a.GetStatusAsync(UserId, YandexDiskSourceId));
+    }
+
+    [Fact]
+    public async Task RunCommandAsync_ShouldNotRetryTheFailedVideos_WhileProcessingIsUnavailable()
+    {
+        // Arrange
+        _processingAvailability.Set(false, "Kafka cannot be reached.");
+        var service = CreateService();
+
+        // Act & Assert
+        await Assert.ThrowsAsync<ProcessingUnavailableException>(() =>
+            service.RunCommandAsync(UserId, YandexDiskSourceId, PhotoSourceProcessingCommands.RetryFailed));
+
+        _backgroundTaskManager.Verify(a => a.TryStartTask(It.IsAny<string>(), It.IsAny<Func<CancellationToken, Task>>()),
+            Times.Never);
+    }
+
+    [Fact]
     public async Task RunCommandAsync_ShouldNotStartTheVideos_WhileTheyAreBeingProcessed()
     {
         // Arrange
@@ -250,7 +289,7 @@ public class VideoProcessingServiceTests
     private VideoProcessingService CreateService()
     {
         return new VideoProcessingService(_userPhotoSourceService.Object, _photoSourceService.Object, _videoService.Object,
-            _backgroundTaskManager.Object, new ServiceCollection().BuildServiceProvider().GetRequiredService<IServiceScopeFactory>(),
+            _failedFileService.Object, _backgroundTaskManager.Object, new ServiceCollection().BuildServiceProvider().GetRequiredService<IServiceScopeFactory>(),
             _fileStorage.Object, _frontendNotificationService.Object, NullLogger<VideoProcessingService>.Instance,
             _processingAvailability);
     }
