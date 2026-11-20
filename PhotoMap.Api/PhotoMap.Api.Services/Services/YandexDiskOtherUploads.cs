@@ -10,9 +10,7 @@ namespace PhotoMap.Api.Services.Services;
 /// </summary>
 public class YandexDiskOtherUploads
 {
-    private const string ImageMediaType = "image";
-    private const string VideoMediaType = "video";
-    private const int PageSize = 500;
+    private const string DiskRoot = "disk:/";
 
     /// <summary>
     /// The photos of this folder, and of the folders within it, are not other uploads, they are left out.
@@ -30,15 +28,13 @@ public class YandexDiskOtherUploads
 
     /// <summary>
     /// Lists every photo of the disk of the formats processed, each once, but the ones right in the folder given: the
-    /// photos of the folders within it are listed. The flat list of files cannot be sorted, so a run lists all of them
-    /// and skips the ones saved already, rather than resume from an offset that new photos may have shifted. For the
-    /// same reason a photo can come on two pages, the second time it is left out. The photos of
-    /// <see cref="ExcludedFolder"/>, and of the folders within it, are left out too.
+    /// photos of the folders within it are listed. The photos of <see cref="ExcludedFolder"/>, and of the folders
+    /// within it, are left out too. See <see cref="ListFilesAsync"/> for how the disk is listed.
     /// </summary>
     /// <param name="excludedFolder">The folder the disk is processed from, such as <c>disk:/Camera Uploads/</c>.</param>
-    public Task<IReadOnlyList<Resource>> ListPhotosAsync(string excludedFolder, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<Resource>> ListPhotosAsync(string excludedFolder, CancellationToken cancellationToken)
     {
-        return ListAsync(ImageMediaType, a => SupportedImageFormats.IsSupported(a.Name), excludedFolder, cancellationToken);
+        return (await ListFilesAsync(excludedFolder, cancellationToken)).Where(IsPhoto).ToList();
     }
 
     /// <summary>
@@ -46,44 +42,80 @@ public class YandexDiskOtherUploads
     /// videos are not imported as other uploads, only downloaded along with them.
     /// </summary>
     /// <param name="excludedFolder">The folder the disk is processed from, such as <c>disk:/Camera Uploads/</c>.</param>
-    public Task<IReadOnlyList<Resource>> ListVideosAsync(string excludedFolder, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<Resource>> ListVideosAsync(string excludedFolder, CancellationToken cancellationToken)
     {
-        return ListAsync(VideoMediaType, a => DownloadableFormats.GetContent(a.Name, a.MediaType) == SourceDownloadContent.Videos,
-            excludedFolder, cancellationToken);
+        return (await ListFilesAsync(excludedFolder, cancellationToken)).Where(IsVideo).ToList();
     }
 
     /// <summary>
-    /// Lists the files of the media type that are of the formats taken, outside the folder given and
-    /// <see cref="ExcludedFolder"/>, each once.
+    /// Lists every file of the disk outside the folder given and <see cref="ExcludedFolder"/>, each once, by walking
+    /// its folders from the root, a folder before the ones within it. The flat list of the files of the disk is not
+    /// used: it leaves out photos of some folders, such as those of the Загрузки folder, which only the listing of
+    /// their folders gives. The folders within <see cref="ExcludedFolder"/> are not listed at all. A run lists all the
+    /// files and skips the ones saved already, rather than resume from where it stopped, which new files may have
+    /// shifted.
     /// </summary>
-    private async Task<IReadOnlyList<Resource>> ListAsync(string mediaType, Func<Resource, bool> isTaken, string excludedFolder,
-        CancellationToken cancellationToken)
+    /// <param name="excludedFolder">The folder the disk is processed from: its files are left out, the files of the
+    /// folders within it are not.</param>
+    public async Task<IReadOnlyList<Resource>> ListFilesAsync(string excludedFolder, CancellationToken cancellationToken)
     {
         var folder = YandexDiskPaths.NormalizeFolder(excludedFolder);
         var files = new List<Resource>();
         var resourceIds = new HashSet<string>();
-        var offset = 0;
+        var folders = new Queue<string>([DiskRoot]);
+        var listedFolders = 0;
 
-        while (true)
+        while (folders.TryDequeue(out var folderToList))
         {
-            var page = await YandexDiskApiCalls.WrapAsync(_logger,
-                () => _apiClient.GetFlatFilesListAsync(cancellationToken, mediaType, PageSize, offset), cancellationToken);
-            var items = page.Items ?? [];
+            listedFolders++;
 
-            files.AddRange(items.Where(a => a.Type == "file" &&
-                                            isTaken(a) &&
-                                            !string.Equals(YandexDiskPaths.GetFolder(a.Path), folder, StringComparison.Ordinal) &&
-                                            !a.Path.StartsWith(ExcludedFolder, StringComparison.Ordinal) &&
-                                            resourceIds.Add(a.ResourceId)));
-            offset += items.Length;
-
-            if (items.Length == 0)
+            await foreach (var item in YandexDiskFolders.ListFolderAsync(_apiClient, _logger, folderToList, cancellationToken))
             {
-                break;
+                if (item.Type == "dir")
+                {
+                    if (!IsInExcludedFolder(item.Path))
+                    {
+                        folders.Enqueue(item.Path);
+                    }
+                }
+                else if (item.Type == "file" &&
+                         !string.Equals(YandexDiskPaths.GetFolder(item.Path), folder, StringComparison.Ordinal) &&
+                         !IsInExcludedFolder(item.Path) &&
+                         resourceIds.Add(item.ResourceId))
+                {
+                    files.Add(item);
+                }
             }
         }
 
+        _logger.LogInformation("{FileCount} files outside {SourceFolder} in {FolderCount} folders of the disk",
+            files.Count, excludedFolder, listedFolders);
+
         return files;
+    }
+
+    /// <summary>
+    /// Whether the file is a photo of a format processed.
+    /// </summary>
+    public static bool IsPhoto(Resource file)
+    {
+        return SupportedImageFormats.IsSupported(file.Name);
+    }
+
+    /// <summary>
+    /// Whether the file is a video that is downloaded.
+    /// </summary>
+    public static bool IsVideo(Resource file)
+    {
+        return DownloadableFormats.GetContent(file.Name, file.MediaType) == SourceDownloadContent.Videos;
+    }
+
+    /// <summary>
+    /// Whether the file or folder is <see cref="ExcludedFolder"/>, or within it.
+    /// </summary>
+    private static bool IsInExcludedFolder(string path)
+    {
+        return (path.TrimEnd('/') + "/").StartsWith(ExcludedFolder, StringComparison.Ordinal);
     }
 
     /// <summary>

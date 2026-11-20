@@ -249,6 +249,40 @@ public class PhotoSourceProcessingServiceOtherUploadsTests
         Assert.Equal(["other", "similar-folder"], requests.Select(a => a.DownloadedFileInfo.FileId).Order());
         Assert.Equal(["disk:/Photos/c.jpg", "disk:/Фотокамера 2/d.jpg"], handler.DownloadedFiles.Order());
         Assert.Equal(2, _reportedStatuses.Last().TotalCount);
+        Assert.DoesNotContain(handler.ListedFolders, a => a.StartsWith("disk:/Фотокамера/") || a == "disk:/Фотокамера");
+    }
+
+    [Fact]
+    public async Task Run_ShouldProcessThePhotosOfEveryFolderOfTheDisk_AtAnyDepth()
+    {
+        // Arrange: the flat list of files leaves out the photos of the Загрузки folder, its folders are listed
+        var handler = new FakeDiskHandler(
+        [
+            CreateResource("root", "disk:/a.jpg"),
+            CreateResource("downloads", "disk:/Загрузки/b.jpg"),
+            CreateResource("downloads-trip", "disk:/Загрузки/Dubai 2022 (1)/IMG_0001.heic"),
+            CreateResource("downloads-trip-day", "disk:/Загрузки/Dubai 2022 (1)/Day 1/IMG_0002.jpg")
+        ]);
+
+        _photoService
+            .Setup(a => a.GetSavedExternalIdsAsync(UserId, YandexDiskSourceId, It.IsAny<IEnumerable<string>>()))
+            .ReturnsAsync(new HashSet<string>());
+
+        var requests = new List<ProcessImageRequest>();
+        var service = CreateService(handler);
+
+        // Act
+        await service.RunOtherUploadsCommandAsync(UserId, YandexDiskSourceId, PhotoSourceProcessingCommands.Start);
+
+        await RunWithWorkerAsync(requests);
+
+        // Assert
+        Assert.Equal(["downloads", "downloads-trip", "downloads-trip-day", "root"],
+            requests.Select(a => a.DownloadedFileInfo.FileId).Order());
+        Assert.Equal(
+            ["disk:/", "disk:/Загрузки", "disk:/Загрузки/Dubai 2022 (1)", "disk:/Загрузки/Dubai 2022 (1)/Day 1"],
+            handler.ListedFolders);
+        Assert.Equal(4, _reportedStatuses.Last().TotalCount);
     }
 
     [Fact]
@@ -678,12 +712,17 @@ public class PhotoSourceProcessingServiceOtherUploadsTests
     }
 
     /// <summary>
-    /// A disk whose Photostream is <c>disk:/Camera Uploads/</c>, with the images given on the first page of the flat
-    /// list of files, and the files themselves. The resources looked up by path are the images, unless others are given.
+    /// A disk whose Photostream is <c>disk:/Camera Uploads/</c>, with the images given in the folders of their paths,
+    /// and the files themselves. The resources looked up by path are the images, unless others are given; a folder
+    /// is listed with the images and the folders directly within it.
     /// </summary>
     private sealed class FakeDiskHandler(object[] images, object[]? resources = null) : HttpMessageHandler
     {
         private readonly List<string> _downloadedFiles = [];
+        private readonly List<string> _listedFolders = [];
+
+        /// <summary>The paths of the folders listed.</summary>
+        public IReadOnlyList<string> ListedFolders => _listedFolders;
 
         /// <summary>Every download of a file fails, as Yandex.Disk not finding it would.</summary>
         public bool FailDownloads { get; init; }
@@ -731,10 +770,14 @@ public class PhotoSourceProcessingServiceOtherUploadsTests
                     return Json(resource);
                 }
 
-                if (path != "disk:/")
+                if (ListFolder(path) is { } folder)
                 {
-                    return NotFound();
+                    _listedFolders.Add(path);
+
+                    return Json(folder);
                 }
+
+                return NotFound();
             }
 
             if (uri.AbsolutePath.EndsWith("/resources/download"))
@@ -744,17 +787,52 @@ public class PhotoSourceProcessingServiceOtherUploadsTests
                 return Json(new { href = $"https://downloader.test/file?path={HttpUtility.UrlEncode(path)}", method = "GET" });
             }
 
-            if (uri.AbsolutePath.EndsWith("/resources/files"))
-            {
-                var query = HttpUtility.ParseQueryString(uri.Query);
-                var offset = int.Parse(query["offset"]!);
-
-                Assert.Equal("image", query["media_type"]);
-
-                return Json(new { items = offset == 0 ? images : [], offset, limit = 500 });
-            }
+            // the flat list of files leaves photos out, the folders are listed instead
+            Assert.False(uri.AbsolutePath.EndsWith("/resources/files"), "The flat list of files is not to be used.");
 
             return Json(new { system_folders = new { photostream = "disk:/Camera Uploads/" } });
+        }
+
+        /// <summary>
+        /// The folder of the disk, with the images and the folders directly within it; null when no image is within
+        /// it, but for the root of the disk.
+        /// </summary>
+        private object? ListFolder(string path)
+        {
+            var prefix = path.EndsWith('/') ? path : path + "/";
+            var within = images
+                .Select(a => JsonSerializer.SerializeToElement(a))
+                .Where(a => a.GetProperty("path").GetString()!.StartsWith(prefix, StringComparison.Ordinal))
+                .ToList();
+
+            if (within.Count == 0 && path != "disk:/")
+            {
+                return null;
+            }
+
+            var files = within.Where(a => !a.GetProperty("path").GetString()![prefix.Length..].Contains('/'));
+            var folders = within
+                .Select(a => a.GetProperty("path").GetString()![prefix.Length..])
+                .Where(a => a.Contains('/'))
+                .Select(a => a[..a.IndexOf('/')])
+                .Distinct()
+                .Select(name => JsonSerializer.SerializeToElement(new
+                {
+                    name,
+                    path = prefix + name,
+                    type = "dir",
+                    resource_id = "dir:" + prefix + name
+                }));
+            var items = folders.Concat(files).ToArray();
+
+            return new
+            {
+                name = path,
+                path,
+                type = "dir",
+                resource_id = "dir:" + path,
+                _embedded = new { items, limit = 10000, offset = 0, path, total = items.Length }
+            };
         }
 
         private static Task<HttpResponseMessage> NotFound()

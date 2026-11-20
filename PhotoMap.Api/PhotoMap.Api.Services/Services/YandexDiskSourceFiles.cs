@@ -1,4 +1,3 @@
-using System.Runtime.CompilerServices;
 using Microsoft.Extensions.Logging;
 using PhotoMap.Api.Domain.Models;
 using PhotoMap.Api.Services.Exceptions;
@@ -13,9 +12,6 @@ namespace PhotoMap.Api.Services.Services;
 /// </summary>
 public sealed class YandexDiskSourceFiles : ISourceFiles
 {
-    private const int PageSize = 10000;
-    private const string SortOrder = "created";
-
     /// <summary>
     /// How long the download of a file waits to start, for its download URL and the headers of the response, before
     /// the attempt fails. Reading the contents takes as long as it does.
@@ -60,7 +56,7 @@ public sealed class YandexDiskSourceFiles : ISourceFiles
 
         while (folders.TryDequeue(out var folderToList))
         {
-            await foreach (var item in ListFolderAsync(folderToList, cancellationToken))
+            await foreach (var item in YandexDiskFolders.ListFolderAsync(_apiClient, _logger, folderToList, cancellationToken))
             {
                 if (item.Type == "dir")
                 {
@@ -92,50 +88,24 @@ public sealed class YandexDiskSourceFiles : ISourceFiles
     {
         var sourceFolder = await YandexDiskDownloadService.GetSourceFolderAsync(_apiClient, _settings, _logger, cancellationToken);
         var otherUploads = new YandexDiskOtherUploads(_apiClient, _logger);
+
+        // the disk is walked once, for the photos and the videos alike
+        var diskFiles = await otherUploads.ListFilesAsync(sourceFolder, cancellationToken);
         var files = new List<SourceFile>();
 
         if (content.HasFlag(SourceDownloadContent.Photos))
         {
-            var photos = await otherUploads.ListPhotosAsync(sourceFolder, cancellationToken);
-            files.AddRange(photos.Select(a => new SourceFile(a.Name, a.Path, a.Size, SourceDownloadContent.Photos)));
+            files.AddRange(diskFiles.Where(YandexDiskOtherUploads.IsPhoto)
+                .Select(a => new SourceFile(a.Name, a.Path, a.Size, SourceDownloadContent.Photos)));
         }
 
         if (content.HasFlag(SourceDownloadContent.Videos))
         {
-            var videos = await otherUploads.ListVideosAsync(sourceFolder, cancellationToken);
-            files.AddRange(videos.Select(a => new SourceFile(a.Name, a.Path, a.Size, SourceDownloadContent.Videos)));
+            files.AddRange(diskFiles.Where(YandexDiskOtherUploads.IsVideo)
+                .Select(a => new SourceFile(a.Name, a.Path, a.Size, SourceDownloadContent.Videos)));
         }
 
         return files;
-    }
-
-    /// <summary>
-    /// The files and folders directly within the folder, a page at a time.
-    /// </summary>
-    private async IAsyncEnumerable<Resource> ListFolderAsync(string folder,
-        [EnumeratorCancellation] CancellationToken cancellationToken)
-    {
-        var offset = 0;
-
-        while (true)
-        {
-            var resource = await YandexDiskApiCalls.WrapAsync(_logger,
-                () => _apiClient.GetResourceAsync(folder, cancellationToken, offset, PageSize, SortOrder), cancellationToken);
-            var page = resource.Embedded ?? throw new YandexDiskException($"{folder} is not a folder.");
-            var items = page.Items ?? [];
-
-            foreach (var item in items)
-            {
-                yield return item;
-            }
-
-            offset += items.Length;
-
-            if (items.Length < PageSize || offset >= page.Total)
-            {
-                yield break;
-            }
-        }
     }
 
     /// <summary>
