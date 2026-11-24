@@ -16,5 +16,10 @@ namespace PhotoMap.Api.DTOs
         /// How many photos have the tag, the deleted ones too.
         /// </summary>
         public int PhotoCount { get; set; }
+
+        /// <summary>
+        /// How many videos have the tag, which is the same for the photos and the videos.
+        /// </summary>
+        public int VideoCount { get; set; }
     }
 }

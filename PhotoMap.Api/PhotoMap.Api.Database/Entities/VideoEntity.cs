@@ -32,4 +32,9 @@ public class VideoEntity
     /// The locations the video was taken in, read from <see cref="Geocoding"/>.
     /// </summary>
     public List<VideoLocationEntity> Locations { get; set; } = [];
+
+    /// <summary>
+    /// The tags of the video, which are those of the photos too.
+    /// </summary>
+    public List<VideoTagEntity> Tags { get; set; } = [];
 }

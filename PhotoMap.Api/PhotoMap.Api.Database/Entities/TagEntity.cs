@@ -17,4 +17,6 @@ public class TagEntity
     public required string NormalizedName { get; set; }
 
     public List<PhotoTagEntity> Photos { get; set; } = [];
+
+    public List<VideoTagEntity> Videos { get; set; } = [];
 }

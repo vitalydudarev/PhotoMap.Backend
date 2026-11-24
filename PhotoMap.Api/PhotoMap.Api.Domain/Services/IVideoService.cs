@@ -13,15 +13,17 @@ public interface IVideoService
     /// <param name="folderPaths">The folders to take the videos from, all of them when empty.</param>
     /// <param name="years">The years, in UTC, the videos were taken in, all of them when empty.</param>
     /// <param name="locations">The locations the videos were taken in, see <see cref="LocationFilter"/>.</param>
+    /// <param name="tags">The tags the videos have, see <see cref="TagFilter"/>.</param>
     Task<IReadOnlyList<Video>> GetByUserIdAsync(long userId, IReadOnlyCollection<string> folderPaths,
-        IReadOnlyCollection<int> years, LocationFilter locations, int top, int skip, PhotoSortOrder sortOrder);
+        IReadOnlyCollection<int> years, LocationFilter locations, TagFilter tags, int top, int skip,
+        PhotoSortOrder sortOrder);
 
     /// <summary>
     /// The videos of the user with a GPS location that the filter takes, every one of them, oldest first, for a map.
     /// The filter is that of <see cref="GetByUserIdAsync"/>.
     /// </summary>
     Task<IReadOnlyList<Video>> GetGeotaggedAsync(long userId, IReadOnlyCollection<string> folderPaths,
-        IReadOnlyCollection<int> years, LocationFilter locations);
+        IReadOnlyCollection<int> years, LocationFilter locations, TagFilter tags);
 
     /// <summary>
     /// What the videos the filter takes can still be narrowed down to, see <see cref="VideoFacets"/>. The filter is
@@ -29,13 +31,22 @@ public interface IVideoService
     /// </summary>
     /// <param name="withGps">Whether only the videos with a GPS location are counted, as a map shows them.</param>
     Task<VideoFacets> GetFacetsAsync(long userId, IReadOnlyCollection<string> folderPaths,
-        IReadOnlyCollection<int> years, LocationFilter locations, bool withGps = false);
+        IReadOnlyCollection<int> years, LocationFilter locations, TagFilter tags, bool withGps = false);
 
     /// <param name="folderPaths">The folders to count the videos of, all of them when empty.</param>
     /// <param name="years">The years, in UTC, to count the videos taken in, all of them when empty.</param>
     /// <param name="locations">The locations to count the videos taken in, see <see cref="LocationFilter"/>.</param>
+    /// <param name="tags">The tags to count the videos of, see <see cref="TagFilter"/>.</param>
     Task<int> GetTotalCountByUserIdAsync(long userId, IReadOnlyCollection<string> folderPaths,
-        IReadOnlyCollection<int> years, LocationFilter locations);
+        IReadOnlyCollection<int> years, LocationFilter locations, TagFilter tags);
+
+    /// <summary>
+    /// Replaces the tags of a video of the user, which are those of the photos too. The names are cleaned as those of
+    /// the tags of a photo, see <see cref="TagNames.Clean"/>, the empty ones dropped, and a name the user has a tag of,
+    /// whatever its case, takes that tag; the other names make new tags.
+    /// </summary>
+    /// <returns>The names of the tags of the video, by name; null when the user has no such video.</returns>
+    Task<IReadOnlyList<string>?> SetTagsAsync(long userId, long videoId, IEnumerable<string> names);
 
     /// <summary>
     /// The locations the videos of the user were taken in, by level, from the countries down, and by name, with how

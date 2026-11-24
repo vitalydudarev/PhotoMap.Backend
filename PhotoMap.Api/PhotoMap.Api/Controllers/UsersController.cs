@@ -297,7 +297,10 @@ namespace PhotoMap.Api.Controllers
         {
             var tags = await _photoService.GetTagsAsync(id);
 
-            return Ok(tags.Select(a => new PhotoTagDto { Id = a.Id, Name = a.Name, PhotoCount = a.PhotoCount }).ToArray());
+            return Ok(tags.Select(a => new PhotoTagDto
+            {
+                Id = a.Id, Name = a.Name, PhotoCount = a.PhotoCount, VideoCount = a.VideoCount
+            }).ToArray());
         }
 
         /// <summary>

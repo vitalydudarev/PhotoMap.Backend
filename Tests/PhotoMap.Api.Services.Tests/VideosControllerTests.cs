@@ -21,11 +21,12 @@ public class VideosControllerTests
     {
         _videoService
             .Setup(a => a.GetByUserIdAsync(UserId, It.IsAny<IReadOnlyCollection<string>>(), It.IsAny<IReadOnlyCollection<int>>(),
-                It.IsAny<LocationFilter>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<PhotoSortOrder>()))
+                It.IsAny<LocationFilter>(), It.IsAny<TagFilter>(), It.IsAny<int>(), It.IsAny<int>(),
+                It.IsAny<PhotoSortOrder>()))
             .ReturnsAsync([]);
         _videoService
             .Setup(a => a.GetTotalCountByUserIdAsync(UserId, It.IsAny<IReadOnlyCollection<string>>(),
-                It.IsAny<IReadOnlyCollection<int>>(), It.IsAny<LocationFilter>()))
+                It.IsAny<IReadOnlyCollection<int>>(), It.IsAny<LocationFilter>(), It.IsAny<TagFilter>()))
             .ReturnsAsync(7);
     }
 
@@ -44,11 +45,12 @@ public class VideosControllerTests
 
         _videoService.Verify(a => a.GetByUserIdAsync(UserId,
             It.Is<IReadOnlyCollection<string>>(f => f.SequenceEqual(new[] { "disk:/Фотокамера" })),
-            It.Is<IReadOnlyCollection<int>>(y => y.SequenceEqual(new[] { 2016, 2019 })), It.IsAny<LocationFilter>(), 100,
-            0, PhotoSortOrder.Desc));
+            It.Is<IReadOnlyCollection<int>>(y => y.SequenceEqual(new[] { 2016, 2019 })), It.IsAny<LocationFilter>(),
+            It.IsAny<TagFilter>(), 100, 0, PhotoSortOrder.Desc));
         _videoService.Verify(a => a.GetTotalCountByUserIdAsync(UserId,
             It.Is<IReadOnlyCollection<string>>(f => f.SequenceEqual(new[] { "disk:/Фотокамера" })),
-            It.Is<IReadOnlyCollection<int>>(y => y.SequenceEqual(new[] { 2016, 2019 })), It.IsAny<LocationFilter>()));
+            It.Is<IReadOnlyCollection<int>>(y => y.SequenceEqual(new[] { 2016, 2019 })), It.IsAny<LocationFilter>(),
+            It.IsAny<TagFilter>()));
     }
 
     [Fact]
@@ -62,8 +64,8 @@ public class VideosControllerTests
 
         // Assert
         _videoService.Verify(a => a.GetByUserIdAsync(UserId, It.Is<IReadOnlyCollection<string>>(f => f.Count == 0),
-            It.Is<IReadOnlyCollection<int>>(y => y.Count == 0), It.Is<LocationFilter>(l => !l.FiltersByLocations), 100,
-            0, PhotoSortOrder.Asc));
+            It.Is<IReadOnlyCollection<int>>(y => y.Count == 0), It.Is<LocationFilter>(l => !l.FiltersByLocations),
+            It.Is<TagFilter>(t => !t.FiltersByTags), 100, 0, PhotoSortOrder.Asc));
     }
 
     [Fact]
@@ -79,10 +81,92 @@ public class VideosControllerTests
         _videoService.Verify(a => a.GetByUserIdAsync(UserId, It.IsAny<IReadOnlyCollection<string>>(),
             It.IsAny<IReadOnlyCollection<int>>(),
             It.Is<LocationFilter>(l => l.LocationIds.SequenceEqual(new long[] { 12, 40 }) && l.UnknownLocation),
-            100, 0, PhotoSortOrder.Asc));
+            It.IsAny<TagFilter>(), 100, 0, PhotoSortOrder.Asc));
         _videoService.Verify(a => a.GetTotalCountByUserIdAsync(UserId, It.IsAny<IReadOnlyCollection<string>>(),
             It.IsAny<IReadOnlyCollection<int>>(),
-            It.Is<LocationFilter>(l => l.LocationIds.SequenceEqual(new long[] { 12, 40 }) && l.UnknownLocation)));
+            It.Is<LocationFilter>(l => l.LocationIds.SequenceEqual(new long[] { 12, 40 }) && l.UnknownLocation),
+            It.IsAny<TagFilter>()));
+    }
+
+    [Fact]
+    public async Task GetUserVideos_ShouldTakeTheVideosAndTheCountOfTheGivenTags()
+    {
+        // Arrange
+        var controller = CreateController();
+
+        // Act
+        await controller.GetUserVideos(UserId, 100, 0, tag: [4, 9], untagged: true);
+
+        // Assert
+        _videoService.Verify(a => a.GetByUserIdAsync(UserId, It.IsAny<IReadOnlyCollection<string>>(),
+            It.IsAny<IReadOnlyCollection<int>>(), It.IsAny<LocationFilter>(),
+            It.Is<TagFilter>(t => t.TagIds.SequenceEqual(new long[] { 4, 9 }) && t.Untagged), 100, 0,
+            PhotoSortOrder.Asc));
+        _videoService.Verify(a => a.GetTotalCountByUserIdAsync(UserId, It.IsAny<IReadOnlyCollection<string>>(),
+            It.IsAny<IReadOnlyCollection<int>>(), It.IsAny<LocationFilter>(),
+            It.Is<TagFilter>(t => t.TagIds.SequenceEqual(new long[] { 4, 9 }) && t.Untagged)));
+    }
+
+    [Fact]
+    public async Task SetVideoTags_ShouldGiveTheTagsOfTheVideo()
+    {
+        // Arrange
+        _videoService.Setup(a => a.SetTagsAsync(UserId, 7, It.Is<IEnumerable<string>>(n =>
+                n.SequenceEqual(new[] { "Paris", "Family trip" })))).ReturnsAsync(["Family trip", "Paris"]);
+        var controller = CreateController();
+
+        // Act
+        var result = await controller.SetVideoTags(UserId, 7, ["  Paris ", "Family   trip", " "]);
+
+        // Assert
+        Assert.Equal(new[] { "Family trip", "Paris" },
+            Assert.IsAssignableFrom<IReadOnlyList<string>>(Assert.IsType<OkObjectResult>(result).Value));
+    }
+
+    [Fact]
+    public async Task SetVideoTags_ShouldGiveNotFound_WhenTheUserHasNoSuchVideo()
+    {
+        // Arrange
+        _videoService.Setup(a => a.SetTagsAsync(UserId, 7, It.IsAny<IEnumerable<string>>()))
+            .ReturnsAsync((IReadOnlyList<string>?)null);
+        var controller = CreateController();
+
+        // Act
+        var result = await controller.SetVideoTags(UserId, 7, ["Paris"]);
+
+        // Assert
+        Assert.IsType<NotFoundResult>(result);
+    }
+
+    [Fact]
+    public async Task SetVideoTags_ShouldGiveBadRequest_WhenATagIsTooLong()
+    {
+        // Arrange
+        var controller = CreateController();
+
+        // Act
+        var result = await controller.SetVideoTags(UserId, 7, [new string('a', TagNames.MaxLength + 1)]);
+
+        // Assert
+        Assert.IsType<ObjectResult>(result);
+        _videoService.Verify(a => a.SetTagsAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<IEnumerable<string>>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task SetVideoTags_ShouldGiveBadRequest_WhenThereAreTooManyTags()
+    {
+        // Arrange
+        var controller = CreateController();
+
+        // Act
+        var result = await controller.SetVideoTags(UserId, 7,
+            Enumerable.Range(0, TagNames.MaxPerPhoto + 1).Select(a => $"tag {a}").ToArray());
+
+        // Assert
+        Assert.IsType<ObjectResult>(result);
+        _videoService.Verify(a => a.SetTagsAsync(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<IEnumerable<string>>()),
+            Times.Never);
     }
 
     [Fact]
@@ -125,20 +209,22 @@ public class VideosControllerTests
     public async Task GetUserVideoFacets_ShouldGiveTheFacetsOfTheVideosTheFilterTakes()
     {
         // Arrange
-        var facets = new VideoFacets([new("disk:/Videos", 3)], [new(2019, 3)], [new(12, 1)], 2);
+        var facets = new VideoFacets([new("disk:/Videos", 3)], [new(2019, 3)], [new(12, 1)], 2, [new(4, 1)], 2);
         _videoService.Setup(a => a.GetFacetsAsync(UserId, It.IsAny<IReadOnlyCollection<string>>(),
-            It.IsAny<IReadOnlyCollection<int>>(), It.IsAny<LocationFilter>(), It.IsAny<bool>())).ReturnsAsync(facets);
+            It.IsAny<IReadOnlyCollection<int>>(), It.IsAny<LocationFilter>(), It.IsAny<TagFilter>(), It.IsAny<bool>()))
+            .ReturnsAsync(facets);
         var controller = CreateController();
 
         // Act
-        var result = await controller.GetUserVideoFacets(UserId, ["disk:/Videos"], [2019], [12], true, true);
+        var result = await controller.GetUserVideoFacets(UserId, ["disk:/Videos"], [2019], [12], true, true, [4]);
 
         // Assert
         Assert.Same(facets, Assert.IsType<OkObjectResult>(result).Value);
         _videoService.Verify(a => a.GetFacetsAsync(UserId,
             It.Is<IReadOnlyCollection<string>>(f => f.SequenceEqual(new[] { "disk:/Videos" })),
             It.Is<IReadOnlyCollection<int>>(y => y.SequenceEqual(new[] { 2019 })),
-            It.Is<LocationFilter>(l => l.LocationIds.SequenceEqual(new long[] { 12 }) && l.UnknownLocation), true));
+            It.Is<LocationFilter>(l => l.LocationIds.SequenceEqual(new long[] { 12 }) && l.UnknownLocation),
+            It.Is<TagFilter>(t => t.TagIds.SequenceEqual(new long[] { 4 }) && !t.Untagged), true));
     }
 
     [Fact]
@@ -148,11 +234,12 @@ public class VideosControllerTests
         _videoService.Setup(a => a.GetGeotaggedAsync(UserId,
                 It.Is<IReadOnlyCollection<string>>(f => f.SequenceEqual(new[] { "disk:/Videos" })),
                 It.Is<IReadOnlyCollection<int>>(y => y.SequenceEqual(new[] { 2019 })),
-                It.Is<LocationFilter>(l => l.LocationIds.SequenceEqual(new long[] { 12 }) && !l.UnknownLocation)))
+                It.Is<LocationFilter>(l => l.LocationIds.SequenceEqual(new long[] { 12 }) && !l.UnknownLocation),
+                It.Is<TagFilter>(t => !t.FiltersByTags)))
             .ReturnsAsync([new Video
             {
                 Id = 7, UserId = UserId, PhotoSourceId = 2, ExternalId = "7", FileName = "trip.mp4", Latitude = 53.9,
-                Longitude = 27.56
+                Longitude = 27.56, Tags = ["Paris"]
             }]);
         var controller = CreateController();
 
@@ -163,6 +250,7 @@ public class VideosControllerTests
         var videos = Assert.IsType<VideoDto[]>(Assert.IsType<OkObjectResult>(result).Value);
         Assert.Equal(7, Assert.Single(videos).Id);
         Assert.Equal(53.9, videos[0].Latitude);
+        Assert.Equal(["Paris"], videos[0].Tags);
     }
 
     private VideosController CreateController()

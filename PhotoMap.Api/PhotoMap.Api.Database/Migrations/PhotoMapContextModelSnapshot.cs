@@ -849,6 +849,25 @@ namespace PhotoMap.Api.Database.Migrations
                     b.ToTable("video_locations", (string)null);
                 });
 
+            modelBuilder.Entity("PhotoMap.Api.Database.Entities.VideoTagEntity", b =>
+                {
+                    b.Property<long>("VideoId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("video_id");
+
+                    b.Property<long>("TagId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("tag_id");
+
+                    b.HasKey("VideoId", "TagId")
+                        .HasName("pk_video_tags");
+
+                    b.HasIndex("TagId")
+                        .HasDatabaseName("ix_video_tags_tag_id");
+
+                    b.ToTable("video_tags", (string)null);
+                });
+
             modelBuilder.Entity("PhotoMap.Api.Database.Entities.FailedDownloadEntity", b =>
                 {
                     b.HasOne("PhotoMap.Api.Database.Entities.PhotoSourceEntity", "PhotoSource")
@@ -1104,6 +1123,27 @@ namespace PhotoMap.Api.Database.Migrations
                     b.Navigation("Video");
                 });
 
+            modelBuilder.Entity("PhotoMap.Api.Database.Entities.VideoTagEntity", b =>
+                {
+                    b.HasOne("PhotoMap.Api.Database.Entities.TagEntity", "Tag")
+                        .WithMany("Videos")
+                        .HasForeignKey("TagId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_video_tags_tags_tag_id");
+
+                    b.HasOne("PhotoMap.Api.Database.Entities.VideoEntity", "Video")
+                        .WithMany("Tags")
+                        .HasForeignKey("VideoId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_video_tags_videos_video_id");
+
+                    b.Navigation("Tag");
+
+                    b.Navigation("Video");
+                });
+
             modelBuilder.Entity("PhotoMap.Api.Database.Entities.LocationEntity", b =>
                 {
                     b.Navigation("Photos");
@@ -1130,6 +1170,8 @@ namespace PhotoMap.Api.Database.Migrations
             modelBuilder.Entity("PhotoMap.Api.Database.Entities.TagEntity", b =>
                 {
                     b.Navigation("Photos");
+
+                    b.Navigation("Videos");
                 });
 
             modelBuilder.Entity("PhotoMap.Api.Database.Entities.UserEntity", b =>
@@ -1142,6 +1184,8 @@ namespace PhotoMap.Api.Database.Migrations
             modelBuilder.Entity("PhotoMap.Api.Database.Entities.VideoEntity", b =>
                 {
                     b.Navigation("Locations");
+
+                    b.Navigation("Tags");
                 });
 #pragma warning restore 612, 618
         }

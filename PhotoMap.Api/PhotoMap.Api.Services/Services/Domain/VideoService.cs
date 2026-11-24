@@ -98,15 +98,22 @@ public class VideoService : IVideoService
     }
 
     public async Task<IReadOnlyList<Video>> GetByUserIdAsync(long userId, IReadOnlyCollection<string> folderPaths,
-        IReadOnlyCollection<int> years, LocationFilter locations, int top, int skip, PhotoSortOrder sortOrder)
+        IReadOnlyCollection<int> years, LocationFilter locations, TagFilter tags, int top, int skip,
+        PhotoSortOrder sortOrder)
     {
-        var videos = GetUserVideos(userId, folderPaths, years, locations).AsNoTracking();
+        var videos = GetUserVideos(userId, folderPaths, years, locations, tags).AsNoTracking();
 
         var ordered = sortOrder == PhotoSortOrder.Desc
             ? videos.OrderByDescending(a => a.DateTimeTaken).ThenByDescending(a => a.Id)
             : videos.OrderBy(a => a.DateTimeTaken).ThenBy(a => a.Id);
 
-        var entities = await ordered.Skip(skip).Take(top).ToListAsync();
+        var entities = await ordered
+            .Skip(skip)
+            .Take(top)
+            .Include(a => a.Tags)
+            .ThenInclude(a => a.Tag)
+            .AsSplitQuery()
+            .ToListAsync();
 
         return entities.Select(ToModel).ToList();
     }
@@ -116,9 +123,9 @@ public class VideoService : IVideoService
     /// database, as there may be many of them.
     /// </summary>
     public async Task<IReadOnlyList<Video>> GetGeotaggedAsync(long userId, IReadOnlyCollection<string> folderPaths,
-        IReadOnlyCollection<int> years, LocationFilter locations)
+        IReadOnlyCollection<int> years, LocationFilter locations, TagFilter tags)
     {
-        return await GetUserVideos(userId, folderPaths, years, locations)
+        var videos = await GetUserVideos(userId, folderPaths, years, locations, tags)
             .AsNoTracking()
             .Where(a => a.Latitude != null && a.Longitude != null)
             .OrderBy(a => a.DateTimeTaken)
@@ -136,9 +143,17 @@ public class VideoService : IVideoService
                 DateTimeTaken = a.DateTimeTaken,
                 ExifDateTime = a.ExifDateTime,
                 Latitude = a.Latitude,
-                Longitude = a.Longitude
+                Longitude = a.Longitude,
+                Tags = a.Tags.Select(b => b.Tag!.Name).ToList()
             })
             .ToListAsync();
+
+        foreach (var video in videos)
+        {
+            video.Tags = video.Tags.OrderBy(a => a, StringComparer.CurrentCultureIgnoreCase).ToList();
+        }
+
+        return videos;
     }
 
     /// <summary>
@@ -146,28 +161,28 @@ public class VideoService : IVideoService
     /// for each filter, which leaves that filter out.
     /// </summary>
     public async Task<VideoFacets> GetFacetsAsync(long userId, IReadOnlyCollection<string> folderPaths,
-        IReadOnlyCollection<int> years, LocationFilter locations, bool withGps = false)
+        IReadOnlyCollection<int> years, LocationFilter locations, TagFilter tags, bool withGps = false)
     {
         IQueryable<VideoEntity> Videos(IReadOnlyCollection<string> folderPaths, IReadOnlyCollection<int> years,
-            LocationFilter locations)
+            LocationFilter locations, TagFilter tags)
         {
-            var videos = GetUserVideos(userId, folderPaths, years, locations);
+            var videos = GetUserVideos(userId, folderPaths, years, locations, tags);
 
             return withGps ? videos.Where(a => a.Latitude != null && a.Longitude != null) : videos;
         }
 
-        var folders = await Videos([], years, locations)
+        var folders = await Videos([], years, locations, tags)
             .Where(a => a.FolderPath != null)
             .GroupBy(a => a.FolderPath!)
             .Select(a => new FacetCount<string>(a.Key, a.Count()))
             .ToListAsync();
 
-        var facetYears = await Videos(folderPaths, [], locations)
+        var facetYears = await Videos(folderPaths, [], locations, tags)
             .GroupBy(a => a.DateTimeTaken.Year)
             .Select(a => new FacetCount<int>(a.Key, a.Count()))
             .ToListAsync();
 
-        var byLocation = Videos(folderPaths, years, LocationFilter.All);
+        var byLocation = Videos(folderPaths, years, LocationFilter.All, tags);
         var facetLocations = await byLocation
             .SelectMany(a => a.Locations.Select(l => l.LocationId))
             .GroupBy(a => a)
@@ -175,13 +190,70 @@ public class VideoService : IVideoService
             .ToListAsync();
         var unknownLocationCount = await byLocation.CountAsync(a => !a.Locations.Any());
 
-        return new VideoFacets(folders, facetYears, facetLocations, unknownLocationCount);
+        var byTag = Videos(folderPaths, years, locations, TagFilter.All);
+        var facetTags = await byTag
+            .SelectMany(a => a.Tags.Select(t => t.TagId))
+            .GroupBy(a => a)
+            .Select(a => new FacetCount<long>(a.Key, a.Count()))
+            .ToListAsync();
+        var untaggedCount = await byTag.CountAsync(a => !a.Tags.Any());
+
+        return new VideoFacets(folders, facetYears, facetLocations, unknownLocationCount, facetTags, untaggedCount);
     }
 
     public Task<int> GetTotalCountByUserIdAsync(long userId, IReadOnlyCollection<string> folderPaths,
-        IReadOnlyCollection<int> years, LocationFilter locations)
+        IReadOnlyCollection<int> years, LocationFilter locations, TagFilter tags)
     {
-        return GetUserVideos(userId, folderPaths, years, locations).CountAsync();
+        return GetUserVideos(userId, folderPaths, years, locations, tags).CountAsync();
+    }
+
+    /// <summary>
+    /// Replaces the tags of a video of the user, in one go: the new tags are made, and the video given them, or
+    /// nothing is. The tags are those of the photos too.
+    /// </summary>
+    public async Task<IReadOnlyList<string>?> SetTagsAsync(long userId, long videoId, IEnumerable<string> names)
+    {
+        var cleanNames = names
+            .Select(TagNames.Clean)
+            .Where(a => a.Length > 0)
+            .DistinctBy(TagNames.Normalize)
+            .ToList();
+
+        if (!await _context.Videos.AnyAsync(a => a.UserId == userId && a.Id == videoId))
+        {
+            return null;
+        }
+
+        var normalizedNames = cleanNames.Select(TagNames.Normalize).ToArray();
+
+        await using var transaction = await _context.Database.BeginTransactionAsync();
+
+        var tags = await _context.Tags
+            .Where(a => a.UserId == userId && normalizedNames.Contains(a.NormalizedName))
+            .ToListAsync();
+
+        var newTags = cleanNames
+            .Where(name => tags.All(tag => tag.NormalizedName != TagNames.Normalize(name)))
+            .Select(name => new TagEntity { UserId = userId, Name = name, NormalizedName = TagNames.Normalize(name) })
+            .ToList();
+
+        await _context.Tags.AddRangeAsync(newTags);
+        await _context.SaveChangesAsync();
+        tags.AddRange(newTags);
+
+        // only what changed, the tags the video keeps stay as they are
+        var tagIds = tags.Select(a => a.Id).ToHashSet();
+        var videoTags = await _context.VideoTags.Where(a => a.VideoId == videoId).ToListAsync();
+
+        _context.VideoTags.RemoveRange(videoTags.Where(a => !tagIds.Contains(a.TagId)));
+        await _context.VideoTags.AddRangeAsync(tagIds
+            .Where(id => videoTags.All(a => a.TagId != id))
+            .Select(id => new VideoTagEntity { VideoId = videoId, TagId = id }));
+        await _context.SaveChangesAsync();
+
+        await transaction.CommitAsync();
+
+        return tags.Select(a => a.Name).OrderBy(a => a, StringComparer.CurrentCultureIgnoreCase).ToList();
     }
 
     public async Task<IReadOnlyList<Location>> GetLocationsAsync(long userId)
@@ -486,7 +558,7 @@ public class VideoService : IVideoService
     }
 
     private IQueryable<VideoEntity> GetUserVideos(long userId, IReadOnlyCollection<string> folderPaths,
-        IReadOnlyCollection<int> years, LocationFilter locations)
+        IReadOnlyCollection<int> years, LocationFilter locations, TagFilter tags)
     {
         var videos = _context.Videos.Where(a => a.UserId == userId);
 
@@ -507,6 +579,14 @@ public class VideoService : IVideoService
 
             videos = videos.Where(a => a.Locations.Any(l => locationIds.Contains(l.LocationId)) ||
                                        (unknownLocation && !a.Locations.Any()));
+        }
+
+        if (tags.FiltersByTags)
+        {
+            var tagIds = tags.TagIds.ToArray();
+            var untagged = tags.Untagged;
+
+            videos = videos.Where(a => a.Tags.Any(t => tagIds.Contains(t.TagId)) || (untagged && !a.Tags.Any()));
         }
 
         return videos;
@@ -532,7 +612,13 @@ public class VideoService : IVideoService
             PreviewFilePath = entity.PreviewFilePath,
             PreviewContentType = entity.PreviewContentType,
             AddedOn = entity.AddedOn,
-            DuplicateGroupId = entity.DuplicateGroupId
+            DuplicateGroupId = entity.DuplicateGroupId,
+            // only loaded along with the videos of the Videos page
+            Tags = entity.Tags
+                .Where(a => a.Tag != null)
+                .Select(a => a.Tag!.Name)
+                .OrderBy(a => a, StringComparer.CurrentCultureIgnoreCase)
+                .ToList()
         };
     }
 }

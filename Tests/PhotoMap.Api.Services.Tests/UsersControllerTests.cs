@@ -245,6 +245,21 @@ public class UsersControllerTests
     }
 
     [Fact]
+    public async Task GetUserPhotoTags_ShouldReturnTheTagsOfThePhotosAndTheVideos_WithHowManyOfEachHaveThem()
+    {
+        // Arrange
+        _photoService.Setup(a => a.GetTagsAsync(UserId)).ReturnsAsync([new PhotoTag(4, "Paris", 3, 2)]);
+        var controller = CreateController();
+
+        // Act
+        var result = await controller.GetUserPhotoTags(UserId);
+
+        // Assert
+        var tag = Assert.Single(Assert.IsType<PhotoTagDto[]>(Assert.IsType<OkObjectResult>(result).Value));
+        Assert.Equal((4, "Paris", 3, 2), (tag.Id, tag.Name, tag.PhotoCount, tag.VideoCount));
+    }
+
+    [Fact]
     public async Task GetUserPhotoFolders_ShouldReturnTheFoldersOfThePhotos()
     {
         // Arrange

@@ -16,5 +16,10 @@ namespace PhotoMap.Api.DTOs
         public DateTime? ExifDateTime { get; set; }
         public double? Latitude { get; set; }
         public double? Longitude { get; set; }
+
+        /// <summary>
+        /// The names of the tags of the video, by name.
+        /// </summary>
+        public string[] Tags { get; set; } = [];
     }
 }

@@ -438,11 +438,11 @@ public class PhotoRepository : IPhotoRepository
 
     public async Task<IReadOnlyList<PhotoTag>> GetTagsAsync(long userId)
     {
-        // a tag taken off its last photo is left behind, unused, and offered again once a photo has it
+        // a tag taken off its last photo and video is left behind, unused, and offered again once one of them has it
         var tags = await _context.Tags
             .AsNoTracking()
-            .Where(a => a.UserId == userId && a.Photos.Any())
-            .Select(a => new PhotoTag(a.Id, a.Name, a.Photos.Count))
+            .Where(a => a.UserId == userId && (a.Photos.Any() || a.Videos.Any()))
+            .Select(a => new PhotoTag(a.Id, a.Name, a.Photos.Count, a.Videos.Count))
             .ToListAsync();
 
         return tags.OrderBy(a => a.Name, StringComparer.CurrentCultureIgnoreCase).ToList();

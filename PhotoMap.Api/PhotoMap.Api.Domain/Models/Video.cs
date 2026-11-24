@@ -40,6 +40,12 @@ public class Video
     public double? Longitude { get; set; }
 
     /// <summary>
+    /// The names of the tags of the video, by name, which are those of the photos too; only loaded along with the
+    /// videos of the Videos page.
+    /// </summary>
+    public IReadOnlyList<string> Tags { get; set; } = [];
+
+    /// <summary>
     /// The metadata read from the file itself, as JSON, see <see cref="VideoExif.ExifString"/>; null until it has
     /// been read, which a run of the videos tries again.
     /// </summary>

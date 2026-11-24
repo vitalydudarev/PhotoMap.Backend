@@ -9,8 +9,12 @@ namespace PhotoMap.Api.Domain.Models;
 /// <param name="Years">The years, in UTC, the videos were taken in.</param>
 /// <param name="Locations">The locations the videos were taken in, at every level, by their IDs.</param>
 /// <param name="UnknownLocationCount">How many of the videos are in no location.</param>
+/// <param name="Tags">The tags of the videos, by their IDs.</param>
+/// <param name="UntaggedCount">How many of the videos have no tag.</param>
 public record VideoFacets(
     IReadOnlyList<FacetCount<string>> Folders,
     IReadOnlyList<FacetCount<int>> Years,
     IReadOnlyList<FacetCount<long>> Locations,
-    int UnknownLocationCount);
+    int UnknownLocationCount,
+    IReadOnlyList<FacetCount<long>> Tags,
+    int UntaggedCount);

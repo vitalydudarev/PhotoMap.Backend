@@ -65,6 +65,11 @@ namespace PhotoMap.Api.Controllers
         /// <param name="unknownLocation">Whether the videos in no location are taken, along with the ones of
         /// <c>location</c>: those with no GPS, not geocoded yet, or where the geocoding found nothing. Only they are
         /// when no location is given.</param>
+        /// <param name="tag">The IDs of the tags the videos have, any of them, repeated for each one, such as
+        /// <c>tag=4&amp;tag=9</c>; see <c>photos/tags</c>, as the tags are those of the photos too. The videos with and
+        /// without tags when neither this nor <c>untagged</c> is given.</param>
+        /// <param name="untagged">Whether the videos with no tag are taken, along with the ones of <c>tag</c>; only
+        /// they are when no tag is given.</param>
         [HttpGet("api/users/{userId:long}/videos")]
         [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(PagedResponse<VideoDto>))]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -75,14 +80,18 @@ namespace PhotoMap.Api.Controllers
             [FromQuery] string[]? folder = null,
             [FromQuery] int[]? year = null,
             [FromQuery] long[]? location = null,
-            [FromQuery] bool unknownLocation = false)
+            [FromQuery] bool unknownLocation = false,
+            [FromQuery] long[]? tag = null,
+            [FromQuery] bool untagged = false)
         {
             var folderPaths = folder ?? [];
             var years = year ?? [];
             var locations = new LocationFilter(location ?? [], unknownLocation);
+            var tags = new TagFilter(tag ?? [], untagged);
 
-            var videos = await _videoService.GetByUserIdAsync(userId, folderPaths, years, locations, top, skip, sort);
-            var total = await _videoService.GetTotalCountByUserIdAsync(userId, folderPaths, years, locations);
+            var videos = await _videoService.GetByUserIdAsync(userId, folderPaths, years, locations, tags, top, skip,
+                sort);
+            var total = await _videoService.GetTotalCountByUserIdAsync(userId, folderPaths, years, locations, tags);
 
             var values = videos.Select(ToDto).ToArray();
 
@@ -99,16 +108,21 @@ namespace PhotoMap.Api.Controllers
         /// <param name="location">The IDs of the locations the videos were taken in, any of them.</param>
         /// <param name="unknownLocation">Whether the videos in no location are taken, along with the ones of
         /// <c>location</c>.</param>
+        /// <param name="tag">The IDs of the tags the videos have, any of them.</param>
+        /// <param name="untagged">Whether the videos with no tag are taken, along with the ones of <c>tag</c>.</param>
         [HttpGet("api/users/{userId:long}/videos/geotagged")]
         [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(VideoDto[]))]
         public async Task<IActionResult> GetUserGeotaggedVideos([FromRoute] long userId,
             [FromQuery] string[]? folder = null,
             [FromQuery] int[]? year = null,
             [FromQuery] long[]? location = null,
-            [FromQuery] bool unknownLocation = false)
+            [FromQuery] bool unknownLocation = false,
+            [FromQuery] long[]? tag = null,
+            [FromQuery] bool untagged = false)
         {
             var locations = new LocationFilter(location ?? [], unknownLocation);
-            var videos = await _videoService.GetGeotaggedAsync(userId, folder ?? [], year ?? [], locations);
+            var tags = new TagFilter(tag ?? [], untagged);
+            var videos = await _videoService.GetGeotaggedAsync(userId, folder ?? [], year ?? [], locations, tags);
 
             return Ok(videos.Select(ToDto).ToArray());
         }
@@ -127,6 +141,8 @@ namespace PhotoMap.Api.Controllers
         /// <c>location</c>.</param>
         /// <param name="gps">Whether only the videos with a GPS location are counted, as a map shows them; all of them
         /// when not given.</param>
+        /// <param name="tag">The IDs of the tags the videos have, any of them.</param>
+        /// <param name="untagged">Whether the videos with no tag are taken, along with the ones of <c>tag</c>.</param>
         [HttpGet("api/users/{userId:long}/videos/facets")]
         [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(VideoFacets))]
         public async Task<IActionResult> GetUserVideoFacets([FromRoute] long userId,
@@ -134,11 +150,51 @@ namespace PhotoMap.Api.Controllers
             [FromQuery] int[]? year = null,
             [FromQuery] long[]? location = null,
             [FromQuery] bool unknownLocation = false,
-            [FromQuery] bool gps = false)
+            [FromQuery] bool gps = false,
+            [FromQuery] long[]? tag = null,
+            [FromQuery] bool untagged = false)
         {
             var locations = new LocationFilter(location ?? [], unknownLocation);
+            var tags = new TagFilter(tag ?? [], untagged);
 
-            return Ok(await _videoService.GetFacetsAsync(userId, folder ?? [], year ?? [], locations, gps));
+            return Ok(await _videoService.GetFacetsAsync(userId, folder ?? [], year ?? [], locations, tags, gps));
+        }
+
+        /// <summary>
+        /// Replaces the tags of a video of the user, which are those of the photos too. The names are trimmed, with
+        /// single spaces between words, and a name the user has a tag of, whatever its case, takes that tag; the other
+        /// names make new tags.
+        /// </summary>
+        /// <param name="userId">The ID of the user.</param>
+        /// <param name="videoId">The ID of the video.</param>
+        /// <param name="names">The names of the tags, none to take them all off.</param>
+        /// <returns>The names of the tags of the video, by name.</returns>
+        [HttpPut("api/users/{userId:long}/videos/{videoId:long}/tags")]
+        [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(string[]))]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> SetVideoTags([FromRoute] long userId, [FromRoute] long videoId,
+            [FromBody] string[] names)
+        {
+            var cleanNames = names.Select(a => TagNames.Clean(a ?? "")).Where(a => a.Length > 0).ToArray();
+
+            if (cleanNames.Any(a => a.Length > TagNames.MaxLength))
+            {
+                ModelState.AddModelError(nameof(names), $"A tag is {TagNames.MaxLength} characters long at most.");
+
+                return ValidationProblem(ModelState);
+            }
+
+            if (cleanNames.DistinctBy(TagNames.Normalize).Count() > TagNames.MaxPerPhoto)
+            {
+                ModelState.AddModelError(nameof(names), $"A video has {TagNames.MaxPerPhoto} tags at most.");
+
+                return ValidationProblem(ModelState);
+            }
+
+            var tags = await _videoService.SetTagsAsync(userId, videoId, cleanNames);
+
+            return tags != null ? Ok(tags) : NotFound();
         }
 
         /// <summary>
@@ -412,7 +468,8 @@ namespace PhotoMap.Api.Controllers
                 DateTimeTaken = video.DateTimeTaken.UtcDateTime,
                 ExifDateTime = video.ExifDateTime?.UtcDateTime,
                 Latitude = video.Latitude,
-                Longitude = video.Longitude
+                Longitude = video.Longitude,
+                Tags = video.Tags.ToArray()
             };
         }
     }
