@@ -45,9 +45,18 @@ public interface IVideoService
     Task<IReadOnlyList<int>> GetYearsAsync(long userId);
 
     /// <summary>
-    /// The folders the videos of the user are in, by name.
+    /// The years, in UTC, the videos of the user in the folders were taken in, oldest first.
     /// </summary>
-    Task<IReadOnlyList<string>> GetFolderPathsAsync(long userId);
+    /// <param name="userId">The ID of the user.</param>
+    /// <param name="folderPaths">The folders the videos are in, without the file names; all of them when empty.</param>
+    Task<IReadOnlyList<int>> GetYearsAsync(long userId, IReadOnlyCollection<string> folderPaths);
+
+    /// <summary>
+    /// The folders the videos of the user taken in the years are in, by name.
+    /// </summary>
+    /// <param name="userId">The ID of the user.</param>
+    /// <param name="years">The years, in UTC, the videos were taken in; all of them when empty.</param>
+    Task<IReadOnlyList<string>> GetFolderPathsAsync(long userId, IReadOnlyCollection<int> years);
 
     /// <summary>
     /// The videos of the user that have duplicates, by their groups, the groups of the largest videos first, and

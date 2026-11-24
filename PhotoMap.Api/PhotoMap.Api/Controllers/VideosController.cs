@@ -120,22 +120,28 @@ namespace PhotoMap.Api.Controllers
         /// The years, in UTC, the videos of the user were taken in, oldest first.
         /// </summary>
         /// <param name="userId">The ID of the user.</param>
+        /// <param name="folder">The folders the videos are in, without the file name, repeated for each one, such as
+        /// <c>folder=disk:/Camera Uploads&amp;folder=disk:/Trips</c>, so that only the years of the videos in those
+        /// folders are listed. The years of the videos of every folder when not given.</param>
         [HttpGet("api/users/{userId:long}/videos/years")]
         [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(int[]))]
-        public async Task<IActionResult> GetUserVideoYears([FromRoute] long userId)
+        public async Task<IActionResult> GetUserVideoYears([FromRoute] long userId, [FromQuery] string[]? folder = null)
         {
-            return Ok(await _videoService.GetYearsAsync(userId));
+            return Ok(await _videoService.GetYearsAsync(userId, folder ?? []));
         }
 
         /// <summary>
         /// The folders the videos of the user are in, without the file names, by name.
         /// </summary>
         /// <param name="userId">The ID of the user.</param>
+        /// <param name="year">The years, in UTC, the videos were taken in, repeated for each one, such as
+        /// <c>year=2019&amp;year=2021</c>, so that only the folders with a video of those years are listed. The folders
+        /// of the videos of every year when not given.</param>
         [HttpGet("api/users/{userId:long}/videos/folders")]
         [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(string[]))]
-        public async Task<IActionResult> GetUserVideoFolders([FromRoute] long userId)
+        public async Task<IActionResult> GetUserVideoFolders([FromRoute] long userId, [FromQuery] int[]? year = null)
         {
-            return Ok(await _videoService.GetFolderPathsAsync(userId));
+            return Ok(await _videoService.GetFolderPathsAsync(userId, year ?? []));
         }
 
         /// <summary>

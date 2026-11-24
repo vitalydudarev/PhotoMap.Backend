@@ -111,7 +111,8 @@ public class VideosControllerTests
     public async Task GetUserVideoYears_ShouldGiveTheYearsOfTheVideosOfTheUser()
     {
         // Arrange
-        _videoService.Setup(a => a.GetYearsAsync(UserId)).ReturnsAsync([2016, 2019]);
+        _videoService.Setup(a => a.GetYearsAsync(UserId, It.Is<IReadOnlyCollection<string>>(f => f.Count == 0)))
+            .ReturnsAsync([2016, 2019]);
         var controller = CreateController();
 
         // Act
@@ -119,6 +120,39 @@ public class VideosControllerTests
 
         // Assert
         Assert.Equal([2016, 2019], Assert.IsAssignableFrom<IReadOnlyList<int>>(Assert.IsType<OkObjectResult>(result).Value));
+    }
+
+    [Fact]
+    public async Task GetUserVideoFolders_ShouldGiveTheFoldersOfTheVideosOfTheYears_WhenYearsAreGiven()
+    {
+        // Arrange
+        _videoService.Setup(a => a.GetFolderPathsAsync(UserId,
+                It.Is<IReadOnlyCollection<int>>(y => y.SequenceEqual(new[] { 2019 }))))
+            .ReturnsAsync(["disk:/Фотокамера"]);
+        var controller = CreateController();
+
+        // Act
+        var result = await controller.GetUserVideoFolders(UserId, [2019]);
+
+        // Assert
+        Assert.Equal(new[] { "disk:/Фотокамера" },
+            Assert.IsAssignableFrom<IReadOnlyList<string>>(Assert.IsType<OkObjectResult>(result).Value));
+    }
+
+    [Fact]
+    public async Task GetUserVideoYears_ShouldGiveTheYearsOfTheVideosOfTheFolders_WhenFoldersAreGiven()
+    {
+        // Arrange
+        _videoService.Setup(a => a.GetYearsAsync(UserId,
+                It.Is<IReadOnlyCollection<string>>(f => f.SequenceEqual(new[] { "disk:/Trips" }))))
+            .ReturnsAsync([2019]);
+        var controller = CreateController();
+
+        // Act
+        var result = await controller.GetUserVideoYears(UserId, ["disk:/Trips"]);
+
+        // Assert
+        Assert.Equal([2019], Assert.IsAssignableFrom<IReadOnlyList<int>>(Assert.IsType<OkObjectResult>(result).Value));
     }
 
     private VideosController CreateController()

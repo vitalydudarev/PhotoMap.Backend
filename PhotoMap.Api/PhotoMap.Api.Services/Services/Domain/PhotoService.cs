@@ -81,9 +81,17 @@ namespace PhotoMap.Api.Services.Services.Domain
             return _yearsCache.GetOrLoadAsync(userId, () => _photoRepository.GetYearsAsync(userId));
         }
 
-        public Task<IReadOnlyList<string>> GetFolderPathsAsync(long userId)
+        public Task<IReadOnlyList<int>> GetYearsAsync(long userId, IReadOnlyCollection<string> folderPaths)
         {
-            return _photoRepository.GetFolderPathsAsync(userId);
+            // only the years of every folder are cached
+            return folderPaths.Count == 0
+                ? GetYearsAsync(userId)
+                : _photoRepository.GetYearsAsync(userId, folderPaths);
+        }
+
+        public Task<IReadOnlyList<string>> GetFolderPathsAsync(long userId, IReadOnlyCollection<int> years)
+        {
+            return _photoRepository.GetFolderPathsAsync(userId, years);
         }
 
         public Task<IReadOnlyList<Photo>> GetDuplicatesAsync(long userId)

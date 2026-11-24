@@ -38,6 +38,36 @@ public class PhotoServiceTests
     }
 
     [Fact]
+    public async Task GetYearsAsync_ShouldTakeTheCachedYears_WhenNoFolderIsGiven()
+    {
+        // Arrange
+        var service = CreateService();
+
+        // Act
+        var years = await service.GetYearsAsync(UserId, []);
+
+        // Assert
+        Assert.Equal([2016], years);
+        _photoRepository.Verify(a => a.GetYearsAsync(UserId, It.IsAny<IReadOnlyCollection<string>>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task GetYearsAsync_ShouldTakeTheYearsOfTheFolders_WhenFoldersAreGiven()
+    {
+        // Arrange
+        _photoRepository.Setup(a => a.GetYearsAsync(UserId,
+                It.Is<IReadOnlyCollection<string>>(f => f.SequenceEqual(new[] { "disk:/Trips" }))))
+            .ReturnsAsync([2019]);
+        var service = CreateService();
+
+        // Act
+        var years = await service.GetYearsAsync(UserId, ["disk:/Trips"]);
+
+        // Assert
+        Assert.Equal([2019], years);
+    }
+
+    [Fact]
     public async Task AddRangeAsync_ShouldSignalTheCategorization()
     {
         // Arrange

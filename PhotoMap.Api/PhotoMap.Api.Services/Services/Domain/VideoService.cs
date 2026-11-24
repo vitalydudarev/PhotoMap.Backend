@@ -184,20 +184,29 @@ public class VideoService : IVideoService
         await transaction.CommitAsync();
     }
 
-    public async Task<IReadOnlyList<int>> GetYearsAsync(long userId)
+    public Task<IReadOnlyList<int>> GetYearsAsync(long userId)
     {
+        return GetYearsAsync(userId, []);
+    }
+
+    public async Task<IReadOnlyList<int>> GetYearsAsync(long userId, IReadOnlyCollection<string> folderPaths)
+    {
+        var paths = folderPaths.ToArray();
+
         return await _context.Videos
             .Where(a => a.UserId == userId)
+            .Where(a => paths.Length == 0 || (a.FolderPath != null && paths.Contains(a.FolderPath)))
             .Select(a => a.DateTimeTaken.Year)
             .Distinct()
             .OrderBy(a => a)
             .ToListAsync();
     }
 
-    public async Task<IReadOnlyList<string>> GetFolderPathsAsync(long userId)
+    public async Task<IReadOnlyList<string>> GetFolderPathsAsync(long userId, IReadOnlyCollection<int> years)
     {
         return await _context.Videos
             .Where(a => a.UserId == userId && a.FolderPath != null)
+            .Where(a => years.Count == 0 || years.Contains(a.DateTimeTaken.Year))
             .Select(a => a.FolderPath!)
             .Distinct()
             .OrderBy(a => a)

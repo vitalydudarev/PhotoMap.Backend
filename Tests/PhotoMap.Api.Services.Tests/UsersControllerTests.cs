@@ -211,10 +211,27 @@ public class UsersControllerTests
     }
 
     [Fact]
+    public async Task GetUserPhotoYears_ShouldReturnTheYearsOfThePhotosOfTheFolders_WhenFoldersAreGiven()
+    {
+        // Arrange
+        _photoService.Setup(a => a.GetYearsAsync(UserId,
+                It.Is<IReadOnlyCollection<string>>(f => f.SequenceEqual(new[] { "disk:/Trips" }))))
+            .ReturnsAsync([2019]);
+        var controller = CreateController();
+
+        // Act
+        var result = await controller.GetUserPhotoYears(UserId, ["disk:/Trips"]);
+
+        // Assert
+        Assert.Equal([2019], Assert.IsAssignableFrom<IReadOnlyList<int>>(Assert.IsType<OkObjectResult>(result).Value));
+    }
+
+    [Fact]
     public async Task GetUserPhotoFolders_ShouldReturnTheFoldersOfThePhotos()
     {
         // Arrange
-        _photoService.Setup(a => a.GetFolderPathsAsync(UserId)).ReturnsAsync(["disk:/", "disk:/Camera Uploads"]);
+        _photoService.Setup(a => a.GetFolderPathsAsync(UserId, It.Is<IReadOnlyCollection<int>>(y => y.Count == 0)))
+            .ReturnsAsync(["disk:/", "disk:/Camera Uploads"]);
         var controller = CreateController();
 
         // Act
@@ -222,6 +239,23 @@ public class UsersControllerTests
 
         // Assert
         Assert.Equal(new[] { "disk:/", "disk:/Camera Uploads" },
+            Assert.IsAssignableFrom<IReadOnlyList<string>>(Assert.IsType<OkObjectResult>(result).Value));
+    }
+
+    [Fact]
+    public async Task GetUserPhotoFolders_ShouldReturnTheFoldersOfThePhotosOfTheYears_WhenYearsAreGiven()
+    {
+        // Arrange
+        _photoService.Setup(a => a.GetFolderPathsAsync(UserId,
+                It.Is<IReadOnlyCollection<int>>(y => y.SequenceEqual(new[] { 2019, 2021 }))))
+            .ReturnsAsync(["disk:/Trips"]);
+        var controller = CreateController();
+
+        // Act
+        var result = await controller.GetUserPhotoFolders(UserId, [2019, 2021]);
+
+        // Assert
+        Assert.Equal(new[] { "disk:/Trips" },
             Assert.IsAssignableFrom<IReadOnlyList<string>>(Assert.IsType<OkObjectResult>(result).Value));
     }
 
@@ -589,7 +623,8 @@ public class UsersControllerTests
     public async Task GetUserPhotoYears_ShouldReturnTheYearsOfThePhotos()
     {
         // Arrange
-        _photoService.Setup(a => a.GetYearsAsync(UserId)).ReturnsAsync([2016, 2019]);
+        _photoService.Setup(a => a.GetYearsAsync(UserId, It.Is<IReadOnlyCollection<string>>(f => f.Count == 0)))
+            .ReturnsAsync([2016, 2019]);
         var controller = CreateController();
 
         // Act

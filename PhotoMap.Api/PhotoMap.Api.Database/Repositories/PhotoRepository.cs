@@ -122,10 +122,23 @@ public class PhotoRepository : IPhotoRepository
             .ToListAsync();
     }
 
-    public async Task<IReadOnlyList<string>> GetFolderPathsAsync(long userId)
+    public async Task<IReadOnlyList<int>> GetYearsAsync(long userId, IReadOnlyCollection<string> folderPaths)
+    {
+        var paths = folderPaths.ToArray();
+
+        return await _context.Photos
+            .Where(a => a.UserId == userId && a.FolderPath != null && paths.Contains(a.FolderPath))
+            .Select(a => a.DateTimeTaken.Year)
+            .Distinct()
+            .OrderBy(a => a)
+            .ToListAsync();
+    }
+
+    public async Task<IReadOnlyList<string>> GetFolderPathsAsync(long userId, IReadOnlyCollection<int> years)
     {
         return await _context.Photos
             .Where(a => a.UserId == userId && a.FolderPath != null)
+            .Where(a => years.Count == 0 || years.Contains(a.DateTimeTaken.Year))
             .Select(a => a.FolderPath!)
             .Distinct()
             .OrderBy(a => a)

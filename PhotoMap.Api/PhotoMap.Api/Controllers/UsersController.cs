@@ -220,11 +220,14 @@ namespace PhotoMap.Api.Controllers
         /// as photos are added and deleted.
         /// </summary>
         /// <param name="id">The ID of the user.</param>
+        /// <param name="folder">The folders the photos are in, without the file name, repeated for each one, such as
+        /// <c>folder=disk:/Camera Uploads&amp;folder=disk:/Trips</c>, so that only the years of the photos in those
+        /// folders are listed. The years of the photos of every folder, which are cached, when not given.</param>
         [HttpGet("{id:long}/photos/years")]
         [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(int[]))]
-        public async Task<IActionResult> GetUserPhotoYears([FromRoute] long id)
+        public async Task<IActionResult> GetUserPhotoYears([FromRoute] long id, [FromQuery] string[]? folder = null)
         {
-            return Ok(await _photoService.GetYearsAsync(id));
+            return Ok(await _photoService.GetYearsAsync(id, folder ?? []));
         }
 
         /// <summary>
@@ -232,11 +235,14 @@ namespace PhotoMap.Api.Controllers
         /// <c>disk:/Camera Uploads</c>, and <c>disk:/</c> for the photos at the root of the disk.
         /// </summary>
         /// <param name="id">The ID of the user.</param>
+        /// <param name="year">The years, in UTC, the photos were taken in, repeated for each one, such as
+        /// <c>year=2019&amp;year=2021</c>, so that only the folders with a photo of those years are listed. The folders
+        /// of the photos of every year when not given.</param>
         [HttpGet("{id:long}/photos/folders")]
         [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(string[]))]
-        public async Task<IActionResult> GetUserPhotoFolders([FromRoute] long id)
+        public async Task<IActionResult> GetUserPhotoFolders([FromRoute] long id, [FromQuery] int[]? year = null)
         {
-            return Ok(await _photoService.GetFolderPathsAsync(id));
+            return Ok(await _photoService.GetFolderPathsAsync(id, year ?? []));
         }
 
         /// <summary>
