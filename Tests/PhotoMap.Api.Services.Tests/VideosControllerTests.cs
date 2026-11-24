@@ -125,7 +125,7 @@ public class VideosControllerTests
     public async Task GetUserVideoFacets_ShouldGiveTheFacetsOfTheVideosTheFilterTakes()
     {
         // Arrange
-        var facets = new VideoFacets(["disk:/Videos"], [2019], [12], false);
+        var facets = new VideoFacets([new("disk:/Videos", 3)], [new(2019, 3)], [new(12, 1)], 2);
         _videoService.Setup(a => a.GetFacetsAsync(UserId, It.IsAny<IReadOnlyCollection<string>>(),
             It.IsAny<IReadOnlyCollection<int>>(), It.IsAny<LocationFilter>())).ReturnsAsync(facets);
         var controller = CreateController();

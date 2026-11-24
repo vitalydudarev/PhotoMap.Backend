@@ -84,56 +84,85 @@ public class PhotoRepository : IPhotoRepository
     }
 
     /// <summary>
-    /// What the photos the filter takes can still be narrowed down to, a query for each filter, which leaves that
-    /// filter out. Every copy of a photo is taken, as picking one copy's source or folder takes that copy.
+    /// What the photos the filter takes can still be narrowed down to, with how many photos each option takes: a query
+    /// for each filter, which leaves that filter out. The copies of a photo count once, as they are listed.
     /// </summary>
     public async Task<PhotoFacets> GetFacetsAsync(long userId, PhotoFilter filter)
     {
-        var sourceIds = await FilterUserPhotos(userId, filter with { PhotoSourceIds = [] })
-            .Select(a => a.PhotoSourceId)
-            .Distinct()
-            .ToListAsync();
+        var sources = await CountByAsync(FilterUserPhotos(userId, filter with { PhotoSourceIds = [] })
+            .Select(a => new FacetRow<long> { Key = a.PhotoSourceId, Group = a.DuplicateGroupId, Id = a.Id }));
 
-        var folderPaths = await FilterUserPhotos(userId, filter with { FolderPaths = [] })
+        var folders = await CountByAsync(FilterUserPhotos(userId, filter with { FolderPaths = [] })
             .Where(a => a.FolderPath != null)
-            .Select(a => a.FolderPath!)
-            .Distinct()
-            .OrderBy(a => a)
-            .ToListAsync();
+            .Select(a => new FacetRow<string> { Key = a.FolderPath!, Group = a.DuplicateGroupId, Id = a.Id }));
 
-        var years = await FilterUserPhotos(userId, filter with { Years = [] })
-            .Select(a => a.DateTimeTaken.Year)
-            .Distinct()
-            .OrderBy(a => a)
-            .ToListAsync();
+        var years = await CountByAsync(FilterUserPhotos(userId, filter with { Years = [] })
+            .Select(a => new FacetRow<int> { Key = a.DateTimeTaken.Year, Group = a.DuplicateGroupId, Id = a.Id }));
 
         // the categories of the photos not deleted, as the deleted ones are listed apart
         var byCategory = FilterUserPhotos(userId, filter with { Categories = [] });
-        var categories = await byCategory
-            .SelectMany(a => a.Categories.Select(c => c.Category))
-            .Distinct()
-            .ToListAsync();
+        var categories = (await CountByAsync(byCategory.SelectMany(a => a.Categories.Select(c =>
+            new FacetRow<PhotoCategory> { Key = c.Category, Group = a.DuplicateGroupId, Id = a.Id })))).ToList();
+        var otherCount = await CountAsync(byCategory.Where(a => !a.Categories.Any()));
 
-        if (await byCategory.AnyAsync(a => !a.Categories.Any()))
+        if (otherCount > 0)
         {
-            categories.Add(PhotoCategory.Other);
+            categories.Add(new FacetCount<PhotoCategory>(PhotoCategory.Other, otherCount));
         }
 
-        var gps = await FilterUserPhotos(userId, filter with { HasGps = null })
-            .Select(a => a.HasGps)
-            .Distinct()
-            .ToListAsync();
+        var gps = await CountByAsync(FilterUserPhotos(userId, filter with { HasGps = null })
+            .Select(a => new FacetRow<bool> { Key = a.HasGps, Group = a.DuplicateGroupId, Id = a.Id }));
 
         var byTag = FilterUserPhotos(userId, filter with { TagIds = [], Untagged = false });
-        var tagIds = await byTag.SelectMany(a => a.Tags.Select(t => t.TagId)).Distinct().ToListAsync();
-        var untagged = await byTag.AnyAsync(a => !a.Tags.Any());
+        var tags = await CountByAsync(byTag.SelectMany(a => a.Tags.Select(t =>
+            new FacetRow<long> { Key = t.TagId, Group = a.DuplicateGroupId, Id = a.Id })));
+        var untaggedCount = await CountAsync(byTag.Where(a => !a.Tags.Any()));
 
         var byLocation = FilterUserPhotos(userId, filter with { LocationIds = [], UnknownLocation = false });
-        var locationIds = await byLocation.SelectMany(a => a.Locations.Select(l => l.LocationId)).Distinct().ToListAsync();
-        var unknownLocation = await byLocation.AnyAsync(a => !a.Locations.Any());
+        var locations = await CountByAsync(byLocation.SelectMany(a => a.Locations.Select(l =>
+            new FacetRow<long> { Key = l.LocationId, Group = a.DuplicateGroupId, Id = a.Id })));
+        var unknownLocationCount = await CountAsync(byLocation.Where(a => !a.Locations.Any()));
 
-        return new PhotoFacets(sourceIds, folderPaths, years, categories, gps, tagIds, untagged, locationIds,
-            unknownLocation);
+        return new PhotoFacets(sources, folders, years, categories, gps, tags, untaggedCount, locations,
+            unknownLocationCount);
+    }
+
+    /// <summary>
+    /// A photo with the value of a filter it is counted for, and the group of its copies, which count once.
+    /// </summary>
+    private sealed class FacetRow<TKey>
+    {
+        public TKey Key { get; init; } = default!;
+        public long? Group { get; init; }
+        public long Id { get; init; }
+    }
+
+    /// <summary>
+    /// How many photos each value takes, the copies of a photo once, as they are listed.
+    /// </summary>
+    private static async Task<IReadOnlyList<FacetCount<TKey>>> CountByAsync<TKey>(IQueryable<FacetRow<TKey>> rows)
+    {
+        var counts = await rows
+            .GroupBy(a => a.Key)
+            .Select(a => new
+            {
+                a.Key,
+                Single = a.Count(b => b.Group == null),
+                Groups = a.Where(b => b.Group != null).Select(b => b.Group).Distinct().Count()
+            })
+            .ToListAsync();
+
+        return counts.Select(a => new FacetCount<TKey>(a.Key, a.Single + a.Groups)).ToList();
+    }
+
+    /// <summary>
+    /// How many photos there are, the copies of a photo once, as they are listed.
+    /// </summary>
+    private static async Task<int> CountAsync(IQueryable<PhotoEntity> photos)
+    {
+        return await photos.CountAsync(a => a.DuplicateGroupId == null) +
+               await photos.Where(a => a.DuplicateGroupId != null).Select(a => a.DuplicateGroupId).Distinct()
+                   .CountAsync();
     }
 
     /// <summary>

@@ -112,30 +112,32 @@ public class VideoService : IVideoService
     }
 
     /// <summary>
-    /// What the videos the filter takes can still be narrowed down to, a query for each filter, which leaves that
-    /// filter out.
+    /// What the videos the filter takes can still be narrowed down to, with how many videos each option takes: a query
+    /// for each filter, which leaves that filter out.
     /// </summary>
     public async Task<VideoFacets> GetFacetsAsync(long userId, IReadOnlyCollection<string> folderPaths,
         IReadOnlyCollection<int> years, LocationFilter locations)
     {
-        var facetFolderPaths = await GetUserVideos(userId, [], years, locations)
+        var folders = await GetUserVideos(userId, [], years, locations)
             .Where(a => a.FolderPath != null)
-            .Select(a => a.FolderPath!)
-            .Distinct()
-            .OrderBy(a => a)
+            .GroupBy(a => a.FolderPath!)
+            .Select(a => new FacetCount<string>(a.Key, a.Count()))
             .ToListAsync();
 
         var facetYears = await GetUserVideos(userId, folderPaths, [], locations)
-            .Select(a => a.DateTimeTaken.Year)
-            .Distinct()
-            .OrderBy(a => a)
+            .GroupBy(a => a.DateTimeTaken.Year)
+            .Select(a => new FacetCount<int>(a.Key, a.Count()))
             .ToListAsync();
 
         var byLocation = GetUserVideos(userId, folderPaths, years, LocationFilter.All);
-        var locationIds = await byLocation.SelectMany(a => a.Locations.Select(l => l.LocationId)).Distinct().ToListAsync();
-        var unknownLocation = await byLocation.AnyAsync(a => !a.Locations.Any());
+        var facetLocations = await byLocation
+            .SelectMany(a => a.Locations.Select(l => l.LocationId))
+            .GroupBy(a => a)
+            .Select(a => new FacetCount<long>(a.Key, a.Count()))
+            .ToListAsync();
+        var unknownLocationCount = await byLocation.CountAsync(a => !a.Locations.Any());
 
-        return new VideoFacets(facetFolderPaths, facetYears, locationIds, unknownLocation);
+        return new VideoFacets(folders, facetYears, facetLocations, unknownLocationCount);
     }
 
     public Task<int> GetTotalCountByUserIdAsync(long userId, IReadOnlyCollection<string> folderPaths,

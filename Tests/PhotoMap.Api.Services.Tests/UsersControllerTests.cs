@@ -214,8 +214,8 @@ public class UsersControllerTests
     public async Task GetUserPhotoFacets_ShouldReturnTheFacetsOfThePhotosTheFilterTakes()
     {
         // Arrange
-        var facets = new PhotoFacets([2], ["disk:/Trips"], [2019], [PhotoCategory.Other], [true], [4], false, [12],
-            true);
+        var facets = new PhotoFacets([new(2, 5)], [new("disk:/Trips", 5)], [new(2019, 5)],
+            [new(PhotoCategory.Other, 5)], [new(true, 5)], [new(4, 1)], 4, [new(12, 3)], 2);
         _photoService.Setup(a => a.GetFacetsAsync(UserId, It.IsAny<PhotoFilter>())).ReturnsAsync(facets);
         var controller = CreateController();
 
