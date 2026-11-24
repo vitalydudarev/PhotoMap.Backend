@@ -111,6 +111,33 @@ public class VideoService : IVideoService
         return entities.Select(ToModel).ToList();
     }
 
+    /// <summary>
+    /// What the videos the filter takes can still be narrowed down to, a query for each filter, which leaves that
+    /// filter out.
+    /// </summary>
+    public async Task<VideoFacets> GetFacetsAsync(long userId, IReadOnlyCollection<string> folderPaths,
+        IReadOnlyCollection<int> years, LocationFilter locations)
+    {
+        var facetFolderPaths = await GetUserVideos(userId, [], years, locations)
+            .Where(a => a.FolderPath != null)
+            .Select(a => a.FolderPath!)
+            .Distinct()
+            .OrderBy(a => a)
+            .ToListAsync();
+
+        var facetYears = await GetUserVideos(userId, folderPaths, [], locations)
+            .Select(a => a.DateTimeTaken.Year)
+            .Distinct()
+            .OrderBy(a => a)
+            .ToListAsync();
+
+        var byLocation = GetUserVideos(userId, folderPaths, years, LocationFilter.All);
+        var locationIds = await byLocation.SelectMany(a => a.Locations.Select(l => l.LocationId)).Distinct().ToListAsync();
+        var unknownLocation = await byLocation.AnyAsync(a => !a.Locations.Any());
+
+        return new VideoFacets(facetFolderPaths, facetYears, locationIds, unknownLocation);
+    }
+
     public Task<int> GetTotalCountByUserIdAsync(long userId, IReadOnlyCollection<string> folderPaths,
         IReadOnlyCollection<int> years, LocationFilter locations)
     {
@@ -184,29 +211,20 @@ public class VideoService : IVideoService
         await transaction.CommitAsync();
     }
 
-    public Task<IReadOnlyList<int>> GetYearsAsync(long userId)
+    public async Task<IReadOnlyList<int>> GetYearsAsync(long userId)
     {
-        return GetYearsAsync(userId, []);
-    }
-
-    public async Task<IReadOnlyList<int>> GetYearsAsync(long userId, IReadOnlyCollection<string> folderPaths)
-    {
-        var paths = folderPaths.ToArray();
-
         return await _context.Videos
             .Where(a => a.UserId == userId)
-            .Where(a => paths.Length == 0 || (a.FolderPath != null && paths.Contains(a.FolderPath)))
             .Select(a => a.DateTimeTaken.Year)
             .Distinct()
             .OrderBy(a => a)
             .ToListAsync();
     }
 
-    public async Task<IReadOnlyList<string>> GetFolderPathsAsync(long userId, IReadOnlyCollection<int> years)
+    public async Task<IReadOnlyList<string>> GetFolderPathsAsync(long userId)
     {
         return await _context.Videos
             .Where(a => a.UserId == userId && a.FolderPath != null)
-            .Where(a => years.Count == 0 || years.Contains(a.DateTimeTaken.Year))
             .Select(a => a.FolderPath!)
             .Distinct()
             .OrderBy(a => a)

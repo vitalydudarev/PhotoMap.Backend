@@ -211,27 +211,44 @@ public class UsersControllerTests
     }
 
     [Fact]
-    public async Task GetUserPhotoYears_ShouldReturnTheYearsOfThePhotosOfTheFolders_WhenFoldersAreGiven()
+    public async Task GetUserPhotoFacets_ShouldReturnTheFacetsOfThePhotosTheFilterTakes()
     {
         // Arrange
-        _photoService.Setup(a => a.GetYearsAsync(UserId,
-                It.Is<IReadOnlyCollection<string>>(f => f.SequenceEqual(new[] { "disk:/Trips" }))))
-            .ReturnsAsync([2019]);
+        var facets = new PhotoFacets([2], ["disk:/Trips"], [2019], [PhotoCategory.Other], [true], [4], false, [12],
+            true);
+        _photoService.Setup(a => a.GetFacetsAsync(UserId, It.IsAny<PhotoFilter>())).ReturnsAsync(facets);
         var controller = CreateController();
 
         // Act
-        var result = await controller.GetUserPhotoYears(UserId, ["disk:/Trips"]);
+        var result = await controller.GetUserPhotoFacets(UserId, year: [2019], folder: ["disk:/Trips"],
+            allFolders: true);
 
         // Assert
-        Assert.Equal([2019], Assert.IsAssignableFrom<IReadOnlyList<int>>(Assert.IsType<OkObjectResult>(result).Value));
+        Assert.Same(facets, Assert.IsType<OkObjectResult>(result).Value);
+        _photoService.Verify(a => a.GetFacetsAsync(UserId, It.Is<PhotoFilter>(f =>
+            f.Years.SequenceEqual(new[] { 2019 }) && f.FolderPaths!.SequenceEqual(new[] { "disk:/Trips" }) &&
+            f.IncludeOtherUploads)));
+    }
+
+    [Fact]
+    public async Task GetUserPhotoFacets_ShouldRejectAnAreaThatIsNotABox()
+    {
+        // Arrange
+        var controller = CreateController();
+
+        // Act
+        var result = await controller.GetUserPhotoFacets(UserId, area: "north");
+
+        // Assert
+        Assert.IsType<ObjectResult>(result);
+        _photoService.Verify(a => a.GetFacetsAsync(It.IsAny<long>(), It.IsAny<PhotoFilter>()), Times.Never);
     }
 
     [Fact]
     public async Task GetUserPhotoFolders_ShouldReturnTheFoldersOfThePhotos()
     {
         // Arrange
-        _photoService.Setup(a => a.GetFolderPathsAsync(UserId, It.Is<IReadOnlyCollection<int>>(y => y.Count == 0)))
-            .ReturnsAsync(["disk:/", "disk:/Camera Uploads"]);
+        _photoService.Setup(a => a.GetFolderPathsAsync(UserId)).ReturnsAsync(["disk:/", "disk:/Camera Uploads"]);
         var controller = CreateController();
 
         // Act
@@ -239,23 +256,6 @@ public class UsersControllerTests
 
         // Assert
         Assert.Equal(new[] { "disk:/", "disk:/Camera Uploads" },
-            Assert.IsAssignableFrom<IReadOnlyList<string>>(Assert.IsType<OkObjectResult>(result).Value));
-    }
-
-    [Fact]
-    public async Task GetUserPhotoFolders_ShouldReturnTheFoldersOfThePhotosOfTheYears_WhenYearsAreGiven()
-    {
-        // Arrange
-        _photoService.Setup(a => a.GetFolderPathsAsync(UserId,
-                It.Is<IReadOnlyCollection<int>>(y => y.SequenceEqual(new[] { 2019, 2021 }))))
-            .ReturnsAsync(["disk:/Trips"]);
-        var controller = CreateController();
-
-        // Act
-        var result = await controller.GetUserPhotoFolders(UserId, [2019, 2021]);
-
-        // Assert
-        Assert.Equal(new[] { "disk:/Trips" },
             Assert.IsAssignableFrom<IReadOnlyList<string>>(Assert.IsType<OkObjectResult>(result).Value));
     }
 
@@ -623,8 +623,7 @@ public class UsersControllerTests
     public async Task GetUserPhotoYears_ShouldReturnTheYearsOfThePhotos()
     {
         // Arrange
-        _photoService.Setup(a => a.GetYearsAsync(UserId, It.Is<IReadOnlyCollection<string>>(f => f.Count == 0)))
-            .ReturnsAsync([2016, 2019]);
+        _photoService.Setup(a => a.GetYearsAsync(UserId)).ReturnsAsync([2016, 2019]);
         var controller = CreateController();
 
         // Act

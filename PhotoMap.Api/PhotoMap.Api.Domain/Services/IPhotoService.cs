@@ -18,6 +18,10 @@ namespace PhotoMap.Api.Domain.Services
 
         Task<int> GetTotalCountByUserIdAsync(long userId, PhotoFilter filter);
 
+        /// <returns>What the photos the filter takes can still be narrowed down to, see
+        /// <see cref="PhotoFacets"/>.</returns>
+        Task<PhotoFacets> GetFacetsAsync(long userId, PhotoFilter filter);
+
         /// <summary>
         /// The photos of the user with a GPS location, but the deleted ones, oldest first, all at once. Only what tells
         /// a photo, where and when it was taken and its name are read.
@@ -27,17 +31,9 @@ namespace PhotoMap.Api.Domain.Services
         /// <returns>The years, in UTC, the photos of the user were taken in, oldest first.</returns>
         Task<IReadOnlyList<int>> GetYearsAsync(long userId);
 
-        /// <param name="userId">The ID of the user.</param>
-        /// <param name="folderPaths">The folders the photos are in, without the file names; all of them when
-        /// empty.</param>
-        /// <returns>The years, in UTC, the photos of the user in the folders were taken in, oldest first.</returns>
-        Task<IReadOnlyList<int>> GetYearsAsync(long userId, IReadOnlyCollection<string> folderPaths);
-
-        /// <param name="userId">The ID of the user.</param>
-        /// <param name="years">The years, in UTC, the photos were taken in; all of them when empty.</param>
-        /// <returns>The folders the photos of the user taken in the years are in, the deleted ones too, without the
-        /// file names, by name.</returns>
-        Task<IReadOnlyList<string>> GetFolderPathsAsync(long userId, IReadOnlyCollection<int> years);
+        /// <returns>The folders the photos of the user are in, the deleted ones too, without the file names, by
+        /// name.</returns>
+        Task<IReadOnlyList<string>> GetFolderPathsAsync(long userId);
 
         /// <summary>
         /// The photos of the user that are copies of one another, by their groups, the groups of the photos taken

@@ -19,6 +19,13 @@ public interface IVideoService
     /// <param name="folderPaths">The folders to count the videos of, all of them when empty.</param>
     /// <param name="years">The years, in UTC, to count the videos taken in, all of them when empty.</param>
     /// <param name="locations">The locations to count the videos taken in, see <see cref="LocationFilter"/>.</param>
+    /// <summary>
+    /// What the videos the filter takes can still be narrowed down to, see <see cref="VideoFacets"/>. The filter is
+    /// that of <see cref="GetByUserIdAsync"/>.
+    /// </summary>
+    Task<VideoFacets> GetFacetsAsync(long userId, IReadOnlyCollection<string> folderPaths,
+        IReadOnlyCollection<int> years, LocationFilter locations);
+
     Task<int> GetTotalCountByUserIdAsync(long userId, IReadOnlyCollection<string> folderPaths,
         IReadOnlyCollection<int> years, LocationFilter locations);
 
@@ -45,18 +52,9 @@ public interface IVideoService
     Task<IReadOnlyList<int>> GetYearsAsync(long userId);
 
     /// <summary>
-    /// The years, in UTC, the videos of the user in the folders were taken in, oldest first.
+    /// The folders the videos of the user are in, by name.
     /// </summary>
-    /// <param name="userId">The ID of the user.</param>
-    /// <param name="folderPaths">The folders the videos are in, without the file names; all of them when empty.</param>
-    Task<IReadOnlyList<int>> GetYearsAsync(long userId, IReadOnlyCollection<string> folderPaths);
-
-    /// <summary>
-    /// The folders the videos of the user taken in the years are in, by name.
-    /// </summary>
-    /// <param name="userId">The ID of the user.</param>
-    /// <param name="years">The years, in UTC, the videos were taken in; all of them when empty.</param>
-    Task<IReadOnlyList<string>> GetFolderPathsAsync(long userId, IReadOnlyCollection<int> years);
+    Task<IReadOnlyList<string>> GetFolderPathsAsync(long userId);
 
     /// <summary>
     /// The videos of the user that have duplicates, by their groups, the groups of the largest videos first, and

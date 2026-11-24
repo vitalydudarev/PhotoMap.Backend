@@ -10,6 +10,9 @@ public interface IPhotoRepository
     Task<IEnumerable<Photo>> GetByUserIdAsync(long userId, PhotoFilter filter, int top, int skip, PhotoSortOrder sortOrder);
     Task<int> GetTotalCountByUserIdAsync(long userId, PhotoFilter filter);
 
+    /// <returns>What the photos the filter takes can still be narrowed down to, see <see cref="PhotoFacets"/>.</returns>
+    Task<PhotoFacets> GetFacetsAsync(long userId, PhotoFilter filter);
+
     /// <returns>The photos of the user with a GPS location, but the deleted ones, oldest first. Only what tells a photo,
     /// where and when it was taken and its name are read.</returns>
     Task<IReadOnlyList<Photo>> GetGeotaggedAsync(long userId, PhotoFilter filter);
@@ -17,16 +20,9 @@ public interface IPhotoRepository
     /// <returns>The years, in UTC, the photos of the user were taken in.</returns>
     Task<IEnumerable<int>> GetYearsAsync(long userId);
 
-    /// <param name="userId">The ID of the user.</param>
-    /// <param name="folderPaths">The folders the photos are in, without the file names.</param>
-    /// <returns>The years, in UTC, the photos of the user in the folders were taken in, oldest first.</returns>
-    Task<IReadOnlyList<int>> GetYearsAsync(long userId, IReadOnlyCollection<string> folderPaths);
-
-    /// <param name="userId">The ID of the user.</param>
-    /// <param name="years">The years, in UTC, the photos were taken in; all of them when empty.</param>
-    /// <returns>The folders the photos of the user taken in the years are in, the deleted ones too, without the file
-    /// names, by name.</returns>
-    Task<IReadOnlyList<string>> GetFolderPathsAsync(long userId, IReadOnlyCollection<int> years);
+    /// <returns>The folders the photos of the user are in, the deleted ones too, without the file names, by
+    /// name.</returns>
+    Task<IReadOnlyList<string>> GetFolderPathsAsync(long userId);
 
     /// <returns>The photos not yet put in their categories by the given version of the rules, oldest saved first.</returns>
     Task<IReadOnlyList<Photo>> GetNotCategorizedAsync(int version, int top);

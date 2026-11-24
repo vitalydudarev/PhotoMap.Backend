@@ -119,6 +119,54 @@ namespace PhotoMap.Api.Controllers
         }
 
         /// <summary>
+        /// What the photos the filter takes can still be narrowed down to, for each of its filters: the values of the
+        /// photos the filter takes once that filter itself is left out, such as the years of the photos of the folders
+        /// picked, so that the options of each filter are those that take some photo. Every copy of a photo counts.
+        /// The filter is the one of <c>photos</c>, see there.
+        /// </summary>
+        /// <param name="id">The ID of the user.</param>
+        /// <param name="source">The IDs of the photo sources to take the photos from; all of them when not given.</param>
+        /// <param name="year">The years, in UTC, the photos were taken in; all of them when not given.</param>
+        /// <param name="category">The categories the photos are in, any of them; every one but <c>Deleted</c> when
+        /// not given.</param>
+        /// <param name="gps">Whether the photos have a GPS location; with and without one when not given.</param>
+        /// <param name="allFolders">Whether the photos of the other uploads of Yandex.Disk are taken too.</param>
+        /// <param name="tag">The IDs of the tags the photos have, any of them.</param>
+        /// <param name="untagged">Whether the photos with no tag are taken, along with the ones of <c>tag</c>.</param>
+        /// <param name="area">The box of coordinates the photos were taken within, as <c>west,south,east,north</c>
+        /// in degrees.</param>
+        /// <param name="location">The IDs of the locations the photos were taken in, any of them.</param>
+        /// <param name="unknownLocation">Whether the photos in no location are taken, along with the ones of
+        /// <c>location</c>.</param>
+        /// <param name="folder">The folders the photos are in, without the file name, any of them.</param>
+        [HttpGet("{id:long}/photos/facets")]
+        [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(PhotoFacets))]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        public async Task<IActionResult> GetUserPhotoFacets([FromRoute] long id,
+            [FromQuery] long[]? source = null,
+            [FromQuery] int[]? year = null,
+            [FromQuery] PhotoCategory[]? category = null,
+            [FromQuery] bool? gps = null,
+            [FromQuery] bool allFolders = false,
+            [FromQuery] long[]? tag = null,
+            [FromQuery] bool untagged = false,
+            [FromQuery] string? area = null,
+            [FromQuery] long[]? location = null,
+            [FromQuery] bool unknownLocation = false,
+            [FromQuery] string[]? folder = null)
+        {
+            var filter = CreateFilter(source, year, category, gps, allFolders, tag, untagged, area, location,
+                unknownLocation, folder);
+
+            if (filter == null)
+            {
+                return ValidationProblem(ModelState);
+            }
+
+            return Ok(await _photoService.GetFacetsAsync(id, filter));
+        }
+
+        /// <summary>
         /// The photos of the user with a GPS location that the filter takes, all of them, oldest first, for the map. A
         /// photo with copies is taken once, as in <c>photos</c>. The filter is the one of <c>photos</c>, see there.
         /// </summary>
@@ -220,14 +268,11 @@ namespace PhotoMap.Api.Controllers
         /// as photos are added and deleted.
         /// </summary>
         /// <param name="id">The ID of the user.</param>
-        /// <param name="folder">The folders the photos are in, without the file name, repeated for each one, such as
-        /// <c>folder=disk:/Camera Uploads&amp;folder=disk:/Trips</c>, so that only the years of the photos in those
-        /// folders are listed. The years of the photos of every folder, which are cached, when not given.</param>
         [HttpGet("{id:long}/photos/years")]
         [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(int[]))]
-        public async Task<IActionResult> GetUserPhotoYears([FromRoute] long id, [FromQuery] string[]? folder = null)
+        public async Task<IActionResult> GetUserPhotoYears([FromRoute] long id)
         {
-            return Ok(await _photoService.GetYearsAsync(id, folder ?? []));
+            return Ok(await _photoService.GetYearsAsync(id));
         }
 
         /// <summary>
@@ -235,14 +280,11 @@ namespace PhotoMap.Api.Controllers
         /// <c>disk:/Camera Uploads</c>, and <c>disk:/</c> for the photos at the root of the disk.
         /// </summary>
         /// <param name="id">The ID of the user.</param>
-        /// <param name="year">The years, in UTC, the photos were taken in, repeated for each one, such as
-        /// <c>year=2019&amp;year=2021</c>, so that only the folders with a photo of those years are listed. The folders
-        /// of the photos of every year when not given.</param>
         [HttpGet("{id:long}/photos/folders")]
         [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(string[]))]
-        public async Task<IActionResult> GetUserPhotoFolders([FromRoute] long id, [FromQuery] int[]? year = null)
+        public async Task<IActionResult> GetUserPhotoFolders([FromRoute] long id)
         {
-            return Ok(await _photoService.GetFolderPathsAsync(id, year ?? []));
+            return Ok(await _photoService.GetFolderPathsAsync(id));
         }
 
         /// <summary>

@@ -90,6 +90,31 @@ namespace PhotoMap.Api.Controllers
         }
 
         /// <summary>
+        /// What the videos the filter takes can still be narrowed down to, for each of its filters: the values of the
+        /// videos the filter takes once that filter itself is left out, such as the years of the videos of the folders
+        /// picked, so that the options of each filter are those that take some video.
+        /// </summary>
+        /// <param name="userId">The ID of the user.</param>
+        /// <param name="folder">The folders the videos are in, without the file name, any of them; every folder when
+        /// not given.</param>
+        /// <param name="year">The years, in UTC, the videos were taken in; all of them when not given.</param>
+        /// <param name="location">The IDs of the locations the videos were taken in, any of them.</param>
+        /// <param name="unknownLocation">Whether the videos in no location are taken, along with the ones of
+        /// <c>location</c>.</param>
+        [HttpGet("api/users/{userId:long}/videos/facets")]
+        [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(VideoFacets))]
+        public async Task<IActionResult> GetUserVideoFacets([FromRoute] long userId,
+            [FromQuery] string[]? folder = null,
+            [FromQuery] int[]? year = null,
+            [FromQuery] long[]? location = null,
+            [FromQuery] bool unknownLocation = false)
+        {
+            var locations = new LocationFilter(location ?? [], unknownLocation);
+
+            return Ok(await _videoService.GetFacetsAsync(userId, folder ?? [], year ?? [], locations));
+        }
+
+        /// <summary>
         /// The videos of the user that are copies of one another, of the same size and file name, by their groups,
         /// the groups of the largest videos first. The groups are looked for in the background, a video saved
         /// only a moment ago may not be in one yet.
@@ -120,28 +145,22 @@ namespace PhotoMap.Api.Controllers
         /// The years, in UTC, the videos of the user were taken in, oldest first.
         /// </summary>
         /// <param name="userId">The ID of the user.</param>
-        /// <param name="folder">The folders the videos are in, without the file name, repeated for each one, such as
-        /// <c>folder=disk:/Camera Uploads&amp;folder=disk:/Trips</c>, so that only the years of the videos in those
-        /// folders are listed. The years of the videos of every folder when not given.</param>
         [HttpGet("api/users/{userId:long}/videos/years")]
         [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(int[]))]
-        public async Task<IActionResult> GetUserVideoYears([FromRoute] long userId, [FromQuery] string[]? folder = null)
+        public async Task<IActionResult> GetUserVideoYears([FromRoute] long userId)
         {
-            return Ok(await _videoService.GetYearsAsync(userId, folder ?? []));
+            return Ok(await _videoService.GetYearsAsync(userId));
         }
 
         /// <summary>
         /// The folders the videos of the user are in, without the file names, by name.
         /// </summary>
         /// <param name="userId">The ID of the user.</param>
-        /// <param name="year">The years, in UTC, the videos were taken in, repeated for each one, such as
-        /// <c>year=2019&amp;year=2021</c>, so that only the folders with a video of those years are listed. The folders
-        /// of the videos of every year when not given.</param>
         [HttpGet("api/users/{userId:long}/videos/folders")]
         [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(string[]))]
-        public async Task<IActionResult> GetUserVideoFolders([FromRoute] long userId, [FromQuery] int[]? year = null)
+        public async Task<IActionResult> GetUserVideoFolders([FromRoute] long userId)
         {
-            return Ok(await _videoService.GetFolderPathsAsync(userId, year ?? []));
+            return Ok(await _videoService.GetFolderPathsAsync(userId));
         }
 
         /// <summary>

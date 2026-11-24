@@ -84,6 +84,59 @@ public class PhotoRepository : IPhotoRepository
     }
 
     /// <summary>
+    /// What the photos the filter takes can still be narrowed down to, a query for each filter, which leaves that
+    /// filter out. Every copy of a photo is taken, as picking one copy's source or folder takes that copy.
+    /// </summary>
+    public async Task<PhotoFacets> GetFacetsAsync(long userId, PhotoFilter filter)
+    {
+        var sourceIds = await FilterUserPhotos(userId, filter with { PhotoSourceIds = [] })
+            .Select(a => a.PhotoSourceId)
+            .Distinct()
+            .ToListAsync();
+
+        var folderPaths = await FilterUserPhotos(userId, filter with { FolderPaths = [] })
+            .Where(a => a.FolderPath != null)
+            .Select(a => a.FolderPath!)
+            .Distinct()
+            .OrderBy(a => a)
+            .ToListAsync();
+
+        var years = await FilterUserPhotos(userId, filter with { Years = [] })
+            .Select(a => a.DateTimeTaken.Year)
+            .Distinct()
+            .OrderBy(a => a)
+            .ToListAsync();
+
+        // the categories of the photos not deleted, as the deleted ones are listed apart
+        var byCategory = FilterUserPhotos(userId, filter with { Categories = [] });
+        var categories = await byCategory
+            .SelectMany(a => a.Categories.Select(c => c.Category))
+            .Distinct()
+            .ToListAsync();
+
+        if (await byCategory.AnyAsync(a => !a.Categories.Any()))
+        {
+            categories.Add(PhotoCategory.Other);
+        }
+
+        var gps = await FilterUserPhotos(userId, filter with { HasGps = null })
+            .Select(a => a.HasGps)
+            .Distinct()
+            .ToListAsync();
+
+        var byTag = FilterUserPhotos(userId, filter with { TagIds = [], Untagged = false });
+        var tagIds = await byTag.SelectMany(a => a.Tags.Select(t => t.TagId)).Distinct().ToListAsync();
+        var untagged = await byTag.AnyAsync(a => !a.Tags.Any());
+
+        var byLocation = FilterUserPhotos(userId, filter with { LocationIds = [], UnknownLocation = false });
+        var locationIds = await byLocation.SelectMany(a => a.Locations.Select(l => l.LocationId)).Distinct().ToListAsync();
+        var unknownLocation = await byLocation.AnyAsync(a => !a.Locations.Any());
+
+        return new PhotoFacets(sourceIds, folderPaths, years, categories, gps, tagIds, untagged, locationIds,
+            unknownLocation);
+    }
+
+    /// <summary>
     /// The photos the filter takes that have a GPS location, every one of them, for the map; a photo with copies once,
     /// as in <see cref="GetByUserIdAsync"/>.
     /// </summary>
@@ -122,23 +175,10 @@ public class PhotoRepository : IPhotoRepository
             .ToListAsync();
     }
 
-    public async Task<IReadOnlyList<int>> GetYearsAsync(long userId, IReadOnlyCollection<string> folderPaths)
-    {
-        var paths = folderPaths.ToArray();
-
-        return await _context.Photos
-            .Where(a => a.UserId == userId && a.FolderPath != null && paths.Contains(a.FolderPath))
-            .Select(a => a.DateTimeTaken.Year)
-            .Distinct()
-            .OrderBy(a => a)
-            .ToListAsync();
-    }
-
-    public async Task<IReadOnlyList<string>> GetFolderPathsAsync(long userId, IReadOnlyCollection<int> years)
+    public async Task<IReadOnlyList<string>> GetFolderPathsAsync(long userId)
     {
         return await _context.Photos
             .Where(a => a.UserId == userId && a.FolderPath != null)
-            .Where(a => years.Count == 0 || years.Contains(a.DateTimeTaken.Year))
             .Select(a => a.FolderPath!)
             .Distinct()
             .OrderBy(a => a)
@@ -557,6 +597,19 @@ public class PhotoRepository : IPhotoRepository
 
     private IQueryable<PhotoEntity> GetUserPhotos(long userId, PhotoFilter filter)
     {
+        var photos = FilterUserPhotos(userId, filter);
+
+        // a photo with copies is shown once, as the first of its copies the filter takes, so that a copy in another
+        // source or folder still shows when the filter leaves the first copy of all out
+        return photos.Where(a => a.DuplicateGroupId == null ||
+                                 !photos.Any(b => b.DuplicateGroupId == a.DuplicateGroupId && b.Id < a.Id));
+    }
+
+    /// <summary>
+    /// The photos of the user the filter takes, every copy of a photo.
+    /// </summary>
+    private IQueryable<PhotoEntity> FilterUserPhotos(long userId, PhotoFilter filter)
+    {
         var photos = _context.Photos.Where(a => a.UserId == userId);
 
         if (!filter.IncludeOtherUploads)
@@ -629,12 +682,7 @@ public class PhotoRepository : IPhotoRepository
             photos = photos.Where(a => a.Tags.Any(t => tagIds.Contains(t.TagId)) || (untagged && !a.Tags.Any()));
         }
 
-        // a photo with copies is shown once, as the first of its copies the filter takes, so that a copy in another
-        // source or folder still shows when the filter leaves the first copy of all out
-        var filtered = photos;
-
-        return filtered.Where(a => a.DuplicateGroupId == null ||
-                                   !filtered.Any(b => b.DuplicateGroupId == a.DuplicateGroupId && b.Id < a.Id));
+        return photos;
     }
 
     /// <summary>
