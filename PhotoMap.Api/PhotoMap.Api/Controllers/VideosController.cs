@@ -57,7 +57,11 @@ namespace PhotoMap.Api.Controllers
         /// <param name="folder">The folders to take the videos from, without the file name, repeated for each one,
         /// such as <c>folder=disk:/Camera Uploads&amp;folder=disk:/Videos</c>. All the folders when not given.</param>
         /// <param name="year">The years, in UTC, the videos were taken in, repeated for each one, such as
-        /// <c>year=2016&amp;year=2019</c>. All the years when not given.</param>
+        /// <c>year=2016&amp;year=2019</c>. With <c>month</c>, the videos taken in one of the years or in one of the
+        /// months are taken. All the years when neither is given.</param>
+        /// <param name="month">The months, in UTC, the videos were taken in, as the year times 100 plus the month of
+        /// the year, repeated for each one, such as <c>month=201903&amp;month=202011</c>. All the months when neither
+        /// this nor <c>year</c> is given.</param>
         /// <param name="location">The IDs of the locations the videos were taken in, any of them, repeated for each
         /// one, such as <c>location=12&amp;location=40</c>; see <c>videos/locations</c>. The videos not geocoded are in
         /// no location. The videos taken anywhere, and those with no location, when neither this nor
@@ -79,19 +83,24 @@ namespace PhotoMap.Api.Controllers
             [FromQuery] PhotoSortOrder sort = PhotoSortOrder.Asc,
             [FromQuery] string[]? folder = null,
             [FromQuery] int[]? year = null,
+            [FromQuery] int[]? month = null,
             [FromQuery] long[]? location = null,
             [FromQuery] bool unknownLocation = false,
             [FromQuery] long[]? tag = null,
             [FromQuery] bool untagged = false)
         {
+            if (!TryCreateDateFilter(year, month, out var dates))
+            {
+                return ValidationProblem(ModelState);
+            }
+
             var folderPaths = folder ?? [];
-            var years = year ?? [];
             var locations = new LocationFilter(location ?? [], unknownLocation);
             var tags = new TagFilter(tag ?? [], untagged);
 
-            var videos = await _videoService.GetByUserIdAsync(userId, folderPaths, years, locations, tags, top, skip,
+            var videos = await _videoService.GetByUserIdAsync(userId, folderPaths, dates, locations, tags, top, skip,
                 sort);
-            var total = await _videoService.GetTotalCountByUserIdAsync(userId, folderPaths, years, locations, tags);
+            var total = await _videoService.GetTotalCountByUserIdAsync(userId, folderPaths, dates, locations, tags);
 
             var values = videos.Select(ToDto).ToArray();
 
@@ -105,6 +114,8 @@ namespace PhotoMap.Api.Controllers
         /// <param name="userId">The ID of the user.</param>
         /// <param name="folder">The folders the videos are in, without the file name, any of them.</param>
         /// <param name="year">The years, in UTC, the videos were taken in; all of them when not given.</param>
+        /// <param name="month">The months, in UTC, the videos were taken in, such as <c>201903</c>, along with the
+        /// years.</param>
         /// <param name="location">The IDs of the locations the videos were taken in, any of them.</param>
         /// <param name="unknownLocation">Whether the videos in no location are taken, along with the ones of
         /// <c>location</c>.</param>
@@ -112,17 +123,24 @@ namespace PhotoMap.Api.Controllers
         /// <param name="untagged">Whether the videos with no tag are taken, along with the ones of <c>tag</c>.</param>
         [HttpGet("api/users/{userId:long}/videos/geotagged")]
         [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(VideoDto[]))]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
         public async Task<IActionResult> GetUserGeotaggedVideos([FromRoute] long userId,
             [FromQuery] string[]? folder = null,
             [FromQuery] int[]? year = null,
+            [FromQuery] int[]? month = null,
             [FromQuery] long[]? location = null,
             [FromQuery] bool unknownLocation = false,
             [FromQuery] long[]? tag = null,
             [FromQuery] bool untagged = false)
         {
+            if (!TryCreateDateFilter(year, month, out var dates))
+            {
+                return ValidationProblem(ModelState);
+            }
+
             var locations = new LocationFilter(location ?? [], unknownLocation);
             var tags = new TagFilter(tag ?? [], untagged);
-            var videos = await _videoService.GetGeotaggedAsync(userId, folder ?? [], year ?? [], locations, tags);
+            var videos = await _videoService.GetGeotaggedAsync(userId, folder ?? [], dates, locations, tags);
 
             return Ok(videos.Select(ToDto).ToArray());
         }
@@ -136,6 +154,8 @@ namespace PhotoMap.Api.Controllers
         /// <param name="folder">The folders the videos are in, without the file name, any of them; every folder when
         /// not given.</param>
         /// <param name="year">The years, in UTC, the videos were taken in; all of them when not given.</param>
+        /// <param name="month">The months, in UTC, the videos were taken in, such as <c>201903</c>, along with the
+        /// years.</param>
         /// <param name="location">The IDs of the locations the videos were taken in, any of them.</param>
         /// <param name="unknownLocation">Whether the videos in no location are taken, along with the ones of
         /// <c>location</c>.</param>
@@ -145,19 +165,26 @@ namespace PhotoMap.Api.Controllers
         /// <param name="untagged">Whether the videos with no tag are taken, along with the ones of <c>tag</c>.</param>
         [HttpGet("api/users/{userId:long}/videos/facets")]
         [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(VideoFacets))]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
         public async Task<IActionResult> GetUserVideoFacets([FromRoute] long userId,
             [FromQuery] string[]? folder = null,
             [FromQuery] int[]? year = null,
+            [FromQuery] int[]? month = null,
             [FromQuery] long[]? location = null,
             [FromQuery] bool unknownLocation = false,
             [FromQuery] bool gps = false,
             [FromQuery] long[]? tag = null,
             [FromQuery] bool untagged = false)
         {
+            if (!TryCreateDateFilter(year, month, out var dates))
+            {
+                return ValidationProblem(ModelState);
+            }
+
             var locations = new LocationFilter(location ?? [], unknownLocation);
             var tags = new TagFilter(tag ?? [], untagged);
 
-            return Ok(await _videoService.GetFacetsAsync(userId, folder ?? [], year ?? [], locations, tags, gps));
+            return Ok(await _videoService.GetFacetsAsync(userId, folder ?? [], dates, locations, tags, gps));
         }
 
         /// <summary>
@@ -532,6 +559,25 @@ namespace PhotoMap.Api.Controllers
             }
 
             return NoContent();
+        }
+
+        /// <summary>
+        /// The years and the months the videos are asked for by, or false, with the error in the model state, when a
+        /// month is not one.
+        /// </summary>
+        private bool TryCreateDateFilter(int[]? year, int[]? month, out DateFilter dates)
+        {
+            dates = new DateFilter(year ?? [], month ?? []);
+
+            if (dates.Months.All(DateFilter.IsMonthKey))
+            {
+                return true;
+            }
+
+            ModelState.AddModelError(nameof(month),
+                "The month is not the year times 100 plus the month of the year, 1 to 12, such as 201903.");
+
+            return false;
         }
 
         private VideoDto ToDto(Video video)

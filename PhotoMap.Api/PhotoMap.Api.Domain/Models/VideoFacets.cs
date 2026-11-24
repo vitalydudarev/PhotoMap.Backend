@@ -11,10 +11,13 @@ namespace PhotoMap.Api.Domain.Models;
 /// <param name="UnknownLocationCount">How many of the videos are in no location.</param>
 /// <param name="Tags">The tags of the videos, by their IDs.</param>
 /// <param name="UntaggedCount">How many of the videos have no tag.</param>
+/// <param name="Months">The months, in UTC, the videos were taken in, as the year times 100 plus the month, such as
+/// 201903 for March 2019; counted, as the years are, with the years and the months left out of the filter.</param>
 public record VideoFacets(
     IReadOnlyList<FacetCount<string>> Folders,
     IReadOnlyList<FacetCount<int>> Years,
     IReadOnlyList<FacetCount<long>> Locations,
     int UnknownLocationCount,
     IReadOnlyList<FacetCount<long>> Tags,
-    int UntaggedCount);
+    int UntaggedCount,
+    IReadOnlyList<FacetCount<int>> Months);

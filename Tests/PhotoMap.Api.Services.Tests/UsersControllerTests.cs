@@ -215,19 +215,38 @@ public class UsersControllerTests
     {
         // Arrange
         var facets = new PhotoFacets([new(2, 5)], [new("disk:/Trips", 5)], [new(2019, 5)],
-            [new(PhotoCategory.Other, 5)], [new(true, 5)], [new(4, 1)], 4, [new(12, 3)], 2);
+            [new(PhotoCategory.Other, 5)], [new(true, 5)], [new(4, 1)], 4, [new(12, 3)], 2, [new(201903, 5)]);
         _photoService.Setup(a => a.GetFacetsAsync(UserId, It.IsAny<PhotoFilter>())).ReturnsAsync(facets);
         var controller = CreateController();
 
         // Act
-        var result = await controller.GetUserPhotoFacets(UserId, year: [2019], folder: ["disk:/Trips"],
-            allFolders: true);
+        var result = await controller.GetUserPhotoFacets(UserId, year: [2019], month: [202003],
+            folder: ["disk:/Trips"], allFolders: true);
 
         // Assert
         Assert.Same(facets, Assert.IsType<OkObjectResult>(result).Value);
         _photoService.Verify(a => a.GetFacetsAsync(UserId, It.Is<PhotoFilter>(f =>
-            f.Years.SequenceEqual(new[] { 2019 }) && f.FolderPaths!.SequenceEqual(new[] { "disk:/Trips" }) &&
+            f.Years.SequenceEqual(new[] { 2019 }) && f.Months!.SequenceEqual(new[] { 202003 }) &&
+            f.FolderPaths!.SequenceEqual(new[] { "disk:/Trips" }) &&
             f.IncludeOtherUploads)));
+    }
+
+    [Theory]
+    [InlineData(2019)]
+    [InlineData(201900)]
+    [InlineData(201913)]
+    public async Task GetUserPhotos_ShouldRejectAMonthThatIsNotOne(int month)
+    {
+        // Arrange
+        var controller = CreateController();
+
+        // Act
+        var result = await controller.GetUserPhotos(UserId, 100, 0, month: [month]);
+
+        // Assert
+        Assert.IsType<ObjectResult>(result);
+        _photoService.Verify(a => a.GetByUserIdAsync(It.IsAny<long>(), It.IsAny<PhotoFilter>(), It.IsAny<int>(),
+            It.IsAny<int>(), It.IsAny<PhotoSortOrder>()), Times.Never);
     }
 
     [Fact]

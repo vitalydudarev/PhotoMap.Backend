@@ -16,6 +16,8 @@ namespace PhotoMap.Api.Domain.Models;
 /// <param name="UntaggedCount">How many of the photos have no tag.</param>
 /// <param name="Locations">The locations the photos were taken in, at every level, by their IDs.</param>
 /// <param name="UnknownLocationCount">How many of the photos are in no location.</param>
+/// <param name="Months">The months, in UTC, the photos were taken in, as the year times 100 plus the month, such as
+/// 201903 for March 2019; counted, as the years are, with the years and the months left out of the filter.</param>
 public record PhotoFacets(
     IReadOnlyList<FacetCount<long>> PhotoSources,
     IReadOnlyList<FacetCount<string>> Folders,
@@ -25,4 +27,5 @@ public record PhotoFacets(
     IReadOnlyList<FacetCount<long>> Tags,
     int UntaggedCount,
     IReadOnlyList<FacetCount<long>> Locations,
-    int UnknownLocationCount);
+    int UnknownLocationCount,
+    IReadOnlyList<FacetCount<int>> Months);

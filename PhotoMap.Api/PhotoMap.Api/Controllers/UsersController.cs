@@ -54,7 +54,11 @@ namespace PhotoMap.Api.Controllers
         /// <param name="source">The IDs of the photo sources to take the photos from, repeated for each one, such as
         /// <c>source=1&amp;source=2</c>. All the sources of the user when not given.</param>
         /// <param name="year">The years, in UTC, the photos were taken in, repeated for each one, such as
-        /// <c>year=2016&amp;year=2019</c>. All the years when not given.</param>
+        /// <c>year=2016&amp;year=2019</c>. With <c>month</c>, the photos taken in one of the years or in one of the
+        /// months are taken. All the years when neither is given.</param>
+        /// <param name="month">The months, in UTC, the photos were taken in, as the year times 100 plus the month of
+        /// the year, repeated for each one, such as <c>month=201903&amp;month=202011</c>. All the months when neither
+        /// this nor <c>year</c> is given.</param>
         /// <param name="category">The categories the photos are in, any of them, repeated for each one, such as
         /// <c>category=Screenshot&amp;category=Other</c>; <c>Other</c> takes the photos in none of the categories.
         /// <c>Deleted</c> takes the photos marked as deleted, which every other category leaves out. Photos of every
@@ -90,6 +94,7 @@ namespace PhotoMap.Api.Controllers
             [FromQuery] PhotoSortOrder sort = PhotoSortOrder.Asc,
             [FromQuery] long[]? source = null,
             [FromQuery] int[]? year = null,
+            [FromQuery] int[]? month = null,
             [FromQuery] PhotoCategory[]? category = null,
             [FromQuery] bool? gps = null,
             [FromQuery] bool allFolders = false,
@@ -100,7 +105,7 @@ namespace PhotoMap.Api.Controllers
             [FromQuery] bool unknownLocation = false,
             [FromQuery] string[]? folder = null)
         {
-            var filter = CreateFilter(source, year, category, gps, allFolders, tag, untagged, area, location,
+            var filter = CreateFilter(source, year, month, category, gps, allFolders, tag, untagged, area, location,
                 unknownLocation, folder);
 
             if (filter == null)
@@ -127,6 +132,8 @@ namespace PhotoMap.Api.Controllers
         /// <param name="id">The ID of the user.</param>
         /// <param name="source">The IDs of the photo sources to take the photos from; all of them when not given.</param>
         /// <param name="year">The years, in UTC, the photos were taken in; all of them when not given.</param>
+        /// <param name="month">The months, in UTC, the photos were taken in, such as <c>201903</c>, along with the
+        /// years.</param>
         /// <param name="category">The categories the photos are in, any of them; every one but <c>Deleted</c> when
         /// not given.</param>
         /// <param name="gps">Whether the photos have a GPS location; with and without one when not given.</param>
@@ -145,6 +152,7 @@ namespace PhotoMap.Api.Controllers
         public async Task<IActionResult> GetUserPhotoFacets([FromRoute] long id,
             [FromQuery] long[]? source = null,
             [FromQuery] int[]? year = null,
+            [FromQuery] int[]? month = null,
             [FromQuery] PhotoCategory[]? category = null,
             [FromQuery] bool? gps = null,
             [FromQuery] bool allFolders = false,
@@ -155,7 +163,7 @@ namespace PhotoMap.Api.Controllers
             [FromQuery] bool unknownLocation = false,
             [FromQuery] string[]? folder = null)
         {
-            var filter = CreateFilter(source, year, category, gps, allFolders, tag, untagged, area, location,
+            var filter = CreateFilter(source, year, month, category, gps, allFolders, tag, untagged, area, location,
                 unknownLocation, folder);
 
             if (filter == null)
@@ -173,6 +181,8 @@ namespace PhotoMap.Api.Controllers
         /// <param name="id">The ID of the user.</param>
         /// <param name="source">The IDs of the photo sources to take the photos from; all of them when not given.</param>
         /// <param name="year">The years, in UTC, the photos were taken in; all of them when not given.</param>
+        /// <param name="month">The months, in UTC, the photos were taken in, such as <c>201903</c>, along with the
+        /// years.</param>
         /// <param name="category">The categories the photos are in, any of them; every one but <c>Deleted</c> when
         /// not given.</param>
         /// <param name="gps">Whether the photos have a GPS location; only those with one are taken anyway.</param>
@@ -191,6 +201,7 @@ namespace PhotoMap.Api.Controllers
         public async Task<IActionResult> GetUserGeotaggedPhotos([FromRoute] long id,
             [FromQuery] long[]? source = null,
             [FromQuery] int[]? year = null,
+            [FromQuery] int[]? month = null,
             [FromQuery] PhotoCategory[]? category = null,
             [FromQuery] bool? gps = null,
             [FromQuery] bool allFolders = false,
@@ -201,7 +212,7 @@ namespace PhotoMap.Api.Controllers
             [FromQuery] bool unknownLocation = false,
             [FromQuery] string[]? folder = null)
         {
-            var filter = CreateFilter(source, year, category, gps, allFolders, tag, untagged, area, location,
+            var filter = CreateFilter(source, year, month, category, gps, allFolders, tag, untagged, area, location,
                 unknownLocation, folder);
 
             if (filter == null)
@@ -448,7 +459,7 @@ namespace PhotoMap.Api.Controllers
         /// </summary>
         /// <returns>The filter, or null when the query does not make one, the errors of which are then in the model
         /// state.</returns>
-        private PhotoFilter? CreateFilter(long[]? source, int[]? year, PhotoCategory[]? category, bool? gps,
+        private PhotoFilter? CreateFilter(long[]? source, int[]? year, int[]? month, PhotoCategory[]? category, bool? gps,
             bool allFolders, long[]? tag, bool untagged, string? area, long[]? location, bool unknownLocation,
             string[]? folder)
         {
@@ -470,8 +481,17 @@ namespace PhotoMap.Api.Controllers
                 return null;
             }
 
+            if (month != null && !month.All(DateFilter.IsMonthKey))
+            {
+                ModelState.AddModelError(nameof(month),
+                    "The month is not the year times 100 plus the month of the year, 1 to 12, such as 201903.");
+
+                return null;
+            }
+
             return new PhotoFilter(source ?? [], year ?? [], category ?? [], gps, allFolders, tag ?? [], untagged,
-                box, location ?? [], unknownLocation, folder?.Where(a => !string.IsNullOrEmpty(a)).ToArray() ?? []);
+                box, location ?? [], unknownLocation, folder?.Where(a => !string.IsNullOrEmpty(a)).ToArray() ?? [],
+                month ?? []);
         }
 
         private PhotoDto ToDto(Photo photo)

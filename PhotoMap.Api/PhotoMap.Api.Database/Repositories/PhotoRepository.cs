@@ -96,8 +96,14 @@ public class PhotoRepository : IPhotoRepository
             .Where(a => a.FolderPath != null)
             .Select(a => new FacetRow<string> { Key = a.FolderPath!, Group = a.DuplicateGroupId, Id = a.Id }));
 
-        var years = await CountByAsync(FilterUserPhotos(userId, filter with { Years = [] })
+        // the years and the months are one filter, so both leave both out
+        var byDate = FilterUserPhotos(userId, filter with { Years = [], Months = [] });
+        var years = await CountByAsync(byDate
             .Select(a => new FacetRow<int> { Key = a.DateTimeTaken.Year, Group = a.DuplicateGroupId, Id = a.Id }));
+        var months = await CountByAsync(byDate.Select(a => new FacetRow<int>
+        {
+            Key = a.DateTimeTaken.Year * 100 + a.DateTimeTaken.Month, Group = a.DuplicateGroupId, Id = a.Id
+        }));
 
         // the categories of the photos not deleted, as the deleted ones are listed apart
         var byCategory = FilterUserPhotos(userId, filter with { Categories = [] });
@@ -124,7 +130,7 @@ public class PhotoRepository : IPhotoRepository
         var unknownLocationCount = await CountAsync(byLocation.Where(a => !a.Locations.Any()));
 
         return new PhotoFacets(sources, folders, years, categories, gps, tags, untaggedCount, locations,
-            unknownLocationCount);
+            unknownLocationCount, months);
     }
 
     /// <summary>
@@ -658,9 +664,13 @@ public class PhotoRepository : IPhotoRepository
             photos = photos.Where(a => a.FolderPath != null && paths.Contains(a.FolderPath));
         }
 
-        if (filter.Years.Count > 0)
+        if (filter.Dates.FiltersByDate)
         {
-            photos = photos.Where(a => filter.Years.Contains(a.DateTimeTaken.Year));
+            var years = filter.Years.ToArray();
+            var months = filter.Months?.ToArray() ?? [];
+
+            photos = photos.Where(a => years.Contains(a.DateTimeTaken.Year) ||
+                                       months.Contains(a.DateTimeTaken.Year * 100 + a.DateTimeTaken.Month));
         }
 
         if (filter.Categories.Count > 0)

@@ -106,10 +106,10 @@ public class VideoService : IVideoService
     }
 
     public async Task<IReadOnlyList<Video>> GetByUserIdAsync(long userId, IReadOnlyCollection<string> folderPaths,
-        IReadOnlyCollection<int> years, LocationFilter locations, TagFilter tags, int top, int skip,
+        DateFilter dates, LocationFilter locations, TagFilter tags, int top, int skip,
         PhotoSortOrder sortOrder)
     {
-        var videos = GetUserVideos(userId, folderPaths, years, locations, tags).AsNoTracking();
+        var videos = GetUserVideos(userId, folderPaths, dates, locations, tags).AsNoTracking();
 
         var ordered = sortOrder == PhotoSortOrder.Desc
             ? videos.OrderByDescending(a => a.DateTimeTaken).ThenByDescending(a => a.Id)
@@ -131,9 +131,9 @@ public class VideoService : IVideoService
     /// database, as there may be many of them.
     /// </summary>
     public async Task<IReadOnlyList<Video>> GetGeotaggedAsync(long userId, IReadOnlyCollection<string> folderPaths,
-        IReadOnlyCollection<int> years, LocationFilter locations, TagFilter tags)
+        DateFilter dates, LocationFilter locations, TagFilter tags)
     {
-        var videos = await GetUserVideos(userId, folderPaths, years, locations, tags)
+        var videos = await GetUserVideos(userId, folderPaths, dates, locations, tags)
             .AsNoTracking()
             .Where(a => a.Latitude != null && a.Longitude != null)
             .OrderBy(a => a.DateTimeTaken)
@@ -169,28 +169,34 @@ public class VideoService : IVideoService
     /// for each filter, which leaves that filter out.
     /// </summary>
     public async Task<VideoFacets> GetFacetsAsync(long userId, IReadOnlyCollection<string> folderPaths,
-        IReadOnlyCollection<int> years, LocationFilter locations, TagFilter tags, bool withGps = false)
+        DateFilter dates, LocationFilter locations, TagFilter tags, bool withGps = false)
     {
-        IQueryable<VideoEntity> Videos(IReadOnlyCollection<string> folderPaths, IReadOnlyCollection<int> years,
+        IQueryable<VideoEntity> Videos(IReadOnlyCollection<string> folderPaths, DateFilter dates,
             LocationFilter locations, TagFilter tags)
         {
-            var videos = GetUserVideos(userId, folderPaths, years, locations, tags);
+            var videos = GetUserVideos(userId, folderPaths, dates, locations, tags);
 
             return withGps ? videos.Where(a => a.Latitude != null && a.Longitude != null) : videos;
         }
 
-        var folders = await Videos([], years, locations, tags)
+        var folders = await Videos([], dates, locations, tags)
             .Where(a => a.FolderPath != null)
             .GroupBy(a => a.FolderPath!)
             .Select(a => new FacetCount<string>(a.Key, a.Count()))
             .ToListAsync();
 
-        var facetYears = await Videos(folderPaths, [], locations, tags)
+        // the years and the months are one filter, so both leave both out
+        var byDate = Videos(folderPaths, DateFilter.All, locations, tags);
+        var facetYears = await byDate
             .GroupBy(a => a.DateTimeTaken.Year)
             .Select(a => new FacetCount<int>(a.Key, a.Count()))
             .ToListAsync();
+        var facetMonths = await byDate
+            .GroupBy(a => a.DateTimeTaken.Year * 100 + a.DateTimeTaken.Month)
+            .Select(a => new FacetCount<int>(a.Key, a.Count()))
+            .ToListAsync();
 
-        var byLocation = Videos(folderPaths, years, LocationFilter.All, tags);
+        var byLocation = Videos(folderPaths, dates, LocationFilter.All, tags);
         var facetLocations = await byLocation
             .SelectMany(a => a.Locations.Select(l => l.LocationId))
             .GroupBy(a => a)
@@ -198,7 +204,7 @@ public class VideoService : IVideoService
             .ToListAsync();
         var unknownLocationCount = await byLocation.CountAsync(a => !a.Locations.Any());
 
-        var byTag = Videos(folderPaths, years, locations, TagFilter.All);
+        var byTag = Videos(folderPaths, dates, locations, TagFilter.All);
         var facetTags = await byTag
             .SelectMany(a => a.Tags.Select(t => t.TagId))
             .GroupBy(a => a)
@@ -206,13 +212,14 @@ public class VideoService : IVideoService
             .ToListAsync();
         var untaggedCount = await byTag.CountAsync(a => !a.Tags.Any());
 
-        return new VideoFacets(folders, facetYears, facetLocations, unknownLocationCount, facetTags, untaggedCount);
+        return new VideoFacets(folders, facetYears, facetLocations, unknownLocationCount, facetTags, untaggedCount,
+            facetMonths);
     }
 
     public Task<int> GetTotalCountByUserIdAsync(long userId, IReadOnlyCollection<string> folderPaths,
-        IReadOnlyCollection<int> years, LocationFilter locations, TagFilter tags)
+        DateFilter dates, LocationFilter locations, TagFilter tags)
     {
-        return GetUserVideos(userId, folderPaths, years, locations, tags).CountAsync();
+        return GetUserVideos(userId, folderPaths, dates, locations, tags).CountAsync();
     }
 
     /// <summary>
@@ -705,7 +712,7 @@ public class VideoService : IVideoService
     }
 
     private IQueryable<VideoEntity> GetUserVideos(long userId, IReadOnlyCollection<string> folderPaths,
-        IReadOnlyCollection<int> years, LocationFilter locations, TagFilter tags)
+        DateFilter dates, LocationFilter locations, TagFilter tags)
     {
         var videos = _context.Videos.Where(a => a.UserId == userId);
 
@@ -714,9 +721,13 @@ public class VideoService : IVideoService
             videos = videos.Where(a => a.FolderPath != null && folderPaths.Contains(a.FolderPath));
         }
 
-        if (years.Count > 0)
+        if (dates.FiltersByDate)
         {
-            videos = videos.Where(a => years.Contains(a.DateTimeTaken.Year));
+            var years = dates.Years.ToArray();
+            var months = dates.Months.ToArray();
+
+            videos = videos.Where(a => years.Contains(a.DateTimeTaken.Year) ||
+                                       months.Contains(a.DateTimeTaken.Year * 100 + a.DateTimeTaken.Month));
         }
 
         if (locations.FiltersByLocations)

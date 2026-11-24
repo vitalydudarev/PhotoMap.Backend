@@ -6,7 +6,8 @@ namespace PhotoMap.Api.Domain.Models;
 /// <see cref="PhotoCategory.Deleted"/> is asked for.
 /// </summary>
 /// <param name="PhotoSourceIds">The photo sources to take the photos from.</param>
-/// <param name="Years">The years, in UTC, the photos were taken in.</param>
+/// <param name="Years">The years, in UTC, the photos were taken in. With <paramref name="Months"/>, the photos taken in
+/// one of the years or in one of the months are taken.</param>
 /// <param name="Categories">The categories the photos are in, any of them. <see cref="PhotoCategory.Other"/> takes
 /// the photos in none of the categories, <see cref="PhotoCategory.Deleted"/> the photos marked as deleted.</param>
 /// <param name="HasGps">Whether the photos have a GPS location, or null for the photos with and without one.</param>
@@ -26,6 +27,9 @@ namespace PhotoMap.Api.Domain.Models;
 /// are when no location is given.</param>
 /// <param name="FolderPaths">The folders the photos are in, any of them, without the file names, such as
 /// <c>disk:/Camera Uploads</c>; the photos of every folder when not given.</param>
+/// <param name="Months">The months, in UTC, the photos were taken in, as the year times 100 plus the month, such as
+/// 201903 for March 2019; see <see cref="DateFilter.MonthKey"/>. With <paramref name="Years"/>, the photos taken in one
+/// of the years or in one of the months are taken.</param>
 public record PhotoFilter(
     IReadOnlyCollection<long> PhotoSourceIds,
     IReadOnlyCollection<int> Years,
@@ -37,7 +41,8 @@ public record PhotoFilter(
     GeoBox? Area = null,
     IReadOnlyCollection<long>? LocationIds = null,
     bool UnknownLocation = false,
-    IReadOnlyCollection<string>? FolderPaths = null)
+    IReadOnlyCollection<string>? FolderPaths = null,
+    IReadOnlyCollection<int>? Months = null)
 {
     public static PhotoFilter All { get; } = new([], [], []);
 
@@ -50,4 +55,9 @@ public record PhotoFilter(
     /// Whether the photos are narrowed down by the locations they were taken in.
     /// </summary>
     public bool FiltersByLocations => (LocationIds?.Count ?? 0) > 0 || UnknownLocation;
+
+    /// <summary>
+    /// The years and the months the photos are taken by.
+    /// </summary>
+    public DateFilter Dates => new(Years, Months ?? []);
 }
