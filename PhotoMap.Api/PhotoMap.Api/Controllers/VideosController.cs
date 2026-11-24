@@ -101,17 +101,20 @@ namespace PhotoMap.Api.Controllers
         /// <param name="location">The IDs of the locations the videos were taken in, any of them.</param>
         /// <param name="unknownLocation">Whether the videos in no location are taken, along with the ones of
         /// <c>location</c>.</param>
+        /// <param name="gps">Whether only the videos with a GPS location are counted, as a map shows them; all of them
+        /// when not given.</param>
         [HttpGet("api/users/{userId:long}/videos/facets")]
         [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(VideoFacets))]
         public async Task<IActionResult> GetUserVideoFacets([FromRoute] long userId,
             [FromQuery] string[]? folder = null,
             [FromQuery] int[]? year = null,
             [FromQuery] long[]? location = null,
-            [FromQuery] bool unknownLocation = false)
+            [FromQuery] bool unknownLocation = false,
+            [FromQuery] bool gps = false)
         {
             var locations = new LocationFilter(location ?? [], unknownLocation);
 
-            return Ok(await _videoService.GetFacetsAsync(userId, folder ?? [], year ?? [], locations));
+            return Ok(await _videoService.GetFacetsAsync(userId, folder ?? [], year ?? [], locations, gps));
         }
 
         /// <summary>

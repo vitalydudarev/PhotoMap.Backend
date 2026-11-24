@@ -127,18 +127,18 @@ public class VideosControllerTests
         // Arrange
         var facets = new VideoFacets([new("disk:/Videos", 3)], [new(2019, 3)], [new(12, 1)], 2);
         _videoService.Setup(a => a.GetFacetsAsync(UserId, It.IsAny<IReadOnlyCollection<string>>(),
-            It.IsAny<IReadOnlyCollection<int>>(), It.IsAny<LocationFilter>())).ReturnsAsync(facets);
+            It.IsAny<IReadOnlyCollection<int>>(), It.IsAny<LocationFilter>(), It.IsAny<bool>())).ReturnsAsync(facets);
         var controller = CreateController();
 
         // Act
-        var result = await controller.GetUserVideoFacets(UserId, ["disk:/Videos"], [2019], [12], true);
+        var result = await controller.GetUserVideoFacets(UserId, ["disk:/Videos"], [2019], [12], true, true);
 
         // Assert
         Assert.Same(facets, Assert.IsType<OkObjectResult>(result).Value);
         _videoService.Verify(a => a.GetFacetsAsync(UserId,
             It.Is<IReadOnlyCollection<string>>(f => f.SequenceEqual(new[] { "disk:/Videos" })),
             It.Is<IReadOnlyCollection<int>>(y => y.SequenceEqual(new[] { 2019 })),
-            It.Is<LocationFilter>(l => l.LocationIds.SequenceEqual(new long[] { 12 }) && l.UnknownLocation)));
+            It.Is<LocationFilter>(l => l.LocationIds.SequenceEqual(new long[] { 12 }) && l.UnknownLocation), true));
     }
 
     private VideosController CreateController()

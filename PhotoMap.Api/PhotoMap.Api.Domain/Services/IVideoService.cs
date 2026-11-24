@@ -23,8 +23,9 @@ public interface IVideoService
     /// What the videos the filter takes can still be narrowed down to, see <see cref="VideoFacets"/>. The filter is
     /// that of <see cref="GetByUserIdAsync"/>.
     /// </summary>
+    /// <param name="withGps">Whether only the videos with a GPS location are counted, as a map shows them.</param>
     Task<VideoFacets> GetFacetsAsync(long userId, IReadOnlyCollection<string> folderPaths,
-        IReadOnlyCollection<int> years, LocationFilter locations);
+        IReadOnlyCollection<int> years, LocationFilter locations, bool withGps = false);
 
     Task<int> GetTotalCountByUserIdAsync(long userId, IReadOnlyCollection<string> folderPaths,
         IReadOnlyCollection<int> years, LocationFilter locations);

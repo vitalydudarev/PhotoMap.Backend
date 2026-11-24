@@ -116,20 +116,28 @@ public class VideoService : IVideoService
     /// for each filter, which leaves that filter out.
     /// </summary>
     public async Task<VideoFacets> GetFacetsAsync(long userId, IReadOnlyCollection<string> folderPaths,
-        IReadOnlyCollection<int> years, LocationFilter locations)
+        IReadOnlyCollection<int> years, LocationFilter locations, bool withGps = false)
     {
-        var folders = await GetUserVideos(userId, [], years, locations)
+        IQueryable<VideoEntity> Videos(IReadOnlyCollection<string> folderPaths, IReadOnlyCollection<int> years,
+            LocationFilter locations)
+        {
+            var videos = GetUserVideos(userId, folderPaths, years, locations);
+
+            return withGps ? videos.Where(a => a.Latitude != null && a.Longitude != null) : videos;
+        }
+
+        var folders = await Videos([], years, locations)
             .Where(a => a.FolderPath != null)
             .GroupBy(a => a.FolderPath!)
             .Select(a => new FacetCount<string>(a.Key, a.Count()))
             .ToListAsync();
 
-        var facetYears = await GetUserVideos(userId, folderPaths, [], locations)
+        var facetYears = await Videos(folderPaths, [], locations)
             .GroupBy(a => a.DateTimeTaken.Year)
             .Select(a => new FacetCount<int>(a.Key, a.Count()))
             .ToListAsync();
 
-        var byLocation = GetUserVideos(userId, folderPaths, years, LocationFilter.All);
+        var byLocation = Videos(folderPaths, years, LocationFilter.All);
         var facetLocations = await byLocation
             .SelectMany(a => a.Locations.Select(l => l.LocationId))
             .GroupBy(a => a)
