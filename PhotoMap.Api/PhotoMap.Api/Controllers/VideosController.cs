@@ -198,6 +198,66 @@ namespace PhotoMap.Api.Controllers
         }
 
         /// <summary>
+        /// Adds tags to several videos of the user at once, keeping the tags they have; the tags are those of the
+        /// photos too. The names are cleaned as by <c>PUT videos/{videoId}/tags</c>, and a name the user has a tag of,
+        /// whatever its case, takes that tag; the other names make new tags. The videos are all given the tags, or none
+        /// of them is.
+        /// </summary>
+        /// <param name="userId">The ID of the user.</param>
+        /// <param name="request">The IDs of the videos, 1 to 1000 of them, and the names of the tags, one at least.</param>
+        /// <returns>The tags of each video once they were added.</returns>
+        [HttpPost("api/users/{userId:long}/videos/tags")]
+        [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(VideoTagsDto[]))]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> AddVideoTags([FromRoute] long userId, [FromBody] AddVideoTagsDto request)
+        {
+            var videoIds = (request.VideoIds ?? []).Distinct().ToArray();
+            var cleanNames = (request.Tags ?? []).Select(a => TagNames.Clean(a ?? "")).Where(a => a.Length > 0)
+                .ToArray();
+
+            if (videoIds.Length is 0 or > MaxPageSize)
+            {
+                ModelState.AddModelError(nameof(request.VideoIds), $"Give 1 to {MaxPageSize} videos.");
+            }
+
+            if (cleanNames.Length == 0)
+            {
+                ModelState.AddModelError(nameof(request.Tags), "Give a tag at least.");
+            }
+            else if (cleanNames.Any(a => a.Length > TagNames.MaxLength))
+            {
+                ModelState.AddModelError(nameof(request.Tags), $"A tag is {TagNames.MaxLength} characters long at most.");
+            }
+            else if (cleanNames.DistinctBy(TagNames.Normalize).Count() > TagNames.MaxPerPhoto)
+            {
+                ModelState.AddModelError(nameof(request.Tags), $"A video has {TagNames.MaxPerPhoto} tags at most.");
+            }
+
+            if (!ModelState.IsValid)
+            {
+                return ValidationProblem(ModelState);
+            }
+
+            var added = await _videoService.AddTagsAsync(userId, videoIds, cleanNames);
+
+            switch (added.Outcome)
+            {
+                case AddedTagsOutcome.PhotoNotFound:
+                    return NotFound();
+                case AddedTagsOutcome.TooManyTags:
+                    ModelState.AddModelError(nameof(request.Tags),
+                        $"A video has {TagNames.MaxPerPhoto} tags at most, and some of the videos would have more.");
+
+                    return ValidationProblem(ModelState);
+                default:
+                    return Ok(added.PhotoTags
+                        .Select(a => new VideoTagsDto { VideoId = a.Key, Tags = a.Value.ToArray() })
+                        .ToArray());
+            }
+        }
+
+        /// <summary>
         /// The videos of the user that are copies of one another, of the same size and file name, by their groups,
         /// the groups of the largest videos first. The groups are looked for in the background, a video saved
         /// only a moment ago may not be in one yet.

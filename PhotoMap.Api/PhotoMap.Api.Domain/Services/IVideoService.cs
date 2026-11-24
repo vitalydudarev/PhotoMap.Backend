@@ -49,6 +49,13 @@ public interface IVideoService
     Task<IReadOnlyList<string>?> SetTagsAsync(long userId, long videoId, IEnumerable<string> names);
 
     /// <summary>
+    /// Adds tags to videos of the user, keeping the tags they have. The names are cleaned as by
+    /// <see cref="SetTagsAsync"/>, and a video given a tag it has keeps it once. The videos are all given the tags, or
+    /// none of them is: see <see cref="AddedTags"/>, whose photos are videos here.
+    /// </summary>
+    Task<AddedTags> AddTagsAsync(long userId, IEnumerable<long> videoIds, IEnumerable<string> names);
+
+    /// <summary>
     /// The locations the videos of the user were taken in, by level, from the countries down, and by name, with how
     /// many videos were taken in each. A video is in a location once it is geocoded.
     /// </summary>

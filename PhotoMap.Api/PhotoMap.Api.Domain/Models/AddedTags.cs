@@ -1,7 +1,7 @@
 namespace PhotoMap.Api.Domain.Models;
 
 /// <summary>
-/// What came of adding tags to several photos of a user at once.
+/// What came of adding tags to several photos, or several videos, of a user at once.
 /// </summary>
 public record AddedTags
 {
@@ -14,8 +14,8 @@ public record AddedTags
     public AddedTagsOutcome Outcome { get; }
 
     /// <summary>
-    /// The names of the tags of each photo once they were added, by name, by the ID of the photo. Empty unless the
-    /// tags were added.
+    /// The names of the tags of each photo, or video, once they were added, by name, by its ID. Empty unless the tags
+    /// were added.
     /// </summary>
     public IReadOnlyDictionary<long, IReadOnlyList<string>> PhotoTags { get; }
 
@@ -32,17 +32,17 @@ public record AddedTags
 public enum AddedTagsOutcome
 {
     /// <summary>
-    /// Every photo has the tags now.
+    /// Every photo, or video, has the tags now.
     /// </summary>
     Added,
 
     /// <summary>
-    /// The user has no photo of one of the IDs; no photo was given the tags.
+    /// The user has no photo, or video, of one of the IDs; none was given the tags.
     /// </summary>
     PhotoNotFound,
 
     /// <summary>
-    /// A photo would have more than <see cref="TagNames.MaxPerPhoto"/> tags; no photo was given the tags.
+    /// A photo, or video, would have more than <see cref="TagNames.MaxPerPhoto"/> tags; none was given the tags.
     /// </summary>
     TooManyTags
 }

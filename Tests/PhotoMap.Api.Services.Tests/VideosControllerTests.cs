@@ -253,6 +253,76 @@ public class VideosControllerTests
         Assert.Equal(["Paris"], videos[0].Tags);
     }
 
+    [Fact]
+    public async Task AddVideoTags_ShouldGiveTheTagsOfEachVideo()
+    {
+        // Arrange
+        _videoService.Setup(a => a.AddTagsAsync(UserId, It.Is<IEnumerable<long>>(ids => ids.SequenceEqual(new long[] { 5, 7 })),
+                It.Is<IEnumerable<string>>(n => n.SequenceEqual(new[] { "Paris" }))))
+            .ReturnsAsync(AddedTags.Added(new Dictionary<long, IReadOnlyList<string>>
+            {
+                [5] = ["Paris"],
+                [7] = ["Family", "Paris"]
+            }));
+        var controller = CreateController();
+
+        // Act
+        var result = await controller.AddVideoTags(UserId,
+            new AddVideoTagsDto { VideoIds = [5, 7, 5], Tags = ["  Paris ", " "] });
+
+        // Assert
+        var videos = Assert.IsType<VideoTagsDto[]>(Assert.IsType<OkObjectResult>(result).Value);
+        Assert.Equal([(5L, "Paris"), (7L, "Family,Paris")],
+            videos.Select(a => (a.VideoId, string.Join(",", a.Tags))).OrderBy(a => a.VideoId).ToArray());
+    }
+
+    [Fact]
+    public async Task AddVideoTags_ShouldGiveNotFound_WhenTheUserHasNoSuchVideo()
+    {
+        // Arrange
+        _videoService.Setup(a => a.AddTagsAsync(UserId, It.IsAny<IEnumerable<long>>(), It.IsAny<IEnumerable<string>>()))
+            .ReturnsAsync(AddedTags.PhotoNotFound);
+        var controller = CreateController();
+
+        // Act
+        var result = await controller.AddVideoTags(UserId, new AddVideoTagsDto { VideoIds = [5], Tags = ["Paris"] });
+
+        // Assert
+        Assert.IsType<NotFoundResult>(result);
+    }
+
+    [Fact]
+    public async Task AddVideoTags_ShouldGiveBadRequest_WhenAVideoWouldHaveTooManyTags()
+    {
+        // Arrange
+        _videoService.Setup(a => a.AddTagsAsync(UserId, It.IsAny<IEnumerable<long>>(), It.IsAny<IEnumerable<string>>()))
+            .ReturnsAsync(AddedTags.TooManyTags);
+        var controller = CreateController();
+
+        // Act
+        var result = await controller.AddVideoTags(UserId, new AddVideoTagsDto { VideoIds = [5], Tags = ["Paris"] });
+
+        // Assert
+        Assert.IsType<ObjectResult>(result);
+    }
+
+    [Theory]
+    [InlineData(new long[0], new[] { "Paris" })]
+    [InlineData(new long[] { 5 }, new[] { " " })]
+    public async Task AddVideoTags_ShouldGiveBadRequest_WithNoVideoOrNoTag(long[] videoIds, string[] tags)
+    {
+        // Arrange
+        var controller = CreateController();
+
+        // Act
+        var result = await controller.AddVideoTags(UserId, new AddVideoTagsDto { VideoIds = videoIds, Tags = tags });
+
+        // Assert
+        Assert.IsType<ObjectResult>(result);
+        _videoService.Verify(a => a.AddTagsAsync(It.IsAny<long>(), It.IsAny<IEnumerable<long>>(),
+            It.IsAny<IEnumerable<string>>()), Times.Never);
+    }
+
     private VideosController CreateController()
     {
         var hostInfo = new HostInfo { Scheme = "https", Host = new HostString("localhost", 5001) };

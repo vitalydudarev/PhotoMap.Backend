@@ -557,6 +557,72 @@ public class VideoService : IVideoService
         return entities.Count;
     }
 
+    /// <summary>
+    /// Adds tags to videos of the user, in one go: the new tags are made, and the videos given them, or nothing is.
+    /// </summary>
+    public async Task<AddedTags> AddTagsAsync(long userId, IEnumerable<long> videoIds, IEnumerable<string> names)
+    {
+        var ids = videoIds.Distinct().ToList();
+        var cleanNames = names
+            .Select(TagNames.Clean)
+            .Where(a => a.Length > 0)
+            .DistinctBy(TagNames.Normalize)
+            .ToList();
+
+        var found = await _context.Videos.CountAsync(a => a.UserId == userId && ids.Contains(a.Id));
+        if (found != ids.Count)
+        {
+            return AddedTags.PhotoNotFound;
+        }
+
+        var normalizedNames = cleanNames.Select(TagNames.Normalize).ToArray();
+
+        await using var transaction = await _context.Database.BeginTransactionAsync();
+
+        var tags = await _context.Tags
+            .Where(a => a.UserId == userId && normalizedNames.Contains(a.NormalizedName))
+            .ToListAsync();
+
+        var newTags = cleanNames
+            .Where(name => tags.All(tag => tag.NormalizedName != TagNames.Normalize(name)))
+            .Select(name => new TagEntity { UserId = userId, Name = name, NormalizedName = TagNames.Normalize(name) })
+            .ToList();
+
+        var videoTags = await _context.VideoTags
+            .Where(a => ids.Contains(a.VideoId))
+            .Select(a => new { a.VideoId, a.TagId })
+            .ToListAsync();
+        var tagIdsByVideo = ids.ToDictionary(id => id,
+            id => videoTags.Where(a => a.VideoId == id).Select(a => a.TagId).ToHashSet());
+        var existingTagIds = tags.Select(a => a.Id).ToList();
+
+        // the new tags are on no video yet, so each of them is one more on every video
+        if (tagIdsByVideo.Values.Any(tagIds => tagIds.Union(existingTagIds).Count() + newTags.Count > TagNames.MaxPerPhoto))
+        {
+            return AddedTags.TooManyTags;
+        }
+
+        await _context.Tags.AddRangeAsync(newTags);
+        await _context.SaveChangesAsync();
+        tags.AddRange(newTags);
+
+        await _context.VideoTags.AddRangeAsync(tagIdsByVideo.SelectMany(video => tags
+            .Where(tag => !video.Value.Contains(tag.Id))
+            .Select(tag => new VideoTagEntity { VideoId = video.Key, TagId = tag.Id })));
+        await _context.SaveChangesAsync();
+
+        await transaction.CommitAsync();
+
+        var videoNames = await _context.Videos
+            .AsNoTracking()
+            .Where(a => ids.Contains(a.Id))
+            .Select(a => new { a.Id, Names = a.Tags.Select(b => b.Tag!.Name).ToList() })
+            .ToListAsync();
+
+        return AddedTags.Added(videoNames.ToDictionary(a => a.Id,
+            a => (IReadOnlyList<string>)a.Names.OrderBy(b => b, StringComparer.CurrentCultureIgnoreCase).ToList()));
+    }
+
     private IQueryable<VideoEntity> GetUserVideos(long userId, IReadOnlyCollection<string> folderPaths,
         IReadOnlyCollection<int> years, LocationFilter locations, TagFilter tags)
     {
