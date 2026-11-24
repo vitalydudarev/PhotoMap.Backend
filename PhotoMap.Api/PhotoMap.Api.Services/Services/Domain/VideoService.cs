@@ -112,6 +112,36 @@ public class VideoService : IVideoService
     }
 
     /// <summary>
+    /// The videos the filter takes that have a GPS location, every one of them, for a map; the EXIF is left in the
+    /// database, as there may be many of them.
+    /// </summary>
+    public async Task<IReadOnlyList<Video>> GetGeotaggedAsync(long userId, IReadOnlyCollection<string> folderPaths,
+        IReadOnlyCollection<int> years, LocationFilter locations)
+    {
+        return await GetUserVideos(userId, folderPaths, years, locations)
+            .AsNoTracking()
+            .Where(a => a.Latitude != null && a.Longitude != null)
+            .OrderBy(a => a.DateTimeTaken)
+            .ThenBy(a => a.Id)
+            .Select(a => new Video
+            {
+                Id = a.Id,
+                UserId = a.UserId,
+                PhotoSourceId = a.PhotoSourceId,
+                ExternalId = a.ExternalId,
+                FileName = a.FileName,
+                FolderPath = a.FolderPath,
+                MimeType = a.MimeType,
+                Size = a.Size,
+                DateTimeTaken = a.DateTimeTaken,
+                ExifDateTime = a.ExifDateTime,
+                Latitude = a.Latitude,
+                Longitude = a.Longitude
+            })
+            .ToListAsync();
+    }
+
+    /// <summary>
     /// What the videos the filter takes can still be narrowed down to, with how many videos each option takes: a query
     /// for each filter, which leaves that filter out.
     /// </summary>

@@ -141,6 +141,30 @@ public class VideosControllerTests
             It.Is<LocationFilter>(l => l.LocationIds.SequenceEqual(new long[] { 12 }) && l.UnknownLocation), true));
     }
 
+    [Fact]
+    public async Task GetUserGeotaggedVideos_ShouldGiveEveryVideoWithAGpsLocationTheFilterTakes()
+    {
+        // Arrange
+        _videoService.Setup(a => a.GetGeotaggedAsync(UserId,
+                It.Is<IReadOnlyCollection<string>>(f => f.SequenceEqual(new[] { "disk:/Videos" })),
+                It.Is<IReadOnlyCollection<int>>(y => y.SequenceEqual(new[] { 2019 })),
+                It.Is<LocationFilter>(l => l.LocationIds.SequenceEqual(new long[] { 12 }) && !l.UnknownLocation)))
+            .ReturnsAsync([new Video
+            {
+                Id = 7, UserId = UserId, PhotoSourceId = 2, ExternalId = "7", FileName = "trip.mp4", Latitude = 53.9,
+                Longitude = 27.56
+            }]);
+        var controller = CreateController();
+
+        // Act
+        var result = await controller.GetUserGeotaggedVideos(UserId, ["disk:/Videos"], [2019], [12]);
+
+        // Assert
+        var videos = Assert.IsType<VideoDto[]>(Assert.IsType<OkObjectResult>(result).Value);
+        Assert.Equal(7, Assert.Single(videos).Id);
+        Assert.Equal(53.9, videos[0].Latitude);
+    }
+
     private VideosController CreateController()
     {
         var hostInfo = new HostInfo { Scheme = "https", Host = new HostString("localhost", 5001) };

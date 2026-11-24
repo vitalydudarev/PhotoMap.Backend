@@ -90,6 +90,30 @@ namespace PhotoMap.Api.Controllers
         }
 
         /// <summary>
+        /// The videos of the user with a GPS location that the filter takes, every one of them, oldest first, for a
+        /// map, which clusters them, so it has no pages. The filter is the one of <c>videos</c>, see there.
+        /// </summary>
+        /// <param name="userId">The ID of the user.</param>
+        /// <param name="folder">The folders the videos are in, without the file name, any of them.</param>
+        /// <param name="year">The years, in UTC, the videos were taken in; all of them when not given.</param>
+        /// <param name="location">The IDs of the locations the videos were taken in, any of them.</param>
+        /// <param name="unknownLocation">Whether the videos in no location are taken, along with the ones of
+        /// <c>location</c>.</param>
+        [HttpGet("api/users/{userId:long}/videos/geotagged")]
+        [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(VideoDto[]))]
+        public async Task<IActionResult> GetUserGeotaggedVideos([FromRoute] long userId,
+            [FromQuery] string[]? folder = null,
+            [FromQuery] int[]? year = null,
+            [FromQuery] long[]? location = null,
+            [FromQuery] bool unknownLocation = false)
+        {
+            var locations = new LocationFilter(location ?? [], unknownLocation);
+            var videos = await _videoService.GetGeotaggedAsync(userId, folder ?? [], year ?? [], locations);
+
+            return Ok(videos.Select(ToDto).ToArray());
+        }
+
+        /// <summary>
         /// What the videos the filter takes can still be narrowed down to, for each of its filters: the values of the
         /// videos the filter takes once that filter itself is left out, such as the years of the videos of the folders
         /// picked, so that the options of each filter are those that take some video.
