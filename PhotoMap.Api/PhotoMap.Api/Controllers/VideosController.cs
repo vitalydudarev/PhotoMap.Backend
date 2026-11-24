@@ -258,6 +258,29 @@ namespace PhotoMap.Api.Controllers
         }
 
         /// <summary>
+        /// Suggests tags for a video of the user: those of the photos and the videos taken within a week of it or
+        /// within 5 km, the nearer the better, as the tags are the same for both, and the year and the season it was
+        /// taken in. The tags the video has are left out.
+        /// </summary>
+        /// <param name="userId">The ID of the user.</param>
+        /// <param name="videoId">The ID of the video.</param>
+        [HttpGet("api/users/{userId:long}/videos/{videoId:long}/tags/suggestions")]
+        [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(TagSuggestionDto[]))]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> GetVideoTagSuggestions([FromRoute] long userId, [FromRoute] long videoId)
+        {
+            var suggestions = await _videoService.SuggestTagsAsync(userId, videoId);
+            if (suggestions == null)
+            {
+                return NotFound();
+            }
+
+            return Ok(suggestions
+                .Select(a => new TagSuggestionDto { Name = a.Name, ByDate = a.ByDate, ByLocation = a.ByLocation })
+                .ToArray());
+        }
+
+        /// <summary>
         /// The videos of the user that are copies of one another, of the same size and file name, by their groups,
         /// the groups of the largest videos first. The groups are looked for in the background, a video saved
         /// only a moment ago may not be in one yet.

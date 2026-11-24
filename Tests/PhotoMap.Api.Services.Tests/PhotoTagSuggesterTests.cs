@@ -194,6 +194,67 @@ public class PhotoTagSuggesterTests
         return suggestions.Select(a => a.Name).Where(a => a != "2019" && a != "Summer 2019");
     }
 
+    [Fact]
+    public void Suggest_ShouldSuggestForAVideo_TheTagsOfThePhotosAndTheVideosTakenAroundIt()
+    {
+        // Arrange
+        var video = CreateVideo(Taken, Latitude, Longitude, ["Family"]);
+        TaggedPhoto[] tagged =
+        [
+            // a photo of the same ID as the video is another one, whose tags are suggested
+            new(1, Taken.AddHours(1), null, null, ["Beach"]),
+            new(2, Taken.AddDays(3), OneKilometerNorth, Longitude, ["Minsk"], IsVideo: true),
+            // the video itself, whose tags are not suggested
+            new(1, Taken, Latitude, Longitude, ["Family", "Old tag"], IsVideo: true)
+        ];
+
+        // Act
+        var suggestions = PhotoTagSuggester.Suggest(video, tagged);
+
+        // Assert
+        Assert.Equal(["Beach", "Minsk"], NeighborTags(suggestions));
+        Assert.True(suggestions.Single(a => a.Name == "Minsk").ByLocation);
+    }
+
+    [Fact]
+    public void GetNeighborhood_ShouldTakeABoxAroundTheVideo_WhenItHasALocation()
+    {
+        // Act
+        var neighborhood = PhotoTagSuggester.GetNeighborhood(CreateVideo(Taken, Latitude, Longitude));
+
+        // Assert
+        Assert.Equal(Taken.AddDays(-7), neighborhood.From);
+        Assert.NotNull(neighborhood.Box);
+        Assert.Null(PhotoTagSuggester.GetNeighborhood(CreateVideo(Taken)).Box);
+    }
+
+    [Fact]
+    public void Suggest_ShouldSuggestTheSeasonsOfTheSouth_ForAVideoTakenThere()
+    {
+        // Act: July is winter in Buenos Aires
+        var suggestions = PhotoTagSuggester.Suggest(CreateVideo(Taken, -34.6, -58.4), []);
+
+        // Assert
+        Assert.Equal(["2019", "Winter 2019"], suggestions.Select(a => a.Name));
+    }
+
+    private static Video CreateVideo(DateTimeOffset taken, double? latitude = null, double? longitude = null,
+        IReadOnlyList<string>? tags = null)
+    {
+        return new Video
+        {
+            Id = 1,
+            UserId = 1,
+            PhotoSourceId = 1,
+            ExternalId = "1",
+            FileName = "video.mp4",
+            DateTimeTaken = taken,
+            Latitude = latitude,
+            Longitude = longitude,
+            Tags = tags ?? []
+        };
+    }
+
     private static Photo CreatePhoto(DateTimeOffset taken, double? latitude = null, double? longitude = null)
     {
         return new Photo

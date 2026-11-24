@@ -56,6 +56,14 @@ public interface IVideoService
     Task<AddedTags> AddTagsAsync(long userId, IEnumerable<long> videoIds, IEnumerable<string> names);
 
     /// <summary>
+    /// Suggests tags for a video of the user by when and where it was taken, by the tags of the photos and the videos
+    /// taken around the same time and place, see <c>PhotoTagSuggester</c>.
+    /// </summary>
+    /// <returns>The tags suggested, the likeliest first, but the ones the video has; null when the user has no such
+    /// video.</returns>
+    Task<IReadOnlyList<TagSuggestion>?> SuggestTagsAsync(long userId, long videoId);
+
+    /// <summary>
     /// The locations the videos of the user were taken in, by level, from the countries down, and by name, with how
     /// many videos were taken in each. A video is in a location once it is geocoded.
     /// </summary>

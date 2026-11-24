@@ -323,6 +323,37 @@ public class VideosControllerTests
             It.IsAny<IEnumerable<string>>()), Times.Never);
     }
 
+    [Fact]
+    public async Task GetVideoTagSuggestions_ShouldGiveTheTagsSuggestedForTheVideo()
+    {
+        // Arrange
+        _videoService.Setup(a => a.SuggestTagsAsync(UserId, 7))
+            .ReturnsAsync([new TagSuggestion("Minsk", false, true), new TagSuggestion("2019", true, false)]);
+        var controller = CreateController();
+
+        // Act
+        var result = await controller.GetVideoTagSuggestions(UserId, 7);
+
+        // Assert
+        var suggestions = Assert.IsType<TagSuggestionDto[]>(Assert.IsType<OkObjectResult>(result).Value);
+        Assert.Equal([("Minsk", false, true), ("2019", true, false)],
+            suggestions.Select(a => (a.Name, a.ByDate, a.ByLocation)).ToArray());
+    }
+
+    [Fact]
+    public async Task GetVideoTagSuggestions_ShouldGiveNotFound_WhenTheUserHasNoSuchVideo()
+    {
+        // Arrange
+        _videoService.Setup(a => a.SuggestTagsAsync(UserId, 7)).ReturnsAsync((IReadOnlyList<TagSuggestion>?)null);
+        var controller = CreateController();
+
+        // Act
+        var result = await controller.GetVideoTagSuggestions(UserId, 7);
+
+        // Assert
+        Assert.IsType<NotFoundResult>(result);
+    }
+
     private VideosController CreateController()
     {
         var hostInfo = new HostInfo { Scheme = "https", Host = new HostString("localhost", 5001) };

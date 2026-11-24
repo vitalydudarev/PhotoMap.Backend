@@ -3,6 +3,7 @@ using PhotoMap.Api.Database;
 using PhotoMap.Api.Database.Entities;
 using PhotoMap.Api.Database.Repositories;
 using PhotoMap.Api.Domain.Models;
+using PhotoMap.Api.Domain.Repositories;
 using PhotoMap.Api.Domain.Services;
 
 namespace PhotoMap.Api.Services.Services.Domain;
@@ -12,13 +13,20 @@ public class VideoService : IVideoService
     private readonly PhotoMapContext _context;
     private readonly VideoDuplicatesSignal _duplicatesSignal;
     private readonly GeocodingSignal _geocodingSignal;
+    private readonly IPhotoRepository _photoRepository;
+
+    /// <summary>
+    /// The most photos, and the most videos, with tags around a video that its tags are suggested by.
+    /// </summary>
+    private const int TaggedToSuggestBy = 500;
 
     public VideoService(PhotoMapContext context, VideoDuplicatesSignal duplicatesSignal,
-        GeocodingSignal geocodingSignal)
+        GeocodingSignal geocodingSignal, IPhotoRepository photoRepository)
     {
         _context = context;
         _duplicatesSignal = duplicatesSignal;
         _geocodingSignal = geocodingSignal;
+        _photoRepository = photoRepository;
     }
 
     /// <summary>
@@ -555,6 +563,79 @@ public class VideoService : IVideoService
         await _context.SaveChangesAsync();
 
         return entities.Count;
+    }
+
+    /// <summary>
+    /// Suggests tags for a video of the user by when and where it was taken, see <see cref="PhotoTagSuggester"/>: by
+    /// the tags of the photos and of the other videos taken around the same time and place, as the tags are the same
+    /// for both.
+    /// </summary>
+    public async Task<IReadOnlyList<TagSuggestion>?> SuggestTagsAsync(long userId, long videoId)
+    {
+        var entity = await _context.Videos
+            .AsNoTracking()
+            .Include(a => a.Tags)
+            .ThenInclude(a => a.Tag)
+            .FirstOrDefaultAsync(a => a.UserId == userId && a.Id == videoId);
+
+        if (entity == null)
+        {
+            return null;
+        }
+
+        var video = ToModel(entity);
+        var neighborhood = PhotoTagSuggester.GetNeighborhood(video);
+
+        var taggedPhotos = await _photoRepository.GetTaggedPhotosAsync(userId, neighborhood, TaggedToSuggestBy);
+        var taggedVideos = await GetTaggedVideosAsync(userId, neighborhood, TaggedToSuggestBy);
+
+        return PhotoTagSuggester.Suggest(video, [..taggedPhotos, ..taggedVideos]);
+    }
+
+    /// <summary>
+    /// The videos of the user with tags taken within the time of the neighborhood, and those taken within its box, the
+    /// nearest first, <paramref name="top"/> of each at most, as the photos are looked for.
+    /// </summary>
+    private async Task<IReadOnlyList<TaggedPhoto>> GetTaggedVideosAsync(long userId, PhotoNeighborhood neighborhood,
+        int top)
+    {
+        var from = neighborhood.From;
+        var to = neighborhood.To;
+        var tagged = _context.Videos
+            .AsNoTracking()
+            .Where(a => a.UserId == userId && a.Tags.Any());
+
+        var videos = await ToTaggedVideos(tagged
+                .Where(a => a.DateTimeTaken >= from && a.DateTimeTaken <= to)
+                .OrderBy(a => a.Id)
+                .Take(top))
+            .ToListAsync();
+
+        if (neighborhood.Box is { } box)
+        {
+            var latitude = (box.MinLatitude + box.MaxLatitude) / 2;
+            var longitude = (box.MinLongitude + box.MaxLongitude) / 2;
+
+            // a place visited again and again would otherwise bring every video ever taken there
+            var nearby = await ToTaggedVideos(tagged
+                    .Where(a => a.Latitude != null && a.Longitude != null &&
+                                a.Latitude >= box.MinLatitude && a.Latitude <= box.MaxLatitude &&
+                                a.Longitude >= box.MinLongitude && a.Longitude <= box.MaxLongitude)
+                    .OrderBy(a => (a.Latitude!.Value - latitude) * (a.Latitude!.Value - latitude) +
+                                  (a.Longitude!.Value - longitude) * (a.Longitude!.Value - longitude))
+                    .Take(top))
+                .ToListAsync();
+
+            videos.AddRange(nearby.Where(a => videos.All(b => b.Id != a.Id)));
+        }
+
+        return videos;
+    }
+
+    private static IQueryable<TaggedPhoto> ToTaggedVideos(IQueryable<VideoEntity> videos)
+    {
+        return videos.Select(a => new TaggedPhoto(a.Id, a.DateTimeTaken, a.Latitude, a.Longitude,
+            a.Tags.Select(b => b.Tag!.Name).ToList(), true));
     }
 
     /// <summary>
